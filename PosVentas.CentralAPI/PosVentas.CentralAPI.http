@@ -1,0 +1,6 @@
+@PosVentas.CentralAPI_HostAddress = http://localhost:5137
+
+GET {{PosVentas.CentralAPI_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
