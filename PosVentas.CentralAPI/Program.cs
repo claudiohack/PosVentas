@@ -1,41 +1,51 @@
+using FluentValidation;
+using MediatR;
+using PosVentas.Application.Common.Behaviors;
+using PosVentas.Application.Features.Productos.Commands;
+using PosVentas.CentralAPI.Endpoints;
+using PosVentas.CentralAPI.Middlewares;
+using PosVentas.Infrastructure;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+// 1. Registro de Servicios de Infraestructura Central
+builder.Services.AddCentralInfrastructure(builder.Configuration);
+
+// Registro automático de MediatR y el Pipeline de Validación de la capa Application
+builder.Services.AddMediatR(cfg => {
+    cfg.RegisterServicesFromAssembly(typeof(CrearProductoCommand).Assembly);
+    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
+});
+
+// Registro de todos los validadores de FluentValidation
+builder.Services.AddValidatorsFromAssembly(typeof(CrearProductoCommand).Assembly);
+
+// Middleware global contra errores
+builder.Services.AddScoped<GlobalExceptionMiddleware>();
+
+//builder.Services.AddEndpointsApiExplorer();
+//builder.Services.AddSwaggerGen();
+// Reemplazá builder.Services.AddEndpointsApiExplorer(); y AddSwaggerGen(); por:
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// 2. HTTP Pipeline
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    //app.UseSwagger();
+    //app.UseSwaggerUI();
+    // Reemplazá app.UseSwagger(); y app.UseSwaggerUI(); por:
+    if (app.Environment.IsDevelopment())
+    {
+        app.MapOpenApi(); // Esto genera el JSON de especificación nativo
+    }
 }
 
+app.UseMiddleware<GlobalExceptionMiddleware>();
 app.UseHttpsRedirection();
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
-
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast = Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast");
+// 3. Mapeo de Endpoints
+app.MapProductoEndpoints();
 
 app.Run();
-
-internal record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
