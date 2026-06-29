@@ -36,5 +36,30 @@
                            FontSize="11" HorizontalAlignment="Center" VerticalAlignment="Center"/>
             </Grid>
         </Border>
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="60"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <Border Grid.Row="0" Background="White" Margin="15,10,15,5" CornerRadius="8">
+                <Grid Margin="15,0">
+                    <TextBlock Text="📌 Tablero Principal" VerticalAlignment="Center" FontSize="16" FontWeight="SemiBold" Foreground="#333333"/>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <TextBlock Text="Usuario Activo: " Foreground="#7F8C8D"/>
+                        <TextBlock Text="Claudio" FontWeight="Bold" Foreground="#2C3E50"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <ContentControl Name="MainContentArea" Grid.Row="1" Margin="15,5,15,15">
+                <Grid Background="White">
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <TextBlock Text="¡Bienvenido al Sistema PosVentas HS!" FontSize="24" FontWeight="Bold" Foreground="#2C3E50" HorizontalAlignment="Center"/>
+                        <TextBlock Text="Seleccioná un módulo de la barra lateral para empezar a operar." FontSize="14" Foreground="#7F8C8D" Margin="0,10,0,0" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </Grid>
+            </ContentControl>
+        </Grid>
     </Grid>
 </Window>
