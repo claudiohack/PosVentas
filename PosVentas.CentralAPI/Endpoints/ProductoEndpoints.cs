@@ -1,27 +1,21 @@
 ﻿using MediatR;
-using Microsoft.AspNetCore.Mvc;
-using PosVentas.Application.Features.Productos.Commands;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
 
-namespace PosVentas.CentralAPI.Endpoints;
+namespace PosVentas.CentralAPI.Endpoints; // O el namespace que tenga tu archivo
 
 public static class ProductoEndpoints
 {
     public static IEndpointRouteBuilder MapProductoEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/productos")
-            .WithTags("Productos (Catálogo Maestro Central)");
+        // 1. Esto crea el grupo base: /api/productos
+        var group = app.MapGroup("/api/productos");
 
-        group.MapPost("/", async (
-            [FromBody] CrearProductoCommand command,
-            ISender sender,
-            CancellationToken cancellationToken) =>
-        {
-            var productoId = await sender.Send(command, cancellationToken);
-            return Results.Created($"/api/productos/{productoId}", new { Id = productoId });
-        })
-        .WithName("CrearProducto");
-        //.WithOpenApi();
+        // 2. Esto añade el sub-path: /ping (Ruta final: /api/productos/ping)
+        group.MapGet("/ping", () => Results.Ok(new { message = "API de Productos funcionando!" }));
 
+        // Al final retornamos el app
         return app;
     }
 }

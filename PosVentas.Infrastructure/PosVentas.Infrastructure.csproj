@@ -23,4 +23,8 @@
     <ProjectReference Include="..\PosVentas.Domain\PosVentas.Domain.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Data\" />
+  </ItemGroup>
+
 </Project>

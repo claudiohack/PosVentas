@@ -1,51 +1,43 @@
-using FluentValidation;
-using MediatR;
-using PosVentas.Application.Common.Behaviors;
-using PosVentas.Application.Features.Productos.Commands;
+using Microsoft.EntityFrameworkCore;
+using PosVentas.Application;
+using PosVentas.CentralAPI;
 using PosVentas.CentralAPI.Endpoints;
-using PosVentas.CentralAPI.Middlewares;
-using PosVentas.Infrastructure;
+using PosVentas.Domain.Repositories;                     // Donde viven tus interfaces (IProductoRepository, IUnitOfWork)
+using PosVentas.Infrastructure.Persistence.Contexts;     // Tu carpeta real del DbContext
+using PosVentas.Infrastructure.Persistence.Repositories; // Tu carpeta real de los Repositorios físicos
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Registro de Servicios de Infraestructura Central
-builder.Services.AddCentralInfrastructure(builder.Configuration);
-
-// Registro automático de MediatR y el Pipeline de Validación de la capa Application
-builder.Services.AddMediatR(cfg => {
-    cfg.RegisterServicesFromAssembly(typeof(CrearProductoCommand).Assembly);
-    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
-});
-
-// Registro de todos los validadores de FluentValidation
-builder.Services.AddValidatorsFromAssembly(typeof(CrearProductoCommand).Assembly);
-
-// Middleware global contra errores
-builder.Services.AddScoped<GlobalExceptionMiddleware>();
-
-//builder.Services.AddEndpointsApiExplorer();
-//builder.Services.AddSwaggerGen();
-// Reemplazá builder.Services.AddEndpointsApiExplorer(); y AddSwaggerGen(); por:
+// 1. CONFIGURACIÓN DE OPENAPI (Nativo de .NET 10)
 builder.Services.AddOpenApi();
+
+// 2. INYECCIÓN DE LA CAPA DE INFRAESTRUCTURA (Base de Datos SQL Express)
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseSqlServer(
+        builder.Configuration.GetConnectionString("CentralConnection"),
+        b => b.MigrationsAssembly(typeof(ApplicationDbContext).Assembly.FullName)));
+
+// 3. REGISTRO DE REPOSITORIOS Y UTILITIES (Inyección de Dependencias)
+builder.Services.AddScoped<IProductoRepository, ProductoRepository>();
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+// Nota: Si en el futuro creás Categoría, solo tenés que descomentar la línea de abajo
+// builder.Services.AddScoped<ICategoriaRepository, CategoriaRepository>();
+
+// 4. INYECCIÓN DE LA CAPA DE APPLICATION (MediatR, FluentValidation, etc.)
+builder.Services.AddApplicationServices();
 
 var app = builder.Build();
 
-// 2. HTTP Pipeline
+// 5. CONFIGURACIÓN DEL PIPELINE HTTP (Middlewares)
 if (app.Environment.IsDevelopment())
 {
-    //app.UseSwagger();
-    //app.UseSwaggerUI();
-    // Reemplazá app.UseSwagger(); y app.UseSwaggerUI(); por:
-    if (app.Environment.IsDevelopment())
-    {
-        app.MapOpenApi(); // Esto genera el JSON de especificación nativo
-    }
+    app.MapOpenApi(); // Genera el JSON de OpenAPI en /openapi/v1.json
 }
 
-app.UseMiddleware<GlobalExceptionMiddleware>();
 app.UseHttpsRedirection();
 
-// 3. Mapeo de Endpoints
+// 6. REGISTRO DE ENDPOINTS (Minimal APIs para Productos)
 app.MapProductoEndpoints();
 
 app.Run();

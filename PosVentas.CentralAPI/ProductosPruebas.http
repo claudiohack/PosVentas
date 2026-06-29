@@ -1,0 +1,24 @@
+@hostname = localhost
+@port = 7109
+@PosVentas.CentralAPI_HostAddress = https://{{hostname}}:{{port}}
+
+### 1. Prueba de Vida (Ping)
+# Este endpoint responde el mensaje de texto que configuramos en la Minimal API
+GET {{PosVentas.CentralAPI_HostAddress}}/api/productos/ping
+Accept: application/json
+
+###
+
+### 2. Crear un Producto Nuevo (FUTURO)
+# Dejo esta petición armada para cuando conectemos el Command de MediatR en la API.
+# Al hacer clic en el botón de Play de abajo, enviará este JSON simulando el alfajor.
+POST {{PosVentas.CentralAPI_HostAddress}}/api/productos
+Content-Type: application/json
+
+{
+  "nombre": "Alfajor Triple Chocolate",
+  "sku": "ALF-001",
+  "precio": 1200.50,
+  "stock": 50,
+  "categoriaId": "00000000-0000-0000-0000-000000000000"
+}

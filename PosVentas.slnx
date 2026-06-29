@@ -11,4 +11,5 @@
   <Folder Name="/Presentation/">
     <Project Path="PosVentas.CentralAPI/PosVentas.CentralAPI.csproj" />
   </Folder>
+  <Project Path="PosVentas.Desktop/PosVentas.Desktop.csproj" Id="7ac09938-7531-4210-9cf9-4e5eae146bae" />
 </Solution>
