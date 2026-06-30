@@ -17,7 +17,7 @@ namespace PosVentas.Infrastructure.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.0")
+                .HasAnnotation("ProductVersion", "10.0.9")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -65,6 +65,10 @@ namespace PosVentas.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
+
+                    b.Property<decimal>("PorcentajeGanancia")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
 
                     b.Property<decimal>("PorcentajeIva")
                         .HasPrecision(5, 2)
@@ -123,9 +127,36 @@ namespace PosVentas.Infrastructure.Migrations
                                 .HasForeignKey("ProductoId");
                         });
 
+                    b.OwnsOne("PosVentas.Domain.ValueObjects.Money", "PrecioCompra", b1 =>
+                        {
+                            b1.Property<Guid>("ProductoId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("Moneda")
+                                .IsRequired()
+                                .HasMaxLength(3)
+                                .HasColumnType("nvarchar(3)")
+                                .HasColumnName("PrecioCompraMoneda");
+
+                            b1.Property<decimal>("Monto")
+                                .HasPrecision(18, 2)
+                                .HasColumnType("decimal(18,2)")
+                                .HasColumnName("PrecioCompraMonto");
+
+                            b1.HasKey("ProductoId");
+
+                            b1.ToTable("Productos");
+
+                            b1.WithOwner()
+                                .HasForeignKey("ProductoId");
+                        });
+
                     b.Navigation("Categoria");
 
                     b.Navigation("Precio")
+                        .IsRequired();
+
+                    b.Navigation("PrecioCompra")
                         .IsRequired();
                 });
 

@@ -23,7 +23,17 @@ public class ProductoConfiguration : IEntityTypeConfiguration<Producto>
 
         builder.HasIndex(p => p.Sku).IsUnique();
 
-        // Mapeo aplanado del Value Object Money
+        // 1. Mapeo aplanado del NUEVO Value Object Money para COMPRA/COSTO
+        builder.OwnsOne(p => p.PrecioCompra, money =>
+        {
+            money.Property(m => m.Monto).HasColumnName("PrecioCompraMonto").HasPrecision(18, 2).IsRequired();
+            money.Property(m => m.Moneda).HasColumnName("PrecioCompraMoneda").HasMaxLength(3).IsRequired();
+        });
+
+        // 2. Mapeo del campo PorcentajeGanancia (simple decimal)
+        builder.Property(p => p.PorcentajeGanancia).HasPrecision(5, 2).IsRequired();
+
+        // 3. Mapeo aplanado del Value Object Money para VENTA (El original)
         builder.OwnsOne(p => p.Precio, money =>
         {
             money.Property(m => m.Monto).HasColumnName("PrecioMonto").HasPrecision(18, 2).IsRequired();
