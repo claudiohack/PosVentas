@@ -21,7 +21,8 @@
 
         <DataGrid Grid.Row="1" Name="GridCategorias" AutoGenerateColumns="False" IsReadOnly="True" 
                   Background="#F8F9FA" RowBackground="White" AlternatingRowBackground="#F1F2F6" 
-                  GridLinesVisibility="None" BorderThickness="1" BorderBrush="#BDC3C7">
+                  GridLinesVisibility="None" BorderThickness="1" BorderBrush="#BDC3C7"
+                  MouseDoubleClick="BtnEditar_Click">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="60"/>
                 <DataGridTextColumn Header="Nombre" Binding="{Binding Nombre}" Width="200"/>
@@ -32,8 +33,8 @@
 
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,15,0,0">
             <Button Name="BtnNuevo" Content="➕ Nuevo" Width="100" Height="35" Margin="5,0" Background="#2ECC71" Foreground="White" BorderThickness="0" FontWeight="Bold" Click="BtnNuevo_Click"/>
-            <Button Name="BtnEditar" Content="✏️ Editar" Width="100" Height="35" Margin="5,0" Background="#F39C12" Foreground="White" BorderThickness="0" FontWeight="Bold"/>
-            <Button Name="BtnEliminar" Content="❌ Eliminar" Width="100" Height="35" Margin="5,0" Background="#E74C3C" Foreground="White" BorderThickness="0" FontWeight="Bold"/>
+            <Button Name="BtnEditar" Content="✏️ Editar" Width="100" Height="35" Margin="5,0" Background="#F39C12" Foreground="White" BorderThickness="0" FontWeight="Bold" Click="BtnEditar_Click"/>
+            <Button Name="BtnEliminar" Content="❌ Eliminar" Width="100" Height="35" Margin="5,0" Background="#E74C3C" Foreground="White" BorderThickness="0" FontWeight="Bold" Click="BtnEliminar_Click"/>
         </StackPanel>
     </Grid>
 </UserControl>

@@ -23,24 +23,26 @@ public class ProductoConfiguration : IEntityTypeConfiguration<Producto>
 
         builder.HasIndex(p => p.Sku).IsUnique();
 
-        // 1. Mapeo aplanado del NUEVO Value Object Money para COMPRA/COSTO
+        // 1. Mapeo aplanado del Value Object Money para COMPRA/COSTO
         builder.OwnsOne(p => p.PrecioCompra, money =>
         {
             money.Property(m => m.Monto).HasColumnName("PrecioCompraMonto").HasPrecision(18, 2).IsRequired();
             money.Property(m => m.Moneda).HasColumnName("PrecioCompraMoneda").HasMaxLength(3).IsRequired();
         });
 
-        // 2. Mapeo del campo PorcentajeGanancia (simple decimal)
-        builder.Property(p => p.PorcentajeGanancia).HasPrecision(5, 2).IsRequired();
+        // 2. Mapeo del campo PorcentajeGanancia - Ampliado a (18, 2) para evitar desbordes por cruce o márgenes altos
+        builder.Property(p => p.PorcentajeGanancia).HasPrecision(18, 2).IsRequired();
 
-        // 3. Mapeo aplanado del Value Object Money para VENTA (El original)
+        // 3. Mapeo aplanado del Value Object Money para VENTA
         builder.OwnsOne(p => p.Precio, money =>
         {
             money.Property(m => m.Monto).HasColumnName("PrecioMonto").HasPrecision(18, 2).IsRequired();
             money.Property(m => m.Moneda).HasColumnName("PrecioMoneda").HasMaxLength(3).IsRequired();
         });
 
-        builder.Property(p => p.PorcentajeIva).HasPrecision(5, 2).IsRequired();
+        // 4. Porcentaje IVA - Ampliado a (18, 2) para mantener la simetría y evitar errores de rango
+        builder.Property(p => p.PorcentajeIva).HasPrecision(18, 2).IsRequired();
+
         builder.Property(p => p.StockActual).IsRequired();
         builder.Property(p => p.VenderSinStock).IsRequired();
         builder.Property(p => p.FechaCreacion).IsRequired();

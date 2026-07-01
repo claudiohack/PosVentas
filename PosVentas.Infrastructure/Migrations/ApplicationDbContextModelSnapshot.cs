@@ -32,7 +32,13 @@ namespace PosVentas.Infrastructure.Migrations
                         .HasMaxLength(250)
                         .HasColumnType("nvarchar(250)");
 
+                    b.Property<bool>("EstaActivo")
+                        .HasColumnType("bit");
+
                     b.Property<DateTime>("FechaCreacion")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("FechaModificacion")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("Nombre")
@@ -44,6 +50,10 @@ namespace PosVentas.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int")
                         .HasDefaultValue(0);
+
+                    b.Property<byte[]>("Version")
+                        .IsRequired()
+                        .HasColumnType("varbinary(max)");
 
                     b.HasKey("Id");
 
@@ -67,12 +77,12 @@ namespace PosVentas.Infrastructure.Migrations
                         .HasColumnType("nvarchar(150)");
 
                     b.Property<decimal>("PorcentajeGanancia")
-                        .HasPrecision(5, 2)
-                        .HasColumnType("decimal(5,2)");
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("PorcentajeIva")
-                        .HasPrecision(5, 2)
-                        .HasColumnType("decimal(5,2)");
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("Sku")
                         .IsRequired()
