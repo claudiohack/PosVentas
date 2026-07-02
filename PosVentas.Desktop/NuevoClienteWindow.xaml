@@ -1,0 +1,74 @@
+﻿<Window x:Class="PosVentas.Desktop.NuevoClienteWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        mc:Ignorable="d"
+        Title="Formulario de Cliente" Height="500" Width="450"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize" Background="#F8F9FA">
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Encabezado Dinámico -->
+        <TextBlock Grid.Row="0" Name="LblTitulo" Text="Nuevo Cliente" FontSize="20" FontWeight="Bold" Foreground="#2C3E50" Margin="0,0,0,15"/>
+
+        <!-- Contenedor del Formulario con scroll por las dudas -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,0,0,15">
+            <StackPanel>
+                <!-- SECCIÓN 1: IDENTIFICACIÓN FISCAL -->
+                <Border BorderBrush="#BDC3C7" BorderThickness="0,0,0,1" Margin="0,0,0,10" Padding="0,0,0,5">
+                    <TextBlock Text="Datos Identificatorios y Fiscales" FontWeight="Bold" Foreground="#2980B9"/>
+                </Border>
+
+                <TextBlock Text="Nombre / Razón Social *" Margin="0,5,0,2" Foreground="#333333"/>
+                <TextBox Name="TxtRazonSocial" Height="30" VerticalContentAlignment="Center" MaxLength="150"/>
+
+                <TextBlock Text="Documento (DNI / CUIT / CUIL)" Margin="0,10,0,2" Foreground="#333333"/>
+                <TextBox Name="TxtDocumento" Height="30" VerticalContentAlignment="Center" MaxLength="20"/>
+
+                <TextBlock Text="Responsabilidad ante el IVA" Margin="0,10,0,2" Foreground="#333333"/>
+                <ComboBox Name="CboIva" Height="30" VerticalContentAlignment="Center">
+                    <ComboBoxItem Content="Consumidor Final" IsSelected="True"/>
+                    <ComboBoxItem Content="Responsable Inscripto"/>
+                    <ComboBoxItem Content="Monotributo"/>
+                    <ComboBoxItem Content="Exento"/>
+                </ComboBox>
+
+                <!-- SECCIÓN 2: CONTACTO -->
+                <Border BorderBrush="#BDC3C7" BorderThickness="0,0,0,1" Margin="0,20,0,10" Padding="0,0,0,5">
+                    <TextBlock Text="Datos de Contacto" FontWeight="Bold" Foreground="#2980B9"/>
+                </Border>
+
+                <TextBlock Text="Teléfono" Margin="0,5,0,2" Foreground="#333333"/>
+                <TextBox Name="TxtTelefono" Height="30" VerticalContentAlignment="Center" MaxLength="50"/>
+
+                <TextBlock Text="Email" Margin="0,10,0,2" Foreground="#333333"/>
+                <TextBox Name="TxtEmail" Height="30" VerticalContentAlignment="Center" MaxLength="100"/>
+
+                <TextBlock Text="Dirección" Margin="0,10,0,2" Foreground="#333333"/>
+                <TextBox Name="TxtDireccion" Height="30" VerticalContentAlignment="Center" MaxLength="250"/>
+
+                <!-- SECCIÓN 3: CRÉDITO Y CUENTA CORRIENTE -->
+                <Border BorderBrush="#BDC3C7" BorderThickness="0,0,0,1" Margin="0,20,0,10" Padding="0,0,0,5">
+                    <TextBlock Text="Cuenta Corriente Comercial" FontWeight="Bold" Foreground="#2980B9"/>
+                </Border>
+
+                <CheckBox Name="ChkPermiteCtaCte" Content="Habilitar Cuenta Corriente / Compras a Crédito" Margin="0,5,0,5" VerticalAlignment="Center" Checked="ChkPermiteCtaCte_Checked" Unchecked="ChkPermiteCtaCte_Unchecked"/>
+
+                <TextBlock Text="Límite de Crédito Max. ($)" Margin="0,5,0,2" Foreground="#333333"/>
+                <TextBox Name="TxtLimiteCredito" Height="30" VerticalContentAlignment="Center" Text="0.00" IsEnabled="False" HorizontalContentAlignment="Right"/>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Botonera Inferior -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Name="BtnCancelar" Content="Cancelar" Width="90" Height="32" Margin="5,0" Background="#95A5A6" Foreground="White" BorderThickness="0" Click="BtnCancelar_Click"/>
+            <Button Name="BtnGuardar" Content="Guardar" Width="90" Height="32" Margin="5,0" Background="#2ECC71" Foreground="White" BorderThickness="0" FontWeight="Bold" Click="BtnGuardar_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

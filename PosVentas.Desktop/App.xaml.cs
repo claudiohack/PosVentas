@@ -35,6 +35,9 @@ public partial class App : System.Windows.Application
                 services.AddSingleton<MainWindow>();
                 services.AddTransient<ProductosView>();
                 services.AddTransient<CategoriasView>();
+
+                // MODIFICADO: Registramos el nuevo módulo de clientes en el contenedor de dependencias
+                services.AddTransient<ClientesView>();
             })
             .Build();
     }
@@ -81,6 +84,25 @@ public partial class App : System.Windows.Application
                         );
 
                         context.Productos.Add(productoSemilla);
+                        await context.SaveChangesAsync();
+                    }
+
+                    // MODIFICADO (ESCALAMIENTO): Si no hay clientes, creamos el "Consumidor Final" por defecto
+                    if (!await context.Clientes.AnyAsync())
+                    {
+                        var clienteDefecto = new Cliente(
+                            id: Guid.NewGuid(),
+                            razonSocial: "Consumidor Final",
+                            documento: "99-99999999-9",
+                            tipoResponsabilidadIva: "Consumidor Final",
+                            telefono: null,
+                            email: null,
+                            direccion: null,
+                            permiteCuentaCorriente: false,
+                            limiteCredito: 0.00m
+                        );
+
+                        context.Clientes.Add(clienteDefecto);
                         await context.SaveChangesAsync();
                     }
                 }

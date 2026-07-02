@@ -34,7 +34,6 @@ public partial class MainWindow : Window
     {
         ActualizarEstiloBotones(BtnCategorias);
 
-        // Ahora resolvemos y cargamos la vista real
         if (App.AppHost != null)
         {
             var vistaCategorias = App.AppHost.Services.GetRequiredService<CategoriasView>();
@@ -47,9 +46,16 @@ public partial class MainWindow : Window
         ActualizarEstiloBotones(BtnVentas);
     }
 
+    // MODIFICADO: Ahora resuelve de forma dinámica e inyectada el módulo de Clientes
     private void BtnClientes_Click(object sender, RoutedEventArgs e)
     {
         ActualizarEstiloBotones(BtnClientes);
+
+        if (App.AppHost != null)
+        {
+            var vistaClientes = App.AppHost.Services.GetRequiredService<ClientesView>();
+            MainContentArea.Content = vistaClientes;
+        }
     }
 
     private void BtnUsuarios_Click(object sender, RoutedEventArgs e)
@@ -59,7 +65,7 @@ public partial class MainWindow : Window
 
     private void ActualizarEstiloBotones(Button botonSeleccionado)
     {
-        // 1. Limpiamos estilos incluyendo el nuevo botón de Categorías
+        // 1. Limpiamos estilos de todos los botones de la barra lateral
         ResetearEstiloBoton(BtnDashboard);
         ResetearEstiloBoton(BtnProductos);
         ResetearEstiloBoton(BtnCategorias);

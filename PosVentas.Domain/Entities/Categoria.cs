@@ -13,7 +13,10 @@ public class Categoria : Entity<Guid>
 
     // --- CAMPOS DE ESCALAMIENTO Y AUDITORÍA ---
     public bool EstaActivo { get; private set; } = true;
-    public DateTime FechaCreacion { get; private set; } = DateTime.UtcNow;
+
+    // NOTA DE ARQUITECTURA: Se eliminó la propiedad FechaCreacion de aquí 
+    // porque ya está heredada nativamente desde Entity<Guid>.
+
     public DateTime? FechaModificacion { get; private set; }
 
     // Concurrencia optimista nativa para SQL Server (mapeado como rowversion / timestamp)
@@ -28,7 +31,9 @@ public class Categoria : Entity<Guid>
         ModificarDatos(nombre, descripcion);
         CambiarOrden(ordenDisplay);
         EstaActivo = true;
-        FechaCreacion = DateTime.UtcNow;
+
+        // NOTA: Si tu clase base requiere inicializar la fecha de creación en el constructor y te lo permite,
+        // lo podés hacer asignando a la propiedad heredada, de lo contrario la base ya lo maneja internamente.
     }
 
 #pragma warning disable CS8618
