@@ -35,9 +35,11 @@ public partial class App : System.Windows.Application
                 services.AddSingleton<MainWindow>();
                 services.AddTransient<ProductosView>();
                 services.AddTransient<CategoriasView>();
-
-                // MODIFICADO: Registramos el nuevo módulo de clientes en el contenedor de dependencias
                 services.AddTransient<ClientesView>();
+
+                // MODIFICADO: Registramos el nuevo módulo de proveedores en el contenedor
+                services.AddTransient<ProveedoresView>();
+                services.AddTransient<CajasView>();
             })
             .Build();
     }
@@ -54,7 +56,7 @@ public partial class App : System.Windows.Application
             {
                 if (await context.Database.CanConnectAsync())
                 {
-                    // Si no hay categorías, creamos la primera obligatoriamente
+                    // 1. Semilla de Categorías
                     var categoriaSemilla = await context.Categorias.FirstOrDefaultAsync();
                     if (categoriaSemilla == null)
                     {
@@ -69,15 +71,15 @@ public partial class App : System.Windows.Application
                         await context.SaveChangesAsync();
                     }
 
-                    // Si no hay productos, creamos el testigo usando el nuevo constructor de Dominio
+                    // 2. Semilla de Productos
                     if (!await context.Productos.AnyAsync())
                     {
                         var productoSemilla = new Producto(
                             id: Guid.NewGuid(),
                             sku: new Sku("PROD-001"),
                             nombre: "Producto Testigo de Prueba",
-                            precioCompra: new Money(1000.00m), // Costo Base
-                            porcentajeGanancia: 30.0m,         // 30% Margen (Venta automático a $1300)
+                            precioCompra: new Money(1000.00m),
+                            porcentajeGanancia: 30.0m,
                             porcentajeIva: 21.0m,
                             categoriaId: categoriaSemilla.Id,
                             venderSinStock: true
@@ -87,7 +89,7 @@ public partial class App : System.Windows.Application
                         await context.SaveChangesAsync();
                     }
 
-                    // MODIFICADO (ESCALAMIENTO): Si no hay clientes, creamos el "Consumidor Final" por defecto
+                    // 3. Semilla de Clientes
                     if (!await context.Clientes.AnyAsync())
                     {
                         var clienteDefecto = new Cliente(
@@ -103,6 +105,38 @@ public partial class App : System.Windows.Application
                         );
 
                         context.Clientes.Add(clienteDefecto);
+                        await context.SaveChangesAsync();
+                    }
+
+                    // MODIFICADO: 4. Semilla de Proveedores
+                    if (!await context.Proveedores.AnyAsync())
+                    {
+                        var proveedorDefecto = new Proveedor(
+                            id: Guid.NewGuid(),
+                            razonSocial: "Proveedor Genérico / Varios",
+                            cuit: "00-00000000-0",
+                            tipoResponsabilidadIva: "Responsable Inscripto",
+                            telefono: null,
+                            email: null,
+                            direccion: null,
+                            nombreContacto: "Caja Chica / Compras Locales",
+                            permiteCuentaCorriente: false,
+                            diasPlazoPago: 0
+                        );
+
+                        context.Proveedores.Add(proveedorDefecto);
+                        await context.SaveChangesAsync();
+                    }
+                    // 5. Semilla de Cajas Físicas
+                    if (!await context.Cajas.AnyAsync())
+                    {
+                        var cajaPrincipal = new Caja(
+                            id: Guid.NewGuid(),
+                            nombre: "Caja Principal 01",
+                            computadoraAsignada: Environment.MachineName // Auto-detecta el nombre de la PC actual
+                        );
+
+                        context.Cajas.Add(cajaPrincipal);
                         await context.SaveChangesAsync();
                     }
                 }

@@ -46,7 +46,6 @@ public partial class MainWindow : Window
         ActualizarEstiloBotones(BtnVentas);
     }
 
-    // MODIFICADO: Ahora resuelve de forma dinámica e inyectada el módulo de Clientes
     private void BtnClientes_Click(object sender, RoutedEventArgs e)
     {
         ActualizarEstiloBotones(BtnClientes);
@@ -58,6 +57,29 @@ public partial class MainWindow : Window
         }
     }
 
+    private void BtnProveedores_Click(object sender, RoutedEventArgs e)
+    {
+        ActualizarEstiloBotones(BtnProveedores);
+
+        if (App.AppHost != null)
+        {
+            var vistaProveedores = App.AppHost.Services.GetRequiredService<ProveedoresView>();
+            MainContentArea.Content = vistaProveedores;
+        }
+    }
+
+    // INTEGRADO: Navegación asíncrona e inyectada para el módulo de Cajas Diarias
+    private void BtnCajas_Click(object sender, RoutedEventArgs e)
+    {
+        ActualizarEstiloBotones(BtnCajas);
+
+        if (App.AppHost != null)
+        {
+            var vistaCajas = App.AppHost.Services.GetRequiredService<CajasView>();
+            MainContentArea.Content = vistaCajas;
+        }
+    }
+
     private void BtnUsuarios_Click(object sender, RoutedEventArgs e)
     {
         ActualizarEstiloBotones(BtnUsuarios);
@@ -65,12 +87,14 @@ public partial class MainWindow : Window
 
     private void ActualizarEstiloBotones(Button botonSeleccionado)
     {
-        // 1. Limpiamos estilos de todos los botones de la barra lateral
+        // 1. Limpiamos estilos de todos los botones de la barra lateral (Incluidos Proveedores y Cajas)
         ResetearEstiloBoton(BtnDashboard);
         ResetearEstiloBoton(BtnProductos);
         ResetearEstiloBoton(BtnCategorias);
         ResetearEstiloBoton(BtnVentas);
         ResetearEstiloBoton(BtnClientes);
+        ResetearEstiloBoton(BtnProveedores);
+        ResetearEstiloBoton(BtnCajas);
         ResetearEstiloBoton(BtnUsuarios);
 
         // 2. Resaltamos el botón activo

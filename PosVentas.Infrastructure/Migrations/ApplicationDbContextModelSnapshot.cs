@@ -22,6 +22,103 @@ namespace PosVentas.Infrastructure.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("PosVentas.Domain.Entities.Caja", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ComputadoraAsignada")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool>("EstaAbierta")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("EstaActivo")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("FechaCreacion")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("FechaModificacion")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<byte[]>("Version")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EstaActivo");
+
+                    b.HasIndex("Nombre");
+
+                    b.ToTable("Cajas", (string)null);
+                });
+
+            modelBuilder.Entity("PosVentas.Domain.Entities.CajaSesion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CajaId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("DiferenciaArqueo")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<bool>("EnCurso")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("FechaApertura")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("FechaCierre")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("FechaCreacion")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("MontoApertura")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("MontoCierreReal")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("MontoCierreSistema")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Observaciones")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("UsuarioApertura")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("UsuarioCierre")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CajaId");
+
+                    b.HasIndex("EnCurso");
+
+                    b.ToTable("CajaSesiones", (string)null);
+                });
+
             modelBuilder.Entity("PosVentas.Domain.Entities.Categoria", b =>
                 {
                     b.Property<Guid>("Id")
@@ -173,6 +270,87 @@ namespace PosVentas.Infrastructure.Migrations
                     b.ToTable("Productos", (string)null);
                 });
 
+            modelBuilder.Entity("PosVentas.Domain.Entities.Proveedor", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Cuit")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int>("DiasPlazoPago")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Direccion")
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool>("EstaActivo")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("FechaCreacion")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("FechaModificacion")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("NombreContacto")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool>("PermiteCuentaCorriente")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("RazonSocial")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("Telefono")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("TipoResponsabilidadIva")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasDefaultValue("Responsable Inscripto");
+
+                    b.Property<byte[]>("Version")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Cuit");
+
+                    b.HasIndex("EstaActivo");
+
+                    b.HasIndex("RazonSocial");
+
+                    b.ToTable("Proveedores", (string)null);
+                });
+
+            modelBuilder.Entity("PosVentas.Domain.Entities.CajaSesion", b =>
+                {
+                    b.HasOne("PosVentas.Domain.Entities.Caja", "Caja")
+                        .WithMany("Sesiones")
+                        .HasForeignKey("CajaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Caja");
+                });
+
             modelBuilder.Entity("PosVentas.Domain.Entities.Producto", b =>
                 {
                     b.HasOne("PosVentas.Domain.Entities.Categoria", "Categoria")
@@ -236,6 +414,11 @@ namespace PosVentas.Infrastructure.Migrations
 
                     b.Navigation("PrecioCompra")
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("PosVentas.Domain.Entities.Caja", b =>
+                {
+                    b.Navigation("Sesiones");
                 });
 
             modelBuilder.Entity("PosVentas.Domain.Entities.Categoria", b =>
