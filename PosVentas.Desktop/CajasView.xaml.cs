@@ -105,13 +105,20 @@ public partial class CajasView : UserControl
         {
             if (GridCajas.SelectedItem is CajaFilaDto seleccion)
             {
-                // TODO: Desarrollar CierreCajaWindow en el siguiente paso
-                MessageBox.Show($"Aquí abriremos el formulario de arqueo/cierre para la caja: {seleccion.Nombre}", "Próximo Paso");
+                var ventanaCierre = new CierreCajaWindow(_context, seleccion.Id, seleccion.Nombre)
+                {
+                    Owner = Window.GetWindow(this)
+                };
+
+                if (ventanaCierre.ShowDialog() == true)
+                {
+                    CajasView_Loaded(this, null!); // Refresca la grilla mostrando la caja cerrada
+                }
             }
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Error al intentar cerrar el turno:\n{ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show($"Error al intentar abrir el arqueo:\n{ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 }
