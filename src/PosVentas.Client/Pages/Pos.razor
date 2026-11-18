@@ -1,0 +1,249 @@
+@page "/pos"
+@inject PosVentasApi Api
+@inject SesionService Sesion
+@inject NavigationManager Navegacion
+
+<PageTitle>Vender · PosVentas</PageTitle>
+
+<h1>Vender</h1>
+
+@if (error is not null)
+{
+    <p class="error" role="alert">@error</p>
+}
+
+@if (ultimaVenta is not null)
+{
+    <section class="tarjeta venta-ok" role="status">
+        <strong>Venta registrada · @Pesos(ultimaVenta.TotalGeneral)</strong>
+        @if (ultimaVenta.Vuelto > 0)
+        {
+            <span class="vuelto">Vuelto: @Pesos(ultimaVenta.Vuelto)</span>
+        }
+        <button class="btn-secundario" @onclick="() => ultimaVenta = null">Nueva venta</button>
+    </section>
+}
+
+@if (sesionesAbiertas is null)
+{
+    <p>Cargando…</p>
+}
+else if (sesionesAbiertas.Count == 0)
+{
+    <section class="tarjeta">
+        <p>No hay ninguna caja abierta. <a href="caja">Abrí una caja</a> para empezar a vender.</p>
+    </section>
+}
+else
+{
+    <div class="pos">
+        <section class="tarjeta">
+            @if (sesionesAbiertas.Count > 1)
+            {
+                <label>
+                    Caja
+                    <select @bind="sesionId">
+                        @foreach (var s in sesionesAbiertas)
+                        {
+                            <option value="@s.Id">@s.Caja</option>
+                        }
+                    </select>
+                </label>
+            }
+            else
+            {
+                <p class="caja-activa">Caja: <strong>@sesionesAbiertas[0].Caja</strong></p>
+            }
+
+            <form class="buscador" @onsubmit="BuscarAsync">
+                <input type="search" @bind="buscar" placeholder="Buscar producto por nombre" aria-label="Buscar producto" />
+                <button type="submit" class="btn-secundario">Buscar</button>
+            </form>
+
+            @if (resultados.Count > 0)
+            {
+                <ul class="resultados">
+                    @foreach (var p in resultados)
+                    {
+                        <li>
+                            <span>@p.Nombre <small>(@p.Sku · stock @p.StockActual.ToString("0.###"))</small></span>
+                            <span class="num">@Pesos(p.PrecioVenta) + IVA @p.PorcentajeIva.ToString("0.##")%</span>
+                            <button class="btn-secundario" @onclick="() => Agregar(p)">Agregar</button>
+                        </li>
+                    }
+                </ul>
+            }
+
+            <table>
+                <thead>
+                    <tr><th>Producto</th><th class="num">Cant.</th><th class="num">Precio</th><th class="num">IVA</th><th class="num">Total</th><th></th></tr>
+                </thead>
+                <tbody>
+                    @if (carrito.Count == 0)
+                    {
+                        <tr><td colspan="6">El carrito está vacío.</td></tr>
+                    }
+                    @foreach (var r in carrito)
+                    {
+                        <tr>
+                            <td>@r.Producto.Nombre</td>
+                            <td class="num"><input class="cantidad" type="number" min="0.001" step="0.001" @bind="r.Cantidad" aria-label="Cantidad de @r.Producto.Nombre" /></td>
+                            <td class="num">@Pesos(r.Producto.PrecioVenta)</td>
+                            <td class="num">@Pesos(r.Iva)</td>
+                            <td class="num">@Pesos(r.Total)</td>
+                            <td><button class="btn-secundario" @onclick="() => Quitar(r)" aria-label="Quitar @r.Producto.Nombre">✕</button></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </section>
+
+        <section class="tarjeta cobro">
+            <dl class="cifras">
+                <dt>Neto gravado</dt><dd>@Pesos(NetoGravado)</dd>
+                <dt>Neto no gravado</dt><dd>@Pesos(NetoNoGravado)</dd>
+                <dt>IVA</dt><dd>@Pesos(Iva)</dd>
+                <dt class="total">Total</dt><dd class="total">@Pesos(Total)</dd>
+            </dl>
+
+            <h2>Pagos</h2>
+            @foreach (var pago in pagos)
+            {
+                <div class="pago">
+                    <select @bind="pago.Medio" aria-label="Medio de pago">
+                        @foreach (var medio in Enum.GetValues<MedioPago>())
+                        {
+                            <option value="@medio">@medio</option>
+                        }
+                    </select>
+                    <input type="number" min="0" step="0.01" @bind="pago.Monto" aria-label="Monto" />
+                    <button class="btn-secundario" @onclick="() => pagos.Remove(pago)" aria-label="Quitar pago">✕</button>
+                </div>
+            }
+            <div class="acciones">
+                <button class="btn-secundario" @onclick="AgregarPago">+ Medio de pago</button>
+                <button class="btn-secundario" @onclick="CobrarExacto" disabled="@(Total == 0)">Exacto</button>
+            </div>
+
+            <p>Pagado: @Pesos(Pagado)
+                @if (Pagado > Total && Total > 0)
+                {
+                    <span class="vuelto"> · Vuelto: @Pesos(Pagado - Total)</span>
+                }
+                else if (Pagado < Total)
+                {
+                    <span class="faltante"> · Falta: @Pesos(Total - Pagado)</span>
+                }
+            </p>
+
+            <button class="btn-primario" @onclick="CobrarAsync" disabled="@(!PuedeCobrar || procesando)">
+                @(procesando ? "Registrando…" : $"Cobrar {Pesos(Total)}")
+            </button>
+        </section>
+    </div>
+}
+
+@code {
+    private List<SesionCajaDto>? sesionesAbiertas;
+    private Guid sesionId;
+    private string? buscar;
+    private List<ProductoDto> resultados = [];
+    private readonly List<RenglonCarrito> carrito = [];
+    private readonly List<PagoEnPantalla> pagos = [new()];
+    private VentaDto? ultimaVenta;
+    private string? error;
+    private bool procesando;
+
+    private decimal NetoGravado => carrito.Where(r => r.Producto.PorcentajeIva > 0).Sum(r => r.Subtotal);
+    private decimal NetoNoGravado => carrito.Where(r => r.Producto.PorcentajeIva == 0).Sum(r => r.Subtotal);
+    private decimal Iva => carrito.Sum(r => r.Iva);
+    private decimal Total => NetoGravado + NetoNoGravado + Iva;
+    private decimal Pagado => pagos.Where(p => p.Monto > 0).Sum(p => p.Monto);
+    private bool PuedeCobrar => carrito.Count > 0 && carrito.All(r => r.Cantidad > 0) && Pagado >= Total && sesionId != Guid.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Sesion.EstaAutenticado)
+        {
+            Navegacion.NavigateTo("/");
+            return;
+        }
+
+        await EjecutarAsync(async () =>
+        {
+            var cajas = await Api.ObtenerCajasAsync();
+            sesionesAbiertas = cajas.Where(c => c.SesionActiva is not null).Select(c => c.SesionActiva!).ToList();
+            sesionId = sesionesAbiertas.FirstOrDefault()?.Id ?? Guid.Empty;
+        });
+    }
+
+    private async Task BuscarAsync()
+    {
+        await EjecutarAsync(async () => resultados = (await Api.ObtenerProductosAsync(buscar)).Take(10).ToList());
+    }
+
+    private void Agregar(ProductoDto producto)
+    {
+        var existente = carrito.FirstOrDefault(r => r.Producto.Id == producto.Id);
+        if (existente is not null)
+            existente.Cantidad += 1;
+        else
+            carrito.Add(new RenglonCarrito(producto));
+        ultimaVenta = null;
+    }
+
+    private void Quitar(RenglonCarrito renglon) => carrito.Remove(renglon);
+
+    private void AgregarPago() => pagos.Add(new PagoEnPantalla { Medio = MedioPago.Tarjeta, Monto = Math.Max(0, Total - Pagado) });
+
+    private void CobrarExacto()
+    {
+        pagos.Clear();
+        pagos.Add(new PagoEnPantalla { Medio = MedioPago.Efectivo, Monto = Total });
+    }
+
+    private async Task CobrarAsync()
+    {
+        await EjecutarAsync(async () =>
+        {
+            var request = new RegistrarVentaRequest(
+                sesionId,
+                ClienteId: null, // Consumidor Final
+                TipoComprobante: "Ticket",
+                carrito.Select(r => new ItemVentaRequest(r.Producto.Id, r.Cantidad)).ToList(),
+                pagos.Where(p => p.Monto > 0).Select(p => new PagoRequest(p.Medio, p.Monto)).ToList());
+
+            ultimaVenta = await Api.RegistrarVentaAsync(request);
+
+            carrito.Clear();
+            pagos.Clear();
+            pagos.Add(new PagoEnPantalla());
+            resultados = [];
+        });
+    }
+
+    private async Task EjecutarAsync(Func<Task> accion)
+    {
+        error = null;
+        procesando = true;
+        try
+        {
+            await accion();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            if (!Sesion.EstaAutenticado) Navegacion.NavigateTo("/");
+        }
+        catch (HttpRequestException)
+        {
+            error = "No se pudo conectar con el servidor.";
+        }
+        finally
+        {
+            procesando = false;
+        }
+    }
+
+    private static string Pesos(decimal valor) => valor.ToString("$ #,##0.00");
+}

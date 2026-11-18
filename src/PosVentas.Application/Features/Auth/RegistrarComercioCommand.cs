@@ -1,0 +1,80 @@
+using FluentValidation;
+using MediatR;
+using Microsoft.EntityFrameworkCore;
+using PosVentas.Application.Common.Exceptions;
+using PosVentas.Application.Common.Interfaces;
+using PosVentas.Domain.Entities;
+using PosVentas.Domain.Enums;
+
+namespace PosVentas.Application.Features.Auth;
+
+/// <summary>
+/// Alta (onboarding) de un comercio nuevo con su usuario administrador.
+/// Crea además los datos mínimos del tenant: cliente Consumidor Final, categoría General y Caja Principal.
+/// </summary>
+public sealed record RegistrarComercioCommand(
+    string NombreComercio,
+    string Slug,
+    string? Cuit,
+    string NombreAdministrador,
+    string Username,
+    string Password) : IRequest<AuthResponse>;
+
+public sealed class RegistrarComercioCommandValidator : AbstractValidator<RegistrarComercioCommand>
+{
+    public RegistrarComercioCommandValidator()
+    {
+        RuleFor(x => x.NombreComercio).NotEmpty().MaximumLength(Comercio.LongitudMaximaNombre);
+        RuleFor(x => x.Slug).NotEmpty()
+            .Matches(AuthValidationRules.PatronSlug)
+            .WithMessage("El identificador debe tener 3 a 50 caracteres: minúsculas, números y guiones.");
+        RuleFor(x => x.Cuit).Matches(@"^\d{2}-?\d{8}-?\d$").When(x => !string.IsNullOrWhiteSpace(x.Cuit))
+            .WithMessage("El CUIT debe tener 11 dígitos (con o sin guiones).");
+        RuleFor(x => x.NombreAdministrador).NotEmpty().MaximumLength(Usuario.LongitudMaximaNombre);
+        RuleFor(x => x.Username).NotEmpty().Matches(AuthValidationRules.PatronUsername)
+            .WithMessage("El usuario debe tener 3 a 50 caracteres: letras, números, punto, guion o guion bajo.");
+        RuleFor(x => x.Password).NotEmpty()
+            .MinimumLength(AuthValidationRules.PasswordLongitudMinima)
+            .MaximumLength(AuthValidationRules.PasswordLongitudMaxima)
+            .Must(p => p.Any(char.IsLetter) && p.Any(char.IsDigit))
+            .WithMessage("La contraseña debe tener al menos 10 caracteres e incluir letras y números.");
+    }
+}
+
+public sealed class RegistrarComercioCommandHandler(
+    IApplicationDbContext db,
+    ICurrentTenantService tenant,
+    IPasswordHasher passwordHasher,
+    IJwtTokenGenerator tokenGenerator) : IRequestHandler<RegistrarComercioCommand, AuthResponse>
+{
+    public async Task<AuthResponse> Handle(RegistrarComercioCommand request, CancellationToken cancellationToken)
+    {
+        var slug = Comercio.NormalizarSlug(request.Slug);
+        if (await db.Comercios.AnyAsync(c => c.Slug == slug, cancellationToken))
+            throw new ConflictException($"El identificador de comercio '{slug}' ya está en uso.");
+
+        var comercio = Comercio.Crear(request.NombreComercio, slug, request.Cuit);
+        db.Comercios.Add(comercio);
+
+        // A partir de acá todo lo que se cree queda asignado a este comercio.
+        tenant.EstablecerTenant(comercio.Id);
+
+        var admin = Usuario.Crear(
+            request.NombreAdministrador,
+            request.Username,
+            passwordHasher.Hash(request.Password),
+            RolUsuario.Administrador);
+
+        db.Usuarios.Add(admin);
+        db.Clientes.Add(Cliente.CrearConsumidorFinalGenerico());
+        db.Categorias.Add(Categoria.Crear("General", "Categoría por defecto", 0));
+        db.Cajas.Add(Caja.Crear("Caja Principal"));
+
+        admin.RegistrarLogin();
+        await db.SaveChangesAsync(cancellationToken);
+
+        var token = tokenGenerator.Generar(admin);
+        return new AuthResponse(token.AccessToken, token.ExpiraUtc, admin.Id, admin.NombreCompleto,
+            admin.Rol.ToString(), comercio.Id, comercio.Nombre);
+    }
+}

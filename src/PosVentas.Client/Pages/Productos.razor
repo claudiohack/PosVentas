@@ -1,0 +1,93 @@
+@page "/productos"
+@inject PosVentasApi Api
+@inject SesionService Sesion
+@inject NavigationManager Navegacion
+
+<PageTitle>Productos · PosVentas</PageTitle>
+
+<section class="tarjeta">
+    <div class="encabezado">
+        <h1>Productos</h1>
+        <form class="buscador" @onsubmit="CargarAsync">
+            <input type="search" @bind="buscar" placeholder="Buscar por nombre" aria-label="Buscar productos" />
+            <button type="submit" class="btn-secundario">Buscar</button>
+        </form>
+    </div>
+
+    @if (error is not null)
+    {
+        <p class="error" role="alert">@error</p>
+    }
+    else if (productos is null)
+    {
+        <p>Cargando…</p>
+    }
+    else if (productos.Count == 0)
+    {
+        <p>No hay productos cargados.</p>
+    }
+    else
+    {
+        <table>
+            <thead>
+                <tr>
+                    <th>SKU</th>
+                    <th>Nombre</th>
+                    <th>Categoría</th>
+                    <th class="num">Precio neto</th>
+                    <th class="num">IVA %</th>
+                    <th class="num">Stock</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var p in productos)
+                {
+                    <tr>
+                        <td>@p.Sku</td>
+                        <td>@p.Nombre</td>
+                        <td>@p.Categoria</td>
+                        <td class="num">@p.Moneda @p.PrecioVenta.ToString("N2")</td>
+                        <td class="num">@p.PorcentajeIva.ToString("0.##")</td>
+                        <td class="num">@p.StockActual.ToString("0.###")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</section>
+
+@code {
+    private List<ProductoDto>? productos;
+    private string? buscar;
+    private string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Sesion.EstaAutenticado)
+        {
+            Navegacion.NavigateTo("/");
+            return;
+        }
+
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        error = null;
+        try
+        {
+            productos = await Api.ObtenerProductosAsync(buscar);
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            if (!Sesion.EstaAutenticado)
+                Navegacion.NavigateTo("/");
+        }
+        catch (HttpRequestException)
+        {
+            error = "No se pudo conectar con el servidor.";
+        }
+    }
+}

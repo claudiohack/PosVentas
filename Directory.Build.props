@@ -1,0 +1,14 @@
+<Project>
+  <!-- Reglas comunes a toda la solución PosVentas -->
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <!-- Cero advertencias: cualquier warning (incluida la auditoría NuGet) rompe el build -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- Auditoría de vulnerabilidades de paquetes, incluidas dependencias transitivas -->
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <NuGetAuditLevel>low</NuGetAuditLevel>
+  </PropertyGroup>
+</Project>

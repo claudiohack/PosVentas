@@ -1,0 +1,76 @@
+using System.Diagnostics;
+using FluentValidation;
+using Microsoft.AspNetCore.Mvc;
+using PosVentas.Application.Common.Exceptions;
+using PosVentas.Domain.Common;
+
+namespace PosVentas.WebAPI.Middlewares;
+
+/// <summary>
+/// Traduce las excepciones a respuestas RFC 7807 (application/problem+json).
+/// Los errores 500 nunca exponen detalles internos al cliente.
+/// </summary>
+public sealed class GlobalExceptionMiddleware(ILogger<GlobalExceptionMiddleware> logger) : IMiddleware
+{
+    public async Task InvokeAsync(HttpContext context, RequestDelegate next)
+    {
+        try
+        {
+            await next(context);
+        }
+        catch (Exception ex) when (!context.Response.HasStarted && !context.RequestAborted.IsCancellationRequested)
+        {
+            await EscribirProblemaAsync(context, ex);
+        }
+    }
+
+    private async Task EscribirProblemaAsync(HttpContext context, Exception exception)
+    {
+        var problema = exception switch
+        {
+            ValidationException ex => Crear(StatusCodes.Status400BadRequest, "Datos inválidos.",
+                "Uno o más campos no cumplen las reglas de validación.",
+                ex.Errors.GroupBy(e => e.PropertyName)
+                    .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).Distinct().ToArray())),
+            CredencialesInvalidasException ex => Crear(StatusCodes.Status401Unauthorized, "No autenticado.", ex.Message),
+            TenantAccessException => Crear(StatusCodes.Status403Forbidden, "Acceso denegado.",
+                "La operación no está permitida para este comercio."),
+            NotFoundException ex => Crear(StatusCodes.Status404NotFound, "Recurso no encontrado.", ex.Message),
+            ConflictException ex => Crear(StatusCodes.Status409Conflict, "Conflicto.", ex.Message),
+            DomainException ex => Crear(StatusCodes.Status422UnprocessableEntity, "Regla de negocio incumplida.", ex.Message),
+            _ => Crear(StatusCodes.Status500InternalServerError, "Error interno del servidor.",
+                "Ocurrió un error inesperado. Si persiste, informá el traceId a soporte.")
+        };
+
+        var status = problema.Status!.Value;
+        if (status >= 500)
+            logger.LogError(exception, "Error no controlado en {Metodo} {Ruta}", context.Request.Method, context.Request.Path);
+        else if (exception is TenantAccessException)
+            logger.LogWarning(exception, "Intento de acceso entre comercios en {Metodo} {Ruta}", context.Request.Method, context.Request.Path);
+        else
+            logger.LogInformation("Solicitud rechazada ({Status}) en {Metodo} {Ruta}: {Mensaje}",
+                status, context.Request.Method, context.Request.Path, exception.Message);
+
+        problema.Instance = context.Request.Path;
+        problema.Extensions["traceId"] = Activity.Current?.Id ?? context.TraceIdentifier;
+
+        context.Response.StatusCode = status;
+        await context.Response.WriteAsJsonAsync(problema, options: null, contentType: "application/problem+json");
+    }
+
+    private static ProblemDetails Crear(int status, string titulo, string detalle, IDictionary<string, string[]>? errores = null)
+    {
+        var problema = new ProblemDetails
+        {
+            Status = status,
+            Title = titulo,
+            Detail = detalle,
+            Type = $"https://httpstatuses.io/{status}"
+        };
+
+        if (errores is not null)
+            problema.Extensions["errors"] = errores;
+
+        return problema;
+    }
+}
