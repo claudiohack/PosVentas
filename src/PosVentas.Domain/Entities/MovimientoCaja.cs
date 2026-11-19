@@ -43,6 +43,10 @@ public sealed class MovimientoCaja : TenantEntity
         var movimientos = new List<MovimientoCaja>();
         foreach (var pago in venta.Pagos)
         {
+            // La cuenta corriente no ingresa dinero a la caja: se registra en la cuenta del cliente.
+            if (pago.Medio == MedioPago.CuentaCorriente)
+                continue;
+
             var neto = pago.Medio == MedioPago.Efectivo ? pago.Monto - venta.Vuelto : pago.Monto;
             if (neto <= 0)
                 continue;
@@ -61,5 +65,25 @@ public sealed class MovimientoCaja : TenantEntity
         }
 
         return movimientos;
+    }
+
+    /// <summary>Ingreso en caja por un recibo de cobranza de cuenta corriente.</summary>
+    internal static MovimientoCaja PorCobranza(CajaSesion sesion, ReciboCobranza recibo)
+    {
+        if (!sesion.EnCurso)
+            throw new DomainException("No se pueden registrar movimientos en una caja cerrada.");
+        if (recibo.CajaSesionId != sesion.Id)
+            throw new DomainException("El recibo no pertenece a este turno de caja.");
+
+        return new MovimientoCaja(Guid.NewGuid())
+        {
+            CajaSesionId = sesion.Id,
+            Tipo = TipoMovimientoCaja.Cobranza,
+            Medio = recibo.Medio,
+            Monto = recibo.Monto,
+            UsuarioId = recibo.UsuarioId,
+            FechaUtc = recibo.FechaUtc,
+            Descripcion = "Cobranza de cuenta corriente"
+        };
     }
 }

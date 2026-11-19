@@ -1,0 +1,203 @@
+@page "/clientes"
+@inject PosVentasApi Api
+@inject SesionService Sesion
+@inject NavigationManager Navegacion
+
+<PageTitle>Clientes · PosVentas</PageTitle>
+
+<div class="encabezado">
+    <h1>Clientes y cuentas corrientes</h1>
+    <div class="acciones">
+        <button class="btn-secundario" @onclick="() => mostrarCobranza = true">Registrar cobro</button>
+        @if (EsAdmin)
+        {
+            <button class="btn-secundario" @onclick="() => mostrarAlta = !mostrarAlta">@(mostrarAlta ? "Cancelar" : "Nuevo cliente")</button>
+        }
+    </div>
+</div>
+
+@if (mensaje is not null)
+{
+    <p class="ok" role="status">@mensaje</p>
+}
+@if (error is not null)
+{
+    <p class="error" role="alert">@error</p>
+}
+
+@if (mostrarAlta && EsAdmin)
+{
+    <section class="tarjeta">
+        <h2>Nuevo cliente</h2>
+        <EditForm Model="nuevo" OnValidSubmit="CrearAsync" FormName="nuevo-cliente" class="grilla-form">
+            <DataAnnotationsValidator />
+            <label>Razón social <InputText @bind-Value="nuevo.RazonSocial" /><ValidationMessage For="() => nuevo.RazonSocial" /></label>
+            <label>DNI / CUIT <InputText @bind-Value="nuevo.Documento" /></label>
+            <label>
+                Condición IVA
+                <InputSelect @bind-Value="nuevo.CondicionIva">
+                    @foreach (var c in Enum.GetValues<CondicionIva>())
+                    {
+                        <option value="@c">@c</option>
+                    }
+                </InputSelect>
+            </label>
+            <label>Teléfono <InputText @bind-Value="nuevo.Telefono" /></label>
+            <label>Email <InputText @bind-Value="nuevo.Email" /><ValidationMessage For="() => nuevo.Email" /></label>
+            <label>Dirección <InputText @bind-Value="nuevo.Direccion" /></label>
+            <label class="check"><InputCheckbox @bind-Value="nuevo.PermiteCuentaCorriente" /> Habilitar cuenta corriente</label>
+            @if (nuevo.PermiteCuentaCorriente)
+            {
+                <label>Límite de crédito <InputNumber @bind-Value="nuevo.LimiteCredito" min="0" step="0.01" /></label>
+            }
+            <div><button type="submit" class="btn-primario" disabled="@procesando">Guardar cliente</button></div>
+        </EditForm>
+    </section>
+}
+
+<section class="tarjeta">
+    <div class="encabezado">
+        <form class="buscador" @onsubmit="CargarAsync">
+            <input type="search" @bind="buscar" placeholder="Buscar por nombre o documento" aria-label="Buscar clientes" />
+            <button type="submit" class="btn-secundario">Buscar</button>
+        </form>
+        <label class="check"><input type="checkbox" @bind="soloCuentaCorriente" @bind:after="CargarAsync" /> Solo con cuenta corriente</label>
+    </div>
+
+    @if (clientes is null)
+    {
+        <p>Cargando…</p>
+    }
+    else if (clientes.Count == 0)
+    {
+        <p>No hay clientes para mostrar.</p>
+    }
+    else
+    {
+        <table>
+            <thead>
+                <tr>
+                    <th>Cliente</th>
+                    <th>Documento</th>
+                    <th class="num">Límite</th>
+                    <th class="num">Saldo</th>
+                    <th class="num">Disponible</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var c in clientes)
+                {
+                    <tr>
+                        <td>@c.RazonSocial</td>
+                        <td>@c.Documento</td>
+                        <td class="num">@(c.PermiteCuentaCorriente ? Pesos(c.LimiteCredito) : "—")</td>
+                        <td class="num @(c.SaldoActual > 0 ? "faltante" : null)">@Pesos(c.SaldoActual)</td>
+                        <td class="num">@(c.PermiteCuentaCorriente ? Pesos(c.CreditoDisponible) : "—")</td>
+                        <td class="acciones-fila">
+                            @if (!c.EsConsumidorFinal)
+                            {
+                                <a href="clientes/@c.Id">Cuenta</a>
+                            }
+                            @if (c.SaldoActual > 0)
+                            {
+                                <button class="btn-secundario" @onclick="() => AbrirCobranza(c)">Cobrar</button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</section>
+
+@if (mostrarCobranza)
+{
+    <CobranzaModal Cliente="clienteACobrar" OnRegistrado="AlRegistrarCobranzaAsync" OnCancelar="CerrarCobranza" />
+}
+
+@code {
+    private List<ClienteDto>? clientes;
+    private string? buscar;
+    private bool soloCuentaCorriente;
+    private bool mostrarAlta;
+    private bool mostrarCobranza;
+    private ClienteDto? clienteACobrar;
+    private NuevoClienteRequest nuevo = new();
+    private string? mensaje;
+    private string? error;
+    private bool procesando;
+
+    private bool EsAdmin => Sesion.Actual?.Rol == "Administrador";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Sesion.EstaAutenticado)
+        {
+            Navegacion.NavigateTo("/");
+            return;
+        }
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        await EjecutarAsync(async () => clientes = await Api.ObtenerClientesAsync(buscar, soloCuentaCorriente));
+    }
+
+    private async Task CrearAsync()
+    {
+        await EjecutarAsync(async () =>
+        {
+            var creado = await Api.CrearClienteAsync(nuevo);
+            mensaje = $"Cliente '{creado.RazonSocial}' creado.";
+            nuevo = new();
+            mostrarAlta = false;
+            clientes = await Api.ObtenerClientesAsync(buscar, soloCuentaCorriente);
+        });
+    }
+
+    private void AbrirCobranza(ClienteDto cliente)
+    {
+        clienteACobrar = cliente;
+        mostrarCobranza = true;
+    }
+
+    private void CerrarCobranza()
+    {
+        mostrarCobranza = false;
+        clienteACobrar = null;
+    }
+
+    private async Task AlRegistrarCobranzaAsync(ReciboCobranzaDto recibo)
+    {
+        CerrarCobranza();
+        mensaje = $"Cobro de {Pesos(recibo.Monto)} registrado para {recibo.Cliente}. Nuevo saldo: {Pesos(recibo.SaldoResultante)}.";
+        await CargarAsync();
+    }
+
+    private async Task EjecutarAsync(Func<Task> accion)
+    {
+        error = null;
+        procesando = true;
+        try
+        {
+            await accion();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            if (!Sesion.EstaAutenticado) Navegacion.NavigateTo("/");
+        }
+        catch (HttpRequestException)
+        {
+            error = "No se pudo conectar con el servidor.";
+        }
+        finally
+        {
+            procesando = false;
+        }
+    }
+
+    private static string Pesos(decimal valor) => valor.ToString("$ #,##0.00");
+}

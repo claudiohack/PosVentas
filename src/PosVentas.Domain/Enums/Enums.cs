@@ -19,13 +19,28 @@ public enum MedioPago
     Efectivo = 1,
     Tarjeta = 2,
     Transferencia = 3,
-    QR = 4
+    QR = 4,
+
+    /// <summary>Venta a crédito: no ingresa dinero a la caja, se carga en la cuenta del cliente.</summary>
+    CuentaCorriente = 5
 }
 
 public enum TipoMovimientoCaja
 {
     /// <summary>Cobro de una venta.</summary>
-    Venta = 1
+    Venta = 1,
+
+    /// <summary>Recibo de cobranza de cuenta corriente.</summary>
+    Cobranza = 2
+}
+
+public enum TipoMovimientoCuentaCorriente
+{
+    /// <summary>Aumenta la deuda del cliente (venta a crédito).</summary>
+    Cargo = 1,
+
+    /// <summary>Disminuye la deuda del cliente (recibo de cobranza).</summary>
+    Abono = 2
 }
 
 public enum CondicionIva

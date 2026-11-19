@@ -5,7 +5,97 @@ public enum MedioPago
     Efectivo = 1,
     Tarjeta = 2,
     Transferencia = 3,
-    QR = 4
+    QR = 4,
+    CuentaCorriente = 5
+}
+
+public enum TipoMovimientoCuentaCorriente
+{
+    Cargo = 1,
+    Abono = 2
+}
+
+public enum CondicionIva
+{
+    ConsumidorFinal = 1,
+    ResponsableInscripto = 2,
+    Monotributista = 3,
+    Exento = 4
+}
+
+public sealed record ClienteDto(
+    Guid Id,
+    string RazonSocial,
+    string? Documento,
+    CondicionIva CondicionIva,
+    string? Telefono,
+    string? Email,
+    string? Direccion,
+    bool PermiteCuentaCorriente,
+    decimal LimiteCredito,
+    decimal SaldoActual,
+    decimal CreditoDisponible,
+    bool EsConsumidorFinal,
+    bool EstaActivo);
+
+public sealed record MovimientoCuentaCorrienteDto(
+    Guid Id,
+    DateTime FechaUtc,
+    TipoMovimientoCuentaCorriente Tipo,
+    decimal Monto,
+    decimal SaldoResultante,
+    Guid? VentaId,
+    Guid? ReciboCobranzaId,
+    string Descripcion);
+
+public sealed record CuentaCorrienteDto(ClienteDto Cliente, IReadOnlyList<MovimientoCuentaCorrienteDto> Movimientos);
+
+public sealed record ReciboCobranzaDto(
+    Guid Id,
+    Guid ClienteId,
+    string Cliente,
+    Guid CajaSesionId,
+    MedioPago Medio,
+    decimal Monto,
+    decimal SaldoAnterior,
+    decimal SaldoResultante,
+    DateTime FechaUtc);
+
+public sealed class NuevoClienteRequest
+{
+    [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "La razón social es obligatoria.")]
+    [System.ComponentModel.DataAnnotations.StringLength(150)]
+    public string RazonSocial { get; set; } = string.Empty;
+
+    [System.ComponentModel.DataAnnotations.StringLength(20)]
+    public string? Documento { get; set; }
+
+    public CondicionIva CondicionIva { get; set; } = CondicionIva.ConsumidorFinal;
+
+    [System.ComponentModel.DataAnnotations.StringLength(30)]
+    public string? Telefono { get; set; }
+
+    [System.ComponentModel.DataAnnotations.EmailAddress(ErrorMessage = "El email no es válido.")]
+    public string? Email { get; set; }
+
+    [System.ComponentModel.DataAnnotations.StringLength(200)]
+    public string? Direccion { get; set; }
+
+    public bool PermiteCuentaCorriente { get; set; }
+
+    [System.ComponentModel.DataAnnotations.Range(0, 1_000_000_000, ErrorMessage = "El límite no puede ser negativo.")]
+    public decimal LimiteCredito { get; set; }
+}
+
+public static class Etiquetas
+{
+    public static string Medio(MedioPago medio) => medio switch
+    {
+        MedioPago.CuentaCorriente => "Cuenta corriente",
+        _ => medio.ToString()
+    };
+
+    public static readonly MedioPago[] MediosCobranza = [MedioPago.Efectivo, MedioPago.Transferencia, MedioPago.QR];
 }
 
 public sealed record SesionCajaDto(
@@ -31,6 +121,9 @@ public sealed record ResumenSesionDto(
     decimal MontoApertura,
     int CantidadVentas,
     decimal TotalVendido,
+    decimal TotalVentasCuentaCorriente,
+    int CantidadCobranzas,
+    decimal TotalCobranzas,
     IReadOnlyList<TotalPorMedioDto> TotalesPorMedio,
     decimal EfectivoEsperado,
     decimal? MontoCierreReal,

@@ -142,9 +142,16 @@ internal static class ResumenSesionBuilder
             .Select(g => new { Medio = g.Key, Total = g.Sum(m => m.Monto) })
             .ToListAsync(ct);
 
+        // Dinero que ingresó a la caja (ventas + cobranzas), por medio. La cuenta corriente no es dinero.
         var totales = Enum.GetValues<MedioPago>()
+            .Where(m => m != MedioPago.CuentaCorriente)
             .Select(m => new TotalPorMedioDto(m, porMedio.SingleOrDefault(x => x.Medio == m)?.Total ?? 0m))
             .ToList();
+
+        var ventasACredito = await db.VentaPagos.AsNoTracking()
+            .Where(p => p.Medio == MedioPago.CuentaCorriente)
+            .Join(db.Ventas.Where(v => v.CajaSesionId == sesion.Id), p => p.VentaId, v => v.Id, (p, _) => p.Monto)
+            .SumAsync(m => (decimal?)m, ct) ?? 0m;
 
         var efectivo = totales.Single(t => t.Medio == MedioPago.Efectivo).Total;
 
@@ -166,6 +173,9 @@ internal static class ResumenSesionBuilder
             sesion.MontoApertura,
             sesion.CantidadVentas,
             sesion.TotalVendido,
+            ventasACredito,
+            sesion.CantidadCobranzas,
+            sesion.TotalCobranzas,
             totales,
             sesion.MontoCierreSistema ?? sesion.MontoApertura + efectivo,
             sesion.MontoCierreReal,

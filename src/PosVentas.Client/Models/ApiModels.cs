@@ -41,4 +41,4 @@ public sealed record ProductoDto(
     bool VenderSinStock,
     bool EstaActivo);
 
-public sealed record ProblemaApi(string? Title, string? Detail, int? Status);
+public sealed record ProblemaApi(string? Title, string? Detail, int? Status, Dictionary<string, string[]>? Errors);

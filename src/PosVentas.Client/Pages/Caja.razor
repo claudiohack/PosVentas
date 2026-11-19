@@ -50,13 +50,19 @@ else
                     <tbody>
                         @foreach (var total in resumen.TotalesPorMedio)
                         {
-                            <tr><td>@total.Medio</td><td class="num">@Pesos(total.Total)</td></tr>
+                            <tr><td>@Etiquetas.Medio(total.Medio)</td><td class="num">@Pesos(total.Total)</td></tr>
                         }
                     </tbody>
                     <tfoot>
                         <tr><th>@resumen.CantidadVentas ventas</th><th class="num">@Pesos(resumen.TotalVendido)</th></tr>
                     </tfoot>
                 </table>
+
+                <p>
+                    Cobranzas de cuenta corriente: @resumen.CantidadCobranzas · @Pesos(resumen.TotalCobranzas)
+                    · Vendido a cuenta corriente: @Pesos(resumen.TotalVentasCuentaCorriente)
+                    <button class="btn-secundario" @onclick="() => mostrarCobranza = true">Registrar cobranza</button>
+                </p>
 
                 <p class="destacado">Efectivo esperado en caja: <strong>@Pesos(resumen.EfectivoEsperado)</strong></p>
 
@@ -86,7 +92,27 @@ else
     }
 }
 
+@if (mensaje is not null)
+{
+    <p class="ok" role="status">@mensaje</p>
+}
+
+@if (mostrarCobranza)
+{
+    <CobranzaModal OnRegistrado="AlRegistrarCobranzaAsync" OnCancelar="() => mostrarCobranza = false" />
+}
+
 @code {
+    private bool mostrarCobranza;
+    private string? mensaje;
+
+    private async Task AlRegistrarCobranzaAsync(ReciboCobranzaDto recibo)
+    {
+        mostrarCobranza = false;
+        mensaje = $"Cobro de {Pesos(recibo.Monto)} a {recibo.Cliente} registrado. Saldo restante: {Pesos(recibo.SaldoResultante)}.";
+        await CargarAsync();
+    }
+
     private List<CajaDto>? cajas;
     private readonly Dictionary<Guid, ResumenSesionDto> resumenes = [];
     private ResumenSesionDto? cierre;

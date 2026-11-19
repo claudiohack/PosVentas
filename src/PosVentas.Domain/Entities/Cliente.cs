@@ -20,7 +20,16 @@ public sealed class Cliente : TenantEntity
 
     public bool PermiteCuentaCorriente { get; private set; }
     public decimal LimiteCredito { get; private set; }
+
+    /// <summary>Deuda actual del cliente en cuenta corriente (nunca negativa).</summary>
+    public decimal SaldoActual { get; private set; }
+
+    public decimal CreditoDisponible => PermiteCuentaCorriente ? Math.Max(0, LimiteCredito - SaldoActual) : 0m;
+
     public bool EstaActivo { get; private set; }
+
+    /// <summary>Concurrencia optimista: dos ventas a crédito simultáneas no pueden superar juntas el límite.</summary>
+    public byte[] RowVersion { get; private set; } = [];
 
     private Cliente(Guid id) : base(id) { }
 
@@ -71,16 +80,64 @@ public sealed class Cliente : TenantEntity
     {
         if (limiteCredito < 0)
             throw new DomainException("El límite de crédito no puede ser negativo.");
+        if (permiteCuentaCorriente && EsConsumidorFinalGenerico)
+            throw new DomainException("El cliente Consumidor Final no puede operar en cuenta corriente.");
+        if (!permiteCuentaCorriente && SaldoActual > 0)
+            throw new DomainException("No se puede deshabilitar la cuenta corriente de un cliente con saldo pendiente.");
 
+        // Bajar el límite por debajo del saldo es válido: solo bloquea nuevos cargos hasta que pague.
         PermiteCuentaCorriente = permiteCuentaCorriente;
         LimiteCredito = permiteCuentaCorriente ? limiteCredito : 0m;
         MarcarModificado();
+    }
+
+    /// <summary>Verifica que el cliente pueda tomar este cargo a crédito. Lanza <see cref="CreditoRechazadoException"/> si no.</summary>
+    public void VerificarCredito(decimal monto)
+    {
+        if (monto <= 0)
+            throw new DomainException("El importe a cuenta corriente debe ser mayor a cero.");
+        if (!EstaActivo)
+            throw new CreditoRechazadoException($"El cliente '{RazonSocial}' está dado de baja.");
+        if (!PermiteCuentaCorriente)
+            throw new CreditoRechazadoException($"El cliente '{RazonSocial}' no tiene habilitada la cuenta corriente.");
+        if (SaldoActual + monto > LimiteCredito)
+            throw new CreditoRechazadoException(
+                $"Límite de crédito excedido para '{RazonSocial}': saldo {SaldoActual:0.00} + cargo {monto:0.00} supera el límite de {LimiteCredito:0.00} (disponible {CreditoDisponible:0.00}).");
+    }
+
+    /// <summary>Carga una venta a crédito y devuelve el asiento de la cuenta corriente.</summary>
+    public MovimientoCuentaCorriente RegistrarCargo(decimal monto, Guid ventaId, Guid usuarioId)
+    {
+        VerificarCredito(monto);
+
+        SaldoActual += monto;
+        MarcarModificado();
+
+        return MovimientoCuentaCorriente.Crear(Id, TipoMovimientoCuentaCorriente.Cargo, monto, SaldoActual,
+            ventaId, null, usuarioId, "Venta a cuenta corriente");
+    }
+
+    /// <summary>Acredita un pago y devuelve el asiento de la cuenta corriente.</summary>
+    internal MovimientoCuentaCorriente RegistrarAbono(decimal monto, Guid reciboId, Guid usuarioId)
+    {
+        if (monto <= 0)
+            throw new DomainException("El importe cobrado debe ser mayor a cero.");
+        if (monto > SaldoActual)
+            throw new DomainException($"El importe cobrado ({monto:0.00}) supera la deuda del cliente ({SaldoActual:0.00}).");
+
+        SaldoActual -= monto;
+        MarcarModificado();
+
+        return MovimientoCuentaCorriente.Crear(Id, TipoMovimientoCuentaCorriente.Abono, monto, SaldoActual,
+            null, reciboId, usuarioId, "Recibo de cobranza");
     }
 
     public void Desactivar()
     {
         if (EsConsumidorFinalGenerico)
             throw new DomainException("No se puede dar de baja el cliente Consumidor Final.");
+        if (SaldoActual > 0)
+            throw new DomainException("No se puede dar de baja un cliente con saldo pendiente.");
         EstaActivo = false;
         MarcarModificado();
     }

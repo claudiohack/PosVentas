@@ -33,6 +33,7 @@ internal sealed class CajaSesionConfiguration : IEntityTypeConfiguration<CajaSes
         builder.Property(s => s.DiferenciaArqueo).HasPrecision(18, 2);
         builder.Property(s => s.Observaciones).HasMaxLength(500);
         builder.Property(s => s.TotalVendido).HasPrecision(18, 2);
+        builder.Property(s => s.TotalCobranzas).HasPrecision(18, 2);
         builder.Property(s => s.RowVersion).IsRowVersion();
 
         builder.HasOne(s => s.Caja)
@@ -104,6 +105,7 @@ internal sealed class VentaConfiguration : IEntityTypeConfiguration<Venta>
 
         builder.Navigation(v => v.Pagos).UsePropertyAccessMode(PropertyAccessMode.Field);
         builder.Ignore(v => v.TotalPagado);
+        builder.Ignore(v => v.MontoCuentaCorriente);
         builder.Property(v => v.Vuelto).HasPrecision(18, 2);
 
         builder.HasIndex(v => new { v.TenantId, v.FechaUtc });

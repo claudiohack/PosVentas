@@ -4,7 +4,9 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using PosVentas.Application.Features.Auth;
+using PosVentas.Application.Features.Cajas;
 using PosVentas.Application.Features.Categorias;
+using PosVentas.Application.Features.Clientes;
 using PosVentas.Application.Features.Productos;
 
 namespace PosVentas.IntegrationTests.Infrastructure;
@@ -90,4 +92,59 @@ public static class ApiTestHelpers
 
         return producto;
     }
+
+    public static async Task<ClienteDto> CrearClienteAsync(
+        this ComercioDePrueba comercio, decimal limiteCredito, bool permiteCuentaCorriente = true, string? documento = null)
+    {
+        var respuesta = await comercio.Http.PostAsJsonAsync("/api/clientes", new
+        {
+            razonSocial = $"Cliente {Guid.NewGuid():N}"[..20],
+            documento = documento ?? Random.Shared.NextInt64(20_000_000_000, 29_999_999_999).ToString(),
+            condicionIva = "ConsumidorFinal",
+            telefono = (string?)null,
+            email = (string?)null,
+            direccion = (string?)null,
+            permiteCuentaCorriente,
+            limiteCredito
+        }, Json);
+
+        Assert.True(respuesta.StatusCode == HttpStatusCode.Created, await respuesta.Content.ReadAsStringAsync());
+        return (await respuesta.Content.ReadFromJsonAsync<ClienteDto>(Json))!;
+    }
+
+    public static async Task<CuentaCorrienteDto> CuentaCorrienteAsync(this ComercioDePrueba comercio, Guid clienteId) =>
+        (await comercio.Http.GetFromJsonAsync<CuentaCorrienteDto>($"/api/clientes/{clienteId}/cuenta-corriente", Json))!;
+
+    public static async Task<SesionCajaDto> AbrirCajaAsync(this ComercioDePrueba comercio, decimal monto)
+    {
+        var caja = Assert.Single((await comercio.Http.GetFromJsonAsync<List<CajaDto>>("/api/cajas", Json))!);
+        var respuesta = await comercio.Http.PostAsJsonAsync($"/api/cajas/{caja.Id}/apertura", new { montoApertura = monto }, Json);
+        Assert.Equal(HttpStatusCode.Created, respuesta.StatusCode);
+        return (await respuesta.Content.ReadFromJsonAsync<SesionCajaDto>(Json))!;
+    }
+
+    public static async Task<ResumenSesionDto> ResumenCajaAsync(this ComercioDePrueba comercio, Guid sesionId) =>
+        (await comercio.Http.GetFromJsonAsync<ResumenSesionDto>($"/api/cajas/sesiones/{sesionId}/resumen", Json))!;
+
+    public static Task<HttpResponseMessage> VenderAsync(
+        this ComercioDePrueba comercio, Guid sesionId, Guid? clienteId,
+        (Guid ProductoId, decimal Cantidad)[] items, (string Medio, decimal Monto)[] pagos)
+        => comercio.Http.PostAsJsonAsync("/api/ventas", new
+        {
+            cajaSesionId = sesionId,
+            clienteId,
+            tipoComprobante = "Ticket",
+            items = items.Select(i => new { productoId = i.ProductoId, cantidad = i.Cantidad }),
+            pagos = pagos.Select(p => new { medio = p.Medio, monto = p.Monto })
+        }, Json);
+
+    public static Task<HttpResponseMessage> CobrarAsync(
+        this ComercioDePrueba comercio, Guid clienteId, Guid sesionId, string medio, decimal monto)
+        => comercio.Http.PostAsJsonAsync($"/api/clientes/{clienteId}/cobranzas", new
+        {
+            monto,
+            medio,
+            cajaSesionId = sesionId,
+            observaciones = "entrega a cuenta"
+        }, Json);
 }

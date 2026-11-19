@@ -28,6 +28,8 @@ public sealed class CajaSesion : TenantEntity
 
     public int CantidadVentas { get; private set; }
     public decimal TotalVendido { get; private set; }
+    public int CantidadCobranzas { get; private set; }
+    public decimal TotalCobranzas { get; private set; }
     public byte[] RowVersion { get; private set; } = [];
 
     private CajaSesion(Guid id) : base(id) { }
@@ -69,6 +71,19 @@ public sealed class CajaSesion : TenantEntity
 
         CantidadVentas++;
         TotalVendido += venta.TotalGeneral;
+        MarcarModificado();
+    }
+
+    /// <summary>Acumula un recibo de cobranza (misma protección de concurrencia que las ventas).</summary>
+    internal void RegistrarCobranza(ReciboCobranza recibo)
+    {
+        if (!EnCurso)
+            throw new DomainException("No se puede cobrar en una caja cerrada.");
+        if (recibo.CajaSesionId != Id)
+            throw new DomainException("El recibo no pertenece a este turno de caja.");
+
+        CantidadCobranzas++;
+        TotalCobranzas += recibo.Monto;
         MarcarModificado();
     }
 

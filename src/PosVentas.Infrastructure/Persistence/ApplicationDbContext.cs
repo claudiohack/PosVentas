@@ -26,6 +26,8 @@ public sealed class ApplicationDbContext(
     public DbSet<VentaDetalle> VentaDetalles => Set<VentaDetalle>();
     public DbSet<VentaPago> VentaPagos => Set<VentaPago>();
     public DbSet<MovimientoCaja> MovimientosCaja => Set<MovimientoCaja>();
+    public DbSet<MovimientoCuentaCorriente> MovimientosCuentaCorriente => Set<MovimientoCuentaCorriente>();
+    public DbSet<ReciboCobranza> RecibosCobranza => Set<ReciboCobranza>();
 
     /// <summary>
     /// Tenant del request. EF Core lo evalúa en cada consulta (no queda fijo en el modelo cacheado).

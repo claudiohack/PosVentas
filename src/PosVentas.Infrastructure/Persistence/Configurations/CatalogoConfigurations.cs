@@ -78,6 +78,9 @@ internal sealed class ClienteConfiguration : IEntityTypeConfiguration<Cliente>
         builder.Property(c => c.Email).HasMaxLength(150);
         builder.Property(c => c.Direccion).HasMaxLength(200);
         builder.Property(c => c.LimiteCredito).HasPrecision(18, 2);
+        builder.Property(c => c.SaldoActual).HasPrecision(18, 2);
+        builder.Property(c => c.RowVersion).IsRowVersion();
+        builder.Ignore(c => c.CreditoDisponible);
 
         builder.HasIndex(c => new { c.TenantId, c.Documento })
             .IsUnique()

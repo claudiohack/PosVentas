@@ -35,6 +35,9 @@ public sealed class Venta : TenantEntity
 
     public decimal TotalPagado => _pagos.Sum(p => p.Monto);
 
+    /// <summary>Parte de la venta cargada a la cuenta corriente del cliente.</summary>
+    public decimal MontoCuentaCorriente => _pagos.Where(p => p.Medio == MedioPago.CuentaCorriente).Sum(p => p.Monto);
+
     private readonly List<VentaDetalle> _detalles = [];
     public IReadOnlyCollection<VentaDetalle> Detalles => _detalles.AsReadOnly();
 
@@ -103,11 +106,15 @@ public sealed class Venta : TenantEntity
     /// Registra el cobro. Reglas:
     /// - lo pagado debe cubrir el total;
     /// - solo el efectivo admite excedente (se devuelve como vuelto);
-    /// - los medios electrónicos no pueden superar el total de la venta.
+    /// - los medios electrónicos y la cuenta corriente no pueden superar el total de la venta;
+    /// - la cuenta corriente exige que el cliente de la venta la tenga habilitada y con crédito suficiente.
     /// </summary>
-    public void RegistrarPagos(IEnumerable<PagoSolicitado> pagos)
+    public void RegistrarPagos(IEnumerable<PagoSolicitado> pagos, Cliente cliente)
     {
         ArgumentNullException.ThrowIfNull(pagos);
+        ArgumentNullException.ThrowIfNull(cliente);
+        if (cliente.Id != ClienteId)
+            throw new DomainException("El cliente indicado no corresponde a la venta.");
         if (_detalles.Count == 0)
             throw new DomainException("La venta debe tener al menos un ítem.");
         if (_pagos.Count > 0)
@@ -137,7 +144,15 @@ public sealed class Venta : TenantEntity
 
         var noEfectivo = agrupados.Where(p => p.Medio != MedioPago.Efectivo).Sum(p => p.Monto);
         if (noEfectivo > TotalGeneral)
-            throw new DomainException("Los pagos con tarjeta, transferencia o QR no pueden superar el total: el vuelto solo se da en efectivo.");
+            throw new DomainException("Los pagos con tarjeta, transferencia, QR o cuenta corriente no pueden superar el total: el vuelto solo se da en efectivo.");
+
+        var aCuentaCorriente = agrupados.Where(p => p.Medio == MedioPago.CuentaCorriente).Sum(p => p.Monto);
+        if (aCuentaCorriente > 0)
+        {
+            if (cliente.EsConsumidorFinalGenerico)
+                throw new CreditoRechazadoException("Para vender a cuenta corriente hay que identificar al cliente.");
+            cliente.VerificarCredito(aCuentaCorriente);
+        }
 
         foreach (var (medio, monto) in agrupados)
             _pagos.Add(VentaPago.Crear(Id, medio, monto));

@@ -37,6 +37,7 @@ public sealed class GlobalExceptionMiddleware(ILogger<GlobalExceptionMiddleware>
                 "La operación no está permitida para este comercio."),
             NotFoundException ex => Crear(StatusCodes.Status404NotFound, "Recurso no encontrado.", ex.Message),
             ConflictException ex => Crear(StatusCodes.Status409Conflict, "Conflicto.", ex.Message),
+            CreditoRechazadoException ex => Crear(StatusCodes.Status400BadRequest, "Crédito rechazado.", ex.Message),
             DomainException ex => Crear(StatusCodes.Status422UnprocessableEntity, "Regla de negocio incumplida.", ex.Message),
             _ => Crear(StatusCodes.Status500InternalServerError, "Error interno del servidor.",
                 "Ocurrió un error inesperado. Si persiste, informá el traceId a soporte.")

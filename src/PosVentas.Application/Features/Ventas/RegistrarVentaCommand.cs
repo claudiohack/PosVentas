@@ -41,6 +41,11 @@ public sealed class RegistrarVentaCommandValidator : AbstractValidator<Registrar
             item.RuleFor(i => i.Cantidad).GreaterThan(0).LessThanOrEqualTo(100_000).PrecisionScale(18, 3, true);
         });
 
+        RuleFor(x => x.ClienteId)
+            .NotNull()
+            .When(x => x.Pagos is not null && x.Pagos.Any(p => p.Medio == MedioPago.CuentaCorriente))
+            .WithMessage("Para cobrar con cuenta corriente hay que indicar el cliente.");
+
         RuleFor(x => x.Pagos).NotEmpty().WithMessage("Debe indicar al menos un medio de pago.")
             .Must(p => p.Count <= MaximoPagos).WithMessage($"No se admiten más de {MaximoPagos} pagos.");
         RuleForEach(x => x.Pagos).ChildRules(pago =>
@@ -88,15 +93,19 @@ public sealed class RegistrarVentaCommandHandler(IApplicationDbContext db, ICurr
             venta.AgregarItem(producto, cantidad); // descuenta stock vía Producto.DescontarStock
         }
 
-        venta.RegistrarPagos(request.Pagos.Select(p => new PagoSolicitado(p.Medio, p.Monto)));
+        // Valida el límite de crédito si hay pago a cuenta corriente (CreditoRechazadoException → 400)
+        venta.RegistrarPagos(request.Pagos.Select(p => new PagoSolicitado(p.Medio, p.Monto)), cliente);
         venta.ValidarParaRegistrar();
 
         sesion.RegistrarCobro(venta);
         db.Ventas.Add(venta);
         db.MovimientosCaja.AddRange(MovimientoCaja.PorVenta(sesion, venta));
 
-        // Una sola transacción: venta, detalles, pagos, stock, movimientos y totales del turno.
-        // RowVersion en Producto y CajaSesion convierte las carreras en 409.
+        if (venta.MontoCuentaCorriente > 0)
+            db.MovimientosCuentaCorriente.Add(cliente.RegistrarCargo(venta.MontoCuentaCorriente, venta.Id, usuarioId));
+
+        // Una sola transacción: venta, detalles, pagos, stock, movimientos de caja, cuenta corriente y totales del turno.
+        // RowVersion en Producto, Cliente y CajaSesion convierte las carreras en 409.
         await db.SaveChangesAsync(cancellationToken);
 
         return VentaMapper.ToDto(venta, cliente.RazonSocial);

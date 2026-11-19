@@ -59,6 +59,30 @@ public sealed class PosVentasApi(HttpClient http, SesionService sesion)
     public Task<VentaDto> RegistrarVentaAsync(RegistrarVentaRequest request, CancellationToken ct = default) =>
         EnviarAsync<VentaDto>(HttpMethod.Post, "api/ventas", request, ct);
 
+    // ---------- Clientes y cuentas corrientes ----------
+
+    public Task<List<ClienteDto>> ObtenerClientesAsync(string? buscar = null, bool soloCuentaCorriente = false, CancellationToken ct = default)
+    {
+        var query = new List<string>();
+        if (!string.IsNullOrWhiteSpace(buscar)) query.Add($"buscar={Uri.EscapeDataString(buscar)}");
+        if (soloCuentaCorriente) query.Add("soloCuentaCorriente=true");
+        var ruta = query.Count == 0 ? "api/clientes" : $"api/clientes?{string.Join('&', query)}";
+        return EnviarAsync<List<ClienteDto>>(HttpMethod.Get, ruta, null, ct);
+    }
+
+    public Task<ClienteDto> CrearClienteAsync(NuevoClienteRequest request, CancellationToken ct = default) =>
+        EnviarAsync<ClienteDto>(HttpMethod.Post, "api/clientes", request, ct);
+
+    public Task<ClienteDto> ActualizarCreditoAsync(Guid clienteId, bool permiteCuentaCorriente, decimal limiteCredito, CancellationToken ct = default) =>
+        EnviarAsync<ClienteDto>(HttpMethod.Put, $"api/clientes/{clienteId}/credito", new { permiteCuentaCorriente, limiteCredito }, ct);
+
+    public Task<CuentaCorrienteDto> ObtenerCuentaCorrienteAsync(Guid clienteId, CancellationToken ct = default) =>
+        EnviarAsync<CuentaCorrienteDto>(HttpMethod.Get, $"api/clientes/{clienteId}/cuenta-corriente", null, ct);
+
+    public Task<ReciboCobranzaDto> RegistrarCobranzaAsync(Guid clienteId, decimal monto, MedioPago medio, Guid cajaSesionId, string? observaciones, CancellationToken ct = default) =>
+        EnviarAsync<ReciboCobranzaDto>(HttpMethod.Post, $"api/clientes/{clienteId}/cobranzas",
+            new { monto, medio, cajaSesionId, observaciones }, ct);
+
     // ---------- Infraestructura ----------
 
     private async Task<T> EnviarAsync<T>(HttpMethod metodo, string ruta, object? cuerpo, CancellationToken ct)
@@ -95,6 +119,7 @@ public sealed class PosVentasApi(HttpClient http, SesionService sesion)
         {
             HttpStatusCode.Forbidden => "No tenés permisos para esta operación.",
             HttpStatusCode.TooManyRequests => "Demasiados intentos. Esperá un minuto y volvé a probar.",
+            _ when problema?.Errors is { Count: > 0 } errores => string.Join(" ", errores.Values.SelectMany(e => e).Distinct()),
             _ => problema?.Detail ?? problema?.Title ?? $"Error {(int)respuesta.StatusCode} al comunicarse con el servidor."
         };
         throw new ApiException(mensaje, respuesta.StatusCode);
