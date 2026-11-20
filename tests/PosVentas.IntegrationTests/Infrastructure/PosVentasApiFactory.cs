@@ -1,8 +1,12 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using PosVentas.Application.Common.Interfaces;
 using PosVentas.Infrastructure.Persistence;
 
 namespace PosVentas.IntegrationTests.Infrastructure;
@@ -34,6 +38,17 @@ public sealed class PosVentasApiFactory : WebApplicationFactory<Program>, IAsync
         builder.UseSetting("ConnectionStrings:PosVentas", ConnectionString);
         builder.UseSetting("Jwt:SigningKey", ClaveFirmaJwt);
         builder.UseSetting("RateLimiting:AuthPorMinuto", "100000");
+
+        builder.ConfigureTestServices(services =>
+        {
+            // ARCA simulada: los tests nunca salen a internet ni necesitan un certificado real.
+            services.RemoveAll<IAfipService>();
+            services.AddSingleton<AfipServiceFalso>();
+            services.AddSingleton<IAfipService>(sp => sp.GetRequiredService<AfipServiceFalso>());
+
+            // Claves de Data Protection en memoria: no se escribe nada en el perfil del usuario.
+            services.AddSingleton<IDataProtectionProvider, EphemeralDataProtectionProvider>();
+        });
     }
 
     public async Task InitializeAsync()

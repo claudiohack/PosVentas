@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -10,6 +10,11 @@ namespace PosVentas.Client.Services;
 public sealed class ApiException(string message, HttpStatusCode status) : Exception(message)
 {
     public HttpStatusCode Status { get; } = status;
+
+    /// <summary>Venta que quedó registrada pendiente de facturación (rechazo de ARCA o ARCA no disponible).</summary>
+    public Guid? VentaPendienteId { get; init; }
+
+    public IReadOnlyList<ErrorAfipDto> ErroresAfip { get; init; } = [];
 }
 
 /// <summary>
@@ -118,6 +123,31 @@ public sealed class PosVentasApi(HttpClient http, SesionService sesion)
         EnviarAsync<ReciboCobranzaDto>(HttpMethod.Post, $"api/clientes/{clienteId}/cobranzas",
             new { monto, medio, cajaSesionId, observaciones }, ct);
 
+    public Task<VentaDto> FacturarVentaAsync(Guid ventaId, string tipoComprobante, CancellationToken ct = default) =>
+        EnviarAsync<VentaDto>(HttpMethod.Post, $"api/ventas/{ventaId}/facturar", new { tipoComprobante }, ct);
+
+    public Task<ComprobanteImpresionDto> ObtenerComprobanteAsync(Guid ventaId, CancellationToken ct = default) =>
+        EnviarAsync<ComprobanteImpresionDto>(HttpMethod.Get, $"api/ventas/{ventaId}/comprobante", null, ct);
+
+    // ---------- Configuración fiscal (solo administradores) ----------
+
+    public Task<ConfiguracionFiscalDto> ObtenerConfiguracionFiscalAsync(CancellationToken ct = default) =>
+        EnviarAsync<ConfiguracionFiscalDto>(HttpMethod.Get, "api/comercio/configuracion-fiscal", null, ct);
+
+    public Task<ConfiguracionFiscalDto> ActualizarDatosFiscalesAsync(DatosFiscalesFormulario f, CancellationToken ct = default) =>
+        EnviarAsync<ConfiguracionFiscalDto>(HttpMethod.Put, "api/comercio/configuracion-fiscal", f, ct);
+
+    public Task<ConfiguracionFiscalDto> CargarCertificadoPkcs12Async(byte[] contenido, string? password, CancellationToken ct = default) =>
+        EnviarAsync<ConfiguracionFiscalDto>(HttpMethod.Put, "api/comercio/certificado-afip",
+            new { formato = "Pkcs12", pkcs12Base64 = Convert.ToBase64String(contenido), password }, ct);
+
+    public Task<ConfiguracionFiscalDto> CargarCertificadoPemAsync(string certificadoPem, string clavePrivadaPem, string? password, CancellationToken ct = default) =>
+        EnviarAsync<ConfiguracionFiscalDto>(HttpMethod.Put, "api/comercio/certificado-afip",
+            new { formato = "Pem", certificadoPem, clavePrivadaPem, password }, ct);
+
+    public Task<EstadoServicioAfipDto> VerificarConexionAfipAsync(CancellationToken ct = default) =>
+        EnviarAsync<EstadoServicioAfipDto>(HttpMethod.Post, "api/comercio/afip/verificacion", new { }, ct);
+
     // ---------- Usuarios (solo administradores) ----------
 
     public Task<List<UsuarioDto>> ObtenerUsuariosAsync(CancellationToken ct = default) =>
@@ -185,9 +215,15 @@ public sealed class PosVentasApi(HttpClient http, SesionService sesion)
         {
             HttpStatusCode.Forbidden => "No tenés permisos para esta operación.",
             HttpStatusCode.TooManyRequests => "Demasiados intentos. Esperá un minuto y volvé a probar.",
+            _ when problema?.ErroresAfip is { Count: > 0 } afip =>
+                $"{problema.Title} " + string.Join(" · ", afip.Select(e => $"[{e.Codigo}] {e.Mensaje}")),
             _ when problema?.Errors is { Count: > 0 } errores => string.Join(" ", errores.Values.SelectMany(e => e).Distinct()),
             _ => problema?.Detail ?? problema?.Title ?? $"Error {(int)respuesta.StatusCode} al comunicarse con el servidor."
         };
-        throw new ApiException(mensaje, respuesta.StatusCode);
+        throw new ApiException(mensaje, respuesta.StatusCode)
+        {
+            VentaPendienteId = problema?.VentaId,
+            ErroresAfip = problema?.ErroresAfip ?? []
+        };
     }
 }

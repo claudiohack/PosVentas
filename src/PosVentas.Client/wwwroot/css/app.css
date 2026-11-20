@@ -250,3 +250,27 @@ tr.fila-stock-bajo td { background: #fff7f6; }
 .btn-link { border: none; background: none; padding: 0; color: var(--pv-primario); text-decoration: underline dotted; cursor: pointer; font: inherit; }
 .ayuda { font-size: 0.85rem; color: #4a5160; margin-bottom: 0; }
 .cobro > label input { padding: 0.45rem; border: 1px solid var(--pv-borde); border-radius: 6px; font: inherit; }
+
+/* ---------- Facturación electrónica ---------- */
+.aviso-fiscal { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; border-color: #efd29c; background: #fdf8ec; margin-bottom: 1rem; }
+.comprobante { max-width: 820px; margin: 1rem auto; padding: 1.25rem; background: var(--pv-superficie); border: 1px solid var(--pv-borde); border-radius: 8px; }
+.comprobante-cabecera { display: grid; grid-template-columns: 1fr auto 1fr; gap: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--pv-borde); }
+.comprobante-emisor { font-size: 1.15rem; }
+.comprobante-letra { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 4rem; height: 4rem; border: 2px solid var(--pv-texto); border-radius: 4px; }
+.comprobante-letra span { font-size: 2rem; font-weight: 700; line-height: 1; }
+.comprobante-letra small { font-size: 0.7rem; }
+.comprobante-datos { text-align: right; }
+.comprobante-receptor { padding: 0.75rem 0; border-bottom: 1px solid var(--pv-borde); }
+.comprobante-totales { margin-left: auto; max-width: 320px; }
+.comprobante-pie { display: flex; gap: 1rem; align-items: center; padding-top: 0.75rem; border-top: 1px solid var(--pv-borde); }
+.comprobante-qr { width: 120px; height: 120px; image-rendering: pixelated; }
+@media (max-width: 640px) {
+    .comprobante-cabecera { grid-template-columns: 1fr; }
+    .comprobante-datos { text-align: left; }
+}
+@media print {
+    .barra, .no-imprimir, #blazor-error-ui { display: none !important; }
+    body { background: #fff; }
+    .contenido { padding: 0; max-width: none; }
+    .comprobante { border: none; margin: 0; max-width: none; }
+}

@@ -59,7 +59,11 @@ dotnet ef database update --project src/PosVentas.Infrastructure --startup-proje
 ## Reglas de negocio vigentes
 
 - La apertura de caja nunca es automática: siempre requiere una acción explícita del usuario.
-- Solo se emiten tickets internos hasta integrar la facturación electrónica (ARCA).
+- Facturación electrónica ARCA (WSFEv1) vía `IAfipService`; los tests usan `AfipServiceFalso` y nunca salen a internet.
+  - Las validaciones fiscales (letra según condición IVA de emisor y receptor, CUIT para Factura A, identificación del consumidor final desde `Facturacion:MontoMinimoIdentificacionConsumidorFinal`) corren **antes** de persistir la venta: error de datos → 400 sin efectos.
+  - Si ARCA rechaza (400, con `erroresAfip` y `ventaId`) o no responde (503), la venta ya registrada queda `EstadoFacturacion.Pendiente` y se reintenta con `POST /api/ventas/{id}/facturar`. Nunca se anula la venta por un problema de ARCA.
+  - Cada solicitud queda en `ComprobanteFiscal` (aprobada o rechazada). Índices únicos: un aprobado por venta y numeración por tenant + tipo + punto de venta.
+  - El certificado y el ticket de acceso de WSAA se guardan cifrados con Data Protection; la API nunca los devuelve. En producción el anillo de claves va fuera del servidor (`DataProtection:DirectorioClaves` o Key Vault).
 - El vuelto solo se entrega en efectivo.
 - La venta a cuenta corriente requiere un cliente con la cuenta habilitada y no puede superar su límite de crédito.
 - El cierre y arqueo de caja lo hacen solo supervisores y administradores.

@@ -22,6 +22,8 @@ var builder = WebApplication.CreateBuilder(args);
 // ---------- Capas ----------
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.Configure<PosVentas.Application.Features.Facturacion.FacturacionOptions>(
+    builder.Configuration.GetSection(PosVentas.Application.Features.Facturacion.FacturacionOptions.SectionName));
 
 // ---------- Contexto del request (tenant / usuario desde el JWT) ----------
 builder.Services.AddHttpContextAccessor();

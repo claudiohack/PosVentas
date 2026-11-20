@@ -14,10 +14,33 @@ public enum RolUsuario
 
 public enum TipoComprobante
 {
+    /// <summary>Ticket interno: no es un comprobante fiscal.</summary>
     Ticket = 1,
     FacturaA = 2,
     FacturaB = 3,
-    FacturaC = 4
+    FacturaC = 4,
+    NotaCreditoA = 5,
+    NotaCreditoB = 6,
+    NotaCreditoC = 7
+}
+
+/// <summary>Situación de la venta respecto de la facturación electrónica.</summary>
+public enum EstadoFacturacion
+{
+    /// <summary>Ticket interno: no requiere CAE.</summary>
+    NoRequerida = 1,
+
+    /// <summary>Se pidió factura pero ARCA todavía no otorgó el CAE (rechazo o falta de conexión).</summary>
+    Pendiente = 2,
+
+    /// <summary>Factura autorizada con CAE.</summary>
+    Facturada = 3
+}
+
+public enum ResultadoComprobanteFiscal
+{
+    Aprobado = 1,
+    Rechazado = 2
 }
 
 public enum MedioPago

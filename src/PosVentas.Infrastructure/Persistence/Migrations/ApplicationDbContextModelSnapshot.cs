@@ -271,9 +271,30 @@ namespace PosVentas.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<bool>("AfipProduccion")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("CertificadoAfipProtegido")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CertificadoAfipSujeto")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("CertificadoAfipVenceUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CondicionIva")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
                     b.Property<string>("Cuit")
                         .HasMaxLength(13)
                         .HasColumnType("nvarchar(13)");
+
+                    b.Property<string>("DomicilioFiscal")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<bool>("EstaActivo")
                         .HasColumnType("bit");
@@ -284,15 +305,31 @@ namespace PosVentas.Infrastructure.Persistence.Migrations
                     b.Property<DateTime?>("FechaModificacionUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("IngresosBrutos")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateOnly?>("InicioActividades")
+                        .HasColumnType("date");
+
                     b.Property<string>("Nombre")
                         .IsRequired()
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
 
+                    b.Property<int?>("PuntoVentaAfip")
+                        .HasColumnType("int");
+
                     b.Property<string>("Slug")
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("TicketAccesoAfipProtegido")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("TicketAccesoAfipVenceUtc")
+                        .HasColumnType("datetime2");
 
                     b.HasKey("Id");
 
@@ -414,6 +451,90 @@ namespace PosVentas.Infrastructure.Persistence.Migrations
                     b.HasIndex("TenantId");
 
                     b.ToTable("CompraDetalles", (string)null);
+                });
+
+            modelBuilder.Entity("PosVentas.Domain.Entities.ComprobanteFiscal", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Cae")
+                        .HasMaxLength(14)
+                        .HasColumnType("nvarchar(14)");
+
+                    b.Property<string>("CuitEmisor")
+                        .IsRequired()
+                        .HasMaxLength(11)
+                        .HasColumnType("nchar(11)")
+                        .IsFixedLength();
+
+                    b.Property<long>("DocNroReceptor")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("DocTipoReceptor")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("FechaCreacionUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateOnly>("FechaEmision")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime?>("FechaModificacionUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("FechaSolicitudUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateOnly?>("FechaVencimientoCae")
+                        .HasColumnType("date");
+
+                    b.Property<decimal>("ImporteTotal")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<long?>("NumeroComprobante")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ObservacionesAfip")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<bool>("Produccion")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("PuntoVenta")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Resultado")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("TipoComprobante")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<Guid>("VentaId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex(new[] { "VentaId" }, "IX_ComprobantesFiscales_VentaId");
+
+                    b.HasIndex(new[] { "TenantId", "TipoComprobante", "PuntoVenta", "NumeroComprobante" }, "UX_ComprobantesFiscales_Numeracion")
+                        .IsUnique()
+                        .HasFilter("[Resultado] = 'Aprobado'");
+
+                    b.HasIndex(new[] { "VentaId" }, "UX_ComprobantesFiscales_VentaId_Aprobado")
+                        .IsUnique()
+                        .HasFilter("[Resultado] = 'Aprobado'");
+
+                    b.ToTable("ComprobantesFiscales", (string)null);
                 });
 
             modelBuilder.Entity("PosVentas.Domain.Entities.MovimientoCaja", b =>
@@ -822,6 +943,11 @@ namespace PosVentas.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("ClienteId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("EstadoFacturacion")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
                     b.Property<DateTime>("FechaCreacionUtc")
                         .HasColumnType("datetime2");
 
@@ -1077,6 +1203,21 @@ namespace PosVentas.Infrastructure.Persistence.Migrations
                     b.HasOne("PosVentas.Domain.Entities.Comercio", null)
                         .WithMany()
                         .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PosVentas.Domain.Entities.ComprobanteFiscal", b =>
+                {
+                    b.HasOne("PosVentas.Domain.Entities.Comercio", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PosVentas.Domain.Entities.Venta", null)
+                        .WithMany()
+                        .HasForeignKey("VentaId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

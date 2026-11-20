@@ -19,6 +19,9 @@ public static class DependencyInjection
 
         services.AddValidatorsFromAssembly(assembly, includeInternalTypes: true);
 
+        services.AddOptions<Features.Facturacion.FacturacionOptions>();
+        services.AddScoped<Features.Facturacion.EmisorComprobantesFiscales>();
+
         return services;
     }
 }

@@ -20,7 +20,23 @@
         {
             <span class="vuelto">Vuelto: @Pesos(ultimaVenta.Vuelto)</span>
         }
+        @if (ultimaVenta.EstadoFacturacion == EstadoFacturacion.Facturada)
+        {
+            <span>@Comprobantes.Texto(ultimaVenta.TipoComprobante) @ultimaVenta.NumeroFormateado · CAE @ultimaVenta.Cae</span>
+        }
+        <a href="comprobante/@ultimaVenta.Id">Ver / imprimir comprobante</a>
         <button class="btn-secundario" @onclick="() => ultimaVenta = null">Nueva venta</button>
+    </section>
+}
+
+@if (pendiente is not null)
+{
+    <section class="tarjeta aviso-fiscal" role="alert">
+        <strong>La venta quedó registrada, pero sin factura.</strong>
+        <span>@pendiente.Value.Motivo</span>
+        <span>La mercadería y el cobro ya están registrados: reintentá la factura desde el comprobante.</span>
+        <a href="comprobante/@pendiente.Value.VentaId">Reintentar factura</a>
+        <button class="btn-secundario" @onclick="() => pendiente = null">Cerrar</button>
     </section>
 }
 
@@ -106,18 +122,36 @@ else
 
         <section class="tarjeta cobro">
             <label>
+                Comprobante
+                <select @bind="tipoComprobante" aria-label="Tipo de comprobante">
+                    @foreach (var (valor, texto) in Comprobantes.DeVenta)
+                    {
+                        <option value="@valor">@texto</option>
+                    }
+                </select>
+            </label>
+            @if (tipoComprobante == Comprobantes.FacturaA && ClienteElegido is null)
+            {
+                <p class="faltante">La Factura A requiere elegir un cliente con CUIT.</p>
+            }
+
+            <label>
                 Cliente
                 <select @bind="clienteId">
                     <option value="@Guid.Empty">Consumidor Final</option>
-                    @foreach (var c in clientesCuentaCorriente)
+                    @foreach (var c in clientes)
                     {
-                        <option value="@c.Id">@c.RazonSocial (disponible @Pesos(c.CreditoDisponible))</option>
+                        <option value="@c.Id">@c.RazonSocial @(c.Documento is null ? null : $"· {c.Documento}") @(c.PermiteCuentaCorriente ? $"(disponible {Pesos(c.CreditoDisponible)})" : null)</option>
                     }
                 </select>
             </label>
             @if (UsaCuentaCorriente && ClienteElegido is null)
             {
                 <p class="faltante">Para cobrar a cuenta corriente elegí un cliente.</p>
+            }
+            else if (UsaCuentaCorriente && ClienteElegido is { PermiteCuentaCorriente: false } sinCuenta)
+            {
+                <p class="faltante">@sinCuenta.RazonSocial no tiene cuenta corriente habilitada.</p>
             }
             else if (UsaCuentaCorriente && ClienteElegido is { } cc && MontoCuentaCorriente > cc.CreditoDisponible)
             {
@@ -185,11 +219,16 @@ else
     private decimal Total => NetoGravado + NetoNoGravado + Iva;
     private decimal Pagado => pagos.Where(p => p.Monto > 0).Sum(p => p.Monto);
     private bool PuedeCobrar => carrito.Count > 0 && carrito.All(r => r.Cantidad > 0) && Pagado >= Total && sesionId != Guid.Empty
-        && (!UsaCuentaCorriente || ClienteElegido is not null);
+        && (!UsaCuentaCorriente || ClienteElegido is not null)
+        && (tipoComprobante != Comprobantes.FacturaA || ClienteElegido is not null);
 
-    private List<ClienteDto> clientesCuentaCorriente = [];
+    // La API valida los datos fiscales; acá solo se guía al cajero.
+    private string tipoComprobante = Comprobantes.Ticket;
+    private (Guid VentaId, string Motivo)? pendiente;
+
+    private List<ClienteDto> clientes = [];
     private Guid clienteId;
-    private ClienteDto? ClienteElegido => clientesCuentaCorriente.FirstOrDefault(c => c.Id == clienteId);
+    private ClienteDto? ClienteElegido => clientes.FirstOrDefault(c => c.Id == clienteId);
     private bool UsaCuentaCorriente => pagos.Any(p => p.Medio == MedioPago.CuentaCorriente && p.Monto > 0);
     private decimal MontoCuentaCorriente => pagos.Where(p => p.Medio == MedioPago.CuentaCorriente).Sum(p => p.Monto);
 
@@ -206,9 +245,13 @@ else
             var cajas = await Api.ObtenerCajasAsync();
             sesionesAbiertas = cajas.Where(c => c.SesionActiva is not null).Select(c => c.SesionActiva!).ToList();
             sesionId = sesionesAbiertas.FirstOrDefault()?.Id ?? Guid.Empty;
-            clientesCuentaCorriente = await Api.ObtenerClientesAsync(soloCuentaCorriente: true);
+            await CargarClientesAsync();
         });
     }
+
+    // Todos los clientes identificados: los de cuenta corriente y los que piden factura A/B nominada.
+    private async Task CargarClientesAsync() =>
+        clientes = (await Api.ObtenerClientesAsync()).Where(c => !c.EsConsumidorFinal).ToList();
 
     private async Task BuscarAsync()
     {
@@ -237,24 +280,39 @@ else
 
     private async Task CobrarAsync()
     {
+        pendiente = null;
         await EjecutarAsync(async () =>
         {
             var request = new RegistrarVentaRequest(
                 sesionId,
                 ClienteId: clienteId == Guid.Empty ? null : clienteId, // null = Consumidor Final
-                TipoComprobante: "Ticket",
+                TipoComprobante: tipoComprobante,
                 carrito.Select(r => new ItemVentaRequest(r.Producto.Id, r.Cantidad)).ToList(),
                 pagos.Where(p => p.Monto > 0).Select(p => new PagoRequest(p.Medio, p.Monto)).ToList());
 
-            ultimaVenta = await Api.RegistrarVentaAsync(request);
+            try
+            {
+                ultimaVenta = await Api.RegistrarVentaAsync(request);
+            }
+            catch (ApiException ex) when (ex.VentaPendienteId is { } ventaId)
+            {
+                // ARCA rechazó o no respondió, pero la venta ya se registró: no volver a cobrarla.
+                pendiente = (ventaId, ex.Message);
+            }
 
-            carrito.Clear();
-            pagos.Clear();
-            pagos.Add(new PagoEnPantalla());
-            resultados = [];
-            clienteId = Guid.Empty;
-            clientesCuentaCorriente = await Api.ObtenerClientesAsync(soloCuentaCorriente: true); // saldos actualizados
+            LimpiarVenta();
+            await CargarClientesAsync(); // saldos actualizados
         });
+    }
+
+    private void LimpiarVenta()
+    {
+        carrito.Clear();
+        pagos.Clear();
+        pagos.Add(new PagoEnPantalla());
+        resultados = [];
+        clienteId = Guid.Empty;
+        tipoComprobante = Comprobantes.Ticket;
     }
 
     private async Task EjecutarAsync(Func<Task> accion)

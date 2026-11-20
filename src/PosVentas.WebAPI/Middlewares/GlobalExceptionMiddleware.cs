@@ -33,6 +33,8 @@ public sealed class GlobalExceptionMiddleware(ILogger<GlobalExceptionMiddleware>
                 ex.Errors.GroupBy(e => e.PropertyName)
                     .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).Distinct().ToArray())),
             CredencialesInvalidasException ex => Crear(StatusCodes.Status401Unauthorized, "No autenticado.", ex.Message),
+            AfipRechazoException ex => CrearRechazoAfip(ex),
+            AfipNoDisponibleException ex => CrearAfipNoDisponible(ex),
             AccesoDenegadoException ex => Crear(StatusCodes.Status403Forbidden, "Acceso denegado.", ex.Message),
             TenantAccessException => Crear(StatusCodes.Status403Forbidden, "Acceso denegado.",
                 "La operación no está permitida para este comercio."),
@@ -58,6 +60,25 @@ public sealed class GlobalExceptionMiddleware(ILogger<GlobalExceptionMiddleware>
 
         context.Response.StatusCode = status;
         await context.Response.WriteAsJsonAsync(problema, options: null, contentType: "application/problem+json");
+    }
+
+    /// <summary>400 con los códigos de ARCA y el id de la venta, que quedó registrada pendiente de facturación.</summary>
+    private static ProblemDetails CrearRechazoAfip(AfipRechazoException ex)
+    {
+        var problema = Crear(StatusCodes.Status400BadRequest, "ARCA rechazó el comprobante.",
+            "La venta quedó registrada como pendiente de facturación. Corregí los datos y reintentá con POST /api/ventas/{id}/facturar.");
+        problema.Extensions["ventaId"] = ex.VentaId;
+        problema.Extensions["erroresAfip"] = ex.Errores.Select(e => new { codigo = e.Codigo, mensaje = e.Mensaje }).ToArray();
+        return problema;
+    }
+
+    /// <summary>503: falla de comunicación con ARCA, reintentable.</summary>
+    private static ProblemDetails CrearAfipNoDisponible(AfipNoDisponibleException ex)
+    {
+        var problema = Crear(StatusCodes.Status503ServiceUnavailable, "ARCA no disponible.", ex.Message);
+        if (ex.VentaId is { } ventaId)
+            problema.Extensions["ventaId"] = ventaId;
+        return problema;
     }
 
     private static ProblemDetails Crear(int status, string titulo, string detalle, IDictionary<string, string[]>? errores = null)

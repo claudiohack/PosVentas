@@ -1,4 +1,4 @@
-using MediatR;
+﻿using MediatR;
 using Microsoft.EntityFrameworkCore;
 using PosVentas.Application.Common.Exceptions;
 using PosVentas.Application.Common.Interfaces;
@@ -45,7 +45,8 @@ public sealed class ObtenerVentasDeSesionQueryHandler(IApplicationDbContext db)
             .Where(v => v.CajaSesionId == request.CajaSesionId)
             .OrderByDescending(v => v.FechaUtc)
             .Join(db.Clientes, v => v.ClienteId, c => c.Id, (v, c) => new VentaResumenDto(
-                v.Id, v.FechaUtc, c.RazonSocial, v.Detalles.Count, v.TotalGeneral))
+                v.Id, v.FechaUtc, c.RazonSocial, v.Detalles.Count, v.TotalGeneral,
+                v.TipoComprobante, v.EstadoFacturacion, v.NumeroComprobante))
             .ToListAsync(cancellationToken);
     }
 }
@@ -68,5 +69,10 @@ internal static class VentaMapper
         v.Vuelto,
         v.Detalles.Select(d => new VentaDetalleDto(
             d.ProductoId, d.NombreProducto, d.Cantidad, d.PrecioUnitario, d.PorcentajeIva, d.Subtotal, d.MontoIva, d.TotalConIva)).ToList(),
-        v.Pagos.OrderBy(p => p.Medio).Select(p => new VentaPagoDto(p.Medio, p.Monto)).ToList());
+        v.Pagos.OrderBy(p => p.Medio).Select(p => new VentaPagoDto(p.Medio, p.Monto)).ToList(),
+        v.EstadoFacturacion,
+        v.PuntoVenta,
+        v.NumeroComprobante,
+        v.Cae,
+        v.VencimientoCae);
 }

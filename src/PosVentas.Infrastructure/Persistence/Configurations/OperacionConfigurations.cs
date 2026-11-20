@@ -75,6 +75,7 @@ internal sealed class VentaConfiguration : IEntityTypeConfiguration<Venta>
         builder.Property(v => v.TotalGeneral).HasPrecision(18, 2);
         builder.Property(v => v.TipoComprobante).HasConversion<string>().HasMaxLength(20);
         builder.Property(v => v.Cae).HasMaxLength(Venta.LongitudMaximaCae);
+        builder.Property(v => v.EstadoFacturacion).HasConversion<string>().HasMaxLength(20);
 
         // Claves foráneas explícitas
         builder.HasOne<Cliente>()

@@ -43,4 +43,9 @@ public sealed record ProductoDto(
     bool VenderSinStock,
     bool EstaActivo);
 
-public sealed record ProblemaApi(string? Title, string? Detail, int? Status, Dictionary<string, string[]>? Errors);
+public sealed record ProblemaApi(
+    string? Title, string? Detail, int? Status, Dictionary<string, string[]>? Errors,
+    Guid? VentaId = null, List<ErrorAfipDto>? ErroresAfip = null);
+
+/// <summary>Código y mensaje de error devueltos por ARCA.</summary>
+public sealed record ErrorAfipDto(int Codigo, string Mensaje);

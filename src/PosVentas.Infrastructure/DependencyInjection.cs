@@ -1,4 +1,5 @@
 using System.Text;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -44,6 +45,23 @@ public static class DependencyInjection
 
         services.AddSingleton<IPasswordHasher, BCryptPasswordHasher>();
         services.AddSingleton<IJwtTokenGenerator, JwtTokenGenerator>();
+
+        // --- Secretos en reposo (certificado ARCA y ticket de acceso) ---
+        // En producción el anillo de claves debe vivir fuera del servidor web y de la base
+        // (DataProtection:DirectorioClaves en un volumen protegido, o Azure Key Vault / Blob).
+        var dataProtection = services.AddDataProtection().SetApplicationName("PosVentas");
+        var directorioClaves = configuration["DataProtection:DirectorioClaves"];
+        if (!string.IsNullOrWhiteSpace(directorioClaves))
+            dataProtection.PersistKeysToFileSystem(new DirectoryInfo(directorioClaves));
+
+        // --- Facturación electrónica ARCA (WSAA + WSFEv1) ---
+        services.AddOptions<Afip.AfipOptions>().Bind(configuration.GetSection(Afip.AfipOptions.SectionName));
+        services.AddHttpClient<Afip.AfipSoapCliente>((sp, http) =>
+            http.Timeout = TimeSpan.FromSeconds(sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<Afip.AfipOptions>>().Value.TimeoutSegundos));
+        services.AddSingleton<Afip.CertificadoAfipProtector>();
+        services.AddSingleton<ICertificadoAfipProtector>(sp => sp.GetRequiredService<Afip.CertificadoAfipProtector>());
+        services.AddScoped<IAfipService, Afip.AfipService>();
+        services.AddSingleton<IGeneradorQr, Afip.GeneradorQr>();
 
         return services;
     }

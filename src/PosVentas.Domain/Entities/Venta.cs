@@ -1,4 +1,4 @@
-using PosVentas.Domain.Common;
+﻿using PosVentas.Domain.Common;
 using PosVentas.Domain.Enums;
 
 namespace PosVentas.Domain.Entities;
@@ -28,6 +28,7 @@ public sealed class Venta : TenantEntity
     public long? NumeroComprobante { get; private set; }
     public string? Cae { get; private set; }
     public DateTime? VencimientoCae { get; private set; }
+    public EstadoFacturacion EstadoFacturacion { get; private set; }
     public bool EsFiscal => !string.IsNullOrEmpty(Cae);
 
     /// <summary>Vuelto entregado en efectivo (lo pagado por encima del total).</summary>
@@ -58,8 +59,8 @@ public sealed class Venta : TenantEntity
             throw new DomainException("El usuario es obligatorio.");
         if (!cajaSesion.EnCurso)
             throw new DomainException("No se puede vender en una caja cerrada.");
-        if (!Enum.IsDefined(tipoComprobante))
-            throw new DomainException("El tipo de comprobante no es válido.");
+        if (tipoComprobante != TipoComprobante.Ticket && !Fiscal.TiposComprobanteAfip.EsFactura(tipoComprobante))
+            throw new DomainException("Una venta se emite como ticket interno o como factura A, B o C.");
 
         return new Venta(Guid.NewGuid())
         {
@@ -67,8 +68,27 @@ public sealed class Venta : TenantEntity
             ClienteId = clienteId,
             UsuarioId = usuarioId,
             CajaSesionId = cajaSesion.Id,
-            TipoComprobante = tipoComprobante
+            TipoComprobante = tipoComprobante,
+            EstadoFacturacion = tipoComprobante == TipoComprobante.Ticket
+                ? EstadoFacturacion.NoRequerida
+                : EstadoFacturacion.Pendiente
         };
+    }
+
+    /// <summary>
+    /// Marca la venta para facturar con el tipo indicado: un ticket interno que se factura a posteriori,
+    /// o una factura pendiente que se reintenta (se puede cambiar la letra, p. ej. de A a B).
+    /// </summary>
+    public void SolicitarFacturacion(TipoComprobante tipo)
+    {
+        if (EstadoFacturacion == EstadoFacturacion.Facturada)
+            throw new DomainException("La venta ya está facturada.");
+        if (!Fiscal.TiposComprobanteAfip.EsFactura(tipo))
+            throw new DomainException("Solo se puede facturar como factura A, B o C.");
+
+        TipoComprobante = tipo;
+        EstadoFacturacion = EstadoFacturacion.Pendiente;
+        MarcarModificado();
     }
 
     /// <summary>Agrega un renglón y descuenta el stock del producto mediante su método de dominio.</summary>
@@ -90,6 +110,8 @@ public sealed class Venta : TenantEntity
     {
         if (TipoComprobante == TipoComprobante.Ticket)
             throw new DomainException("Un ticket interno no lleva CAE.");
+        if (EstadoFacturacion != EstadoFacturacion.Pendiente)
+            throw new DomainException("La venta no tiene una facturación pendiente.");
         if (string.IsNullOrWhiteSpace(cae))
             throw new DomainException("El CAE informado no es válido.");
         if (puntoVenta <= 0 || numeroComprobante <= 0)
@@ -99,6 +121,7 @@ public sealed class Venta : TenantEntity
         NumeroComprobante = numeroComprobante;
         Cae = cae.Trim();
         VencimientoCae = vencimientoCae;
+        EstadoFacturacion = EstadoFacturacion.Facturada;
         MarcarModificado();
     }
 

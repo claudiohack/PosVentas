@@ -142,7 +142,11 @@ public sealed record RegistrarVentaRequest(
     Guid? ClienteId,
     string TipoComprobante,
     IReadOnlyList<ItemVentaRequest> Items,
-    IReadOnlyList<PagoRequest> Pagos);
+    IReadOnlyList<PagoRequest> Pagos)
+{
+    /// <summary>Explícito para la API: true cuando se pide factura electrónica.</summary>
+    public bool EsFacturaAfip => TipoComprobante != Comprobantes.Ticket;
+}
 
 public sealed record VentaDetalleDto(
     Guid ProductoId,
@@ -171,7 +175,15 @@ public sealed record VentaDto(
     decimal TotalPagado,
     decimal Vuelto,
     IReadOnlyList<VentaDetalleDto> Detalles,
-    IReadOnlyList<VentaPagoDto> Pagos);
+    IReadOnlyList<VentaPagoDto> Pagos,
+    EstadoFacturacion EstadoFacturacion,
+    int? PuntoVenta,
+    long? NumeroComprobante,
+    string? Cae,
+    DateTime? VencimientoCae)
+{
+    public string? NumeroFormateado => NumeroComprobante is { } n ? $"{PuntoVenta:00000}-{n:00000000}" : null;
+}
 
 /// <summary>Renglón del carrito en pantalla (antes de cobrar).</summary>
 public sealed class RenglonCarrito(ProductoDto producto)

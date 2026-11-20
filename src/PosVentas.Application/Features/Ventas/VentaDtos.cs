@@ -1,4 +1,4 @@
-using PosVentas.Domain.Enums;
+﻿using PosVentas.Domain.Enums;
 
 namespace PosVentas.Application.Features.Ventas;
 
@@ -33,6 +33,13 @@ public sealed record VentaDto(
     decimal TotalPagado,
     decimal Vuelto,
     IReadOnlyList<VentaDetalleDto> Detalles,
-    IReadOnlyList<VentaPagoDto> Pagos);
+    IReadOnlyList<VentaPagoDto> Pagos,
+    EstadoFacturacion EstadoFacturacion,
+    int? PuntoVenta,
+    long? NumeroComprobante,
+    string? Cae,
+    DateTime? VencimientoCae);
 
-public sealed record VentaResumenDto(Guid Id, DateTime FechaUtc, string Cliente, int Items, decimal TotalGeneral);
+public sealed record VentaResumenDto(
+    Guid Id, DateTime FechaUtc, string Cliente, int Items, decimal TotalGeneral,
+    TipoComprobante TipoComprobante, EstadoFacturacion EstadoFacturacion, long? NumeroComprobante);

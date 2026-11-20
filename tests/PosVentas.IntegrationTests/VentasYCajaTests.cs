@@ -133,7 +133,8 @@ public sealed class VentasYCajaTests(PosVentasApiFactory factory)
         var sinItems = await VenderAsync(a, sesion.Id, [], [("Efectivo", 100m)]);
         var cantidadNegativa = await VenderAsync(a, sesion.Id, [(producto.Id, -1m)], [("Efectivo", 100m)]);
         var sinPagos = await VenderAsync(a, sesion.Id, [(producto.Id, 1m)], []);
-        var factura = await VenderAsync(a, sesion.Id, [(producto.Id, 1m)], [("Efectivo", 2000m)], tipoComprobante: "FacturaA");
+        // Una nota de crédito no se emite como venta (se genera desde la factura que anula)
+        var factura = await VenderAsync(a, sesion.Id, [(producto.Id, 1m)], [("Efectivo", 2000m)], tipoComprobante: "NotaCreditoA");
 
         Assert.Equal(HttpStatusCode.BadRequest, sinItems.StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, cantidadNegativa.StatusCode);

@@ -1,0 +1,245 @@
+@page "/comprobante/{VentaId:guid}"
+@inject PosVentasApi Api
+@inject SesionService Sesion
+@inject NavigationManager Navegacion
+@inject IJSRuntime JS
+
+<PageTitle>Comprobante · PosVentas</PageTitle>
+
+<div class="no-imprimir encabezado">
+    <a href="pos">← Volver al POS</a>
+    @if (comprobante is not null)
+    {
+        <button class="btn-primario ancho-auto" @onclick="ImprimirAsync">Imprimir</button>
+    }
+</div>
+
+@if (mensaje is not null)
+{
+    <p class="ok no-imprimir" role="status">@mensaje</p>
+}
+@if (error is not null)
+{
+    <p class="error no-imprimir" role="alert">@error</p>
+}
+
+@if (comprobante is null)
+{
+    <p>Cargando…</p>
+}
+else
+{
+    var c = comprobante;
+
+    @if (c.EstadoFacturacion != EstadoFacturacion.Facturada)
+    {
+        <section class="tarjeta no-imprimir @(c.EstadoFacturacion == EstadoFacturacion.Pendiente ? "aviso-fiscal" : null)">
+            <h2>@(c.EstadoFacturacion == EstadoFacturacion.Pendiente ? "Factura pendiente" : "Facturar este ticket")</h2>
+            @if (c.EstadoFacturacion == EstadoFacturacion.Pendiente)
+            {
+                <p>ARCA todavía no autorizó esta venta. Revisá los datos del cliente si hubo un rechazo y reintentá.</p>
+            }
+            <div class="fila-form">
+                <label>
+                    Comprobante
+                    <select @bind="tipoAFacturar">
+                        @foreach (var (valor, texto) in Comprobantes.Facturas)
+                        {
+                            <option value="@valor">@texto</option>
+                        }
+                    </select>
+                </label>
+                <button class="btn-primario" disabled="@procesando" @onclick="FacturarAsync">
+                    @(procesando ? "Solicitando CAE…" : "Solicitar CAE a ARCA")
+                </button>
+            </div>
+        </section>
+    }
+
+    <article class="comprobante" aria-label="Comprobante">
+        <header class="comprobante-cabecera">
+            <div>
+                <strong class="comprobante-emisor">@c.Emisor.RazonSocial</strong>
+                <div>@c.Emisor.DomicilioFiscal</div>
+                <div>@c.Emisor.CondicionIva</div>
+            </div>
+            <div class="comprobante-letra">
+                <span>@(c.Letra?.ToString() ?? "X")</span>
+                @if (c.CodigoAfip is not null)
+                {
+                    <small>Cód. @c.CodigoAfip.Value.ToString("00")</small>
+                }
+            </div>
+            <div class="comprobante-datos">
+                <strong>@c.Descripcion.ToUpperInvariant()</strong>
+                @if (c.Numero is not null)
+                {
+                    <div>Nº @c.Numero</div>
+                }
+                <div>Fecha: @c.FechaEmision.ToString("dd/MM/yyyy HH:mm")</div>
+                @if (c.Emisor.Cuit is not null)
+                {
+                    <div>CUIT: @c.Emisor.Cuit</div>
+                }
+                @if (c.Emisor.IngresosBrutos is not null)
+                {
+                    <div>IIBB: @c.Emisor.IngresosBrutos</div>
+                }
+                @if (c.Emisor.InicioActividades is { } inicio)
+                {
+                    <div>Inicio de actividades: @inicio.ToString("dd/MM/yyyy")</div>
+                }
+            </div>
+        </header>
+
+        <section class="comprobante-receptor">
+            <div><strong>@c.Receptor.Nombre</strong></div>
+            <div>
+                @if (c.Receptor.TipoDocumento is not null)
+                {
+                    <span>@c.Receptor.TipoDocumento: @c.Receptor.NumeroDocumento · </span>
+                }
+                <span>@c.Receptor.CondicionIva</span>
+                @if (c.Receptor.Domicilio is not null)
+                {
+                    <span> · @c.Receptor.Domicilio</span>
+                }
+            </div>
+        </section>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Descripción</th>
+                    <th class="num">Cant.</th>
+                    <th class="num">Precio unit.</th>
+                    @if (c.DiscriminaIva)
+                    {
+                        <th class="num">IVA %</th>
+                    }
+                    <th class="num">Importe</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var r in c.Renglones)
+                {
+                    <tr>
+                        <td>@r.Descripcion</td>
+                        <td class="num">@r.Cantidad.ToString("0.###")</td>
+                        <td class="num">@Pesos(r.PrecioUnitario)</td>
+                        @if (c.DiscriminaIva)
+                        {
+                            <td class="num">@r.PorcentajeIva.ToString("0.##")</td>
+                        }
+                        <td class="num">@Pesos(r.Importe)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        <dl class="cifras comprobante-totales">
+            @if (c.DiscriminaIva)
+            {
+                <dt>Neto gravado</dt><dd>@Pesos(c.NetoGravado)</dd>
+                @if (c.NoGravado > 0)
+                {
+                    <dt>No gravado</dt><dd>@Pesos(c.NoGravado)</dd>
+                }
+                @foreach (var i in c.Iva)
+                {
+                    <dt>IVA @i.Porcentaje.ToString("0.##")%</dt><dd>@Pesos(i.Importe)</dd>
+                }
+            }
+            <dt class="total">Total</dt><dd class="total">@Pesos(c.Total)</dd>
+        </dl>
+
+        <footer class="comprobante-pie">
+            @if (c.QrPngBase64 is not null)
+            {
+                <a href="@c.QrUrl" target="_blank" rel="noopener" title="Verificar en ARCA">
+                    <img class="comprobante-qr" src="data:image/png;base64,@c.QrPngBase64" alt="Código QR de verificación de ARCA" />
+                </a>
+            }
+            <div>
+                <strong>@c.Leyenda</strong>
+                @if (c.Cae is not null)
+                {
+                    <div>CAE: @c.Cae</div>
+                    <div>Vencimiento del CAE: @c.VencimientoCae?.ToString("dd/MM/yyyy")</div>
+                }
+                @if (c.Homologacion)
+                {
+                    <div class="faltante">Emitido en homologación (ambiente de pruebas de ARCA): sin validez fiscal.</div>
+                }
+            </div>
+        </footer>
+    </article>
+}
+
+@code {
+    [Parameter] public Guid VentaId { get; set; }
+
+    private ComprobanteImpresionDto? comprobante;
+    private string tipoAFacturar = Comprobantes.FacturaB;
+    private string? mensaje;
+    private string? error;
+    private bool procesando;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!Sesion.EstaAutenticado)
+        {
+            Navegacion.NavigateTo("/");
+            return;
+        }
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        try
+        {
+            comprobante = await Api.ObtenerComprobanteAsync(VentaId);
+            if (comprobante.Tipo != Comprobantes.Ticket)
+                tipoAFacturar = comprobante.Tipo;
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            if (!Sesion.EstaAutenticado) Navegacion.NavigateTo("/");
+        }
+        catch (HttpRequestException)
+        {
+            error = "No se pudo conectar con el servidor.";
+        }
+    }
+
+    private async Task FacturarAsync()
+    {
+        error = null;
+        mensaje = null;
+        procesando = true;
+        try
+        {
+            var venta = await Api.FacturarVentaAsync(VentaId, tipoAFacturar);
+            mensaje = $"{Comprobantes.Texto(venta.TipoComprobante)} {venta.NumeroFormateado} autorizada. CAE {venta.Cae}.";
+            await CargarAsync();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        catch (HttpRequestException)
+        {
+            error = "No se pudo conectar con el servidor.";
+        }
+        finally
+        {
+            procesando = false;
+        }
+    }
+
+    private async Task ImprimirAsync() => await JS.InvokeVoidAsync("print");
+
+    private static string Pesos(decimal valor) => valor.ToString("$ #,##0.00");
+}

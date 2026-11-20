@@ -16,6 +16,15 @@ internal sealed class ComercioConfiguration : IEntityTypeConfiguration<Comercio>
         builder.Property(c => c.Slug).IsRequired().HasMaxLength(Comercio.LongitudMaximaSlug);
         builder.Property(c => c.Cuit).HasMaxLength(13);
 
+        // Configuración fiscal (ARCA)
+        builder.Property(c => c.CondicionIva).HasConversion<string>().HasMaxLength(30);
+        builder.Property(c => c.DomicilioFiscal).HasMaxLength(Comercio.LongitudMaximaDomicilio);
+        builder.Property(c => c.IngresosBrutos).HasMaxLength(Comercio.LongitudMaximaIngresosBrutos);
+        builder.Property(c => c.CertificadoAfipProtegido); // nvarchar(max), cifrado con Data Protection
+        builder.Property(c => c.CertificadoAfipSujeto).HasMaxLength(500);
+        builder.Property(c => c.TicketAccesoAfipProtegido);
+        builder.Ignore(c => c.FacturacionConfigurada);
+
         builder.HasIndex(c => c.Slug).IsUnique();
     }
 }

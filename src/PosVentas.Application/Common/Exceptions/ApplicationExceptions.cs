@@ -14,5 +14,23 @@ public sealed class CredencialesInvalidasException()
 /// <summary>El usuario está autenticado pero su rol no permite la operación.</summary>
 public sealed class AccesoDenegadoException(string message) : Exception(message);
 
+/// <summary>
+/// ARCA rechazó el comprobante. La venta ya quedó registrada como pendiente de facturación
+/// (<see cref="VentaId"/>) y se puede reintentar con POST /api/ventas/{id}/facturar.
+/// </summary>
+public sealed class AfipRechazoException(Guid ventaId, IReadOnlyList<Interfaces.MensajeAfip> errores)
+    : Exception("ARCA rechazó el comprobante: " + string.Join(" | ", errores))
+{
+    public Guid VentaId { get; } = ventaId;
+    public IReadOnlyList<Interfaces.MensajeAfip> Errores { get; } = errores;
+}
+
+/// <summary>No se pudo comunicar con ARCA (red, timeout o servicio caído). Es reintentable.</summary>
+public sealed class AfipNoDisponibleException(string message, Exception? inner = null) : Exception(message, inner)
+{
+    /// <summary>Venta que quedó pendiente de facturación, si la hay.</summary>
+    public Guid? VentaId { get; init; }
+}
+
 /// <summary>Intento de leer o escribir datos fuera del comercio del usuario autenticado.</summary>
 public sealed class TenantAccessException(string message) : Exception(message);
