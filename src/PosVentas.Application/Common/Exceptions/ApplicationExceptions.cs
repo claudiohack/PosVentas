@@ -23,6 +23,9 @@ public sealed class AfipRechazoException(Guid ventaId, IReadOnlyList<Interfaces.
 {
     public Guid VentaId { get; } = ventaId;
     public IReadOnlyList<Interfaces.MensajeAfip> Errores { get; } = errores;
+
+    /// <summary>Explicación para el usuario de en qué estado quedó la operación (si no, la de una factura pendiente).</summary>
+    public string? Detalle { get; init; }
 }
 
 /// <summary>No se pudo comunicar con ARCA (red, timeout o servicio caído). Es reintentable.</summary>

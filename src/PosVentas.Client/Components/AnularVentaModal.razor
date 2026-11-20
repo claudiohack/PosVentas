@@ -1,0 +1,88 @@
+@inject PosVentasApi Api
+
+@* Confirmación de anulación con motivo obligatorio. La API vuelve a verificar el rol (Administrador / Supervisor). *@
+
+<div class="modal-fondo" @onclick="CancelarAsync"></div>
+<div class="modal" role="dialog" aria-modal="true" aria-labelledby="titulo-anular">
+    <h2 id="titulo-anular">Anular venta</h2>
+
+    <p>
+        <strong>@Venta.Cliente</strong> · @Venta.FechaUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm") · @Pesos(Venta.TotalGeneral)
+        @if (Venta.NumeroFormateado is not null)
+        {
+            <span> · @Comprobantes.Texto(Venta.TipoComprobante) @Venta.NumeroFormateado</span>
+        }
+    </p>
+
+    <ul class="lista-efectos">
+        <li>Se reintegra al stock todo lo vendido.</li>
+        <li>El dinero cobrado se devuelve desde la caja abierta (efectivo neto del vuelto, tarjeta, transferencia y QR).</li>
+        <li>Lo vendido a cuenta corriente se acredita en la cuenta del cliente.</li>
+        @if (Venta.EstadoFacturacion == EstadoFacturacion.Facturada)
+        {
+            <li><strong>Se emite la nota de crédito ante ARCA</strong> que anula la factura.</li>
+        }
+    </ul>
+
+    <label>
+        Motivo de la anulación
+        <textarea rows="3" maxlength="300" @bind="motivo" @bind:event="oninput" placeholder="Ej.: el cliente devolvió la mercadería"></textarea>
+    </label>
+
+    @if (error is not null)
+    {
+        <p class="error" role="alert">@error</p>
+    }
+
+    <div class="acciones">
+        <button type="button" class="btn-secundario" @onclick="CancelarAsync">Cancelar</button>
+        <button type="button" class="btn-peligro" disabled="@(procesando || (motivo?.Trim().Length ?? 0) < 5)" @onclick="AnularAsync">
+            @(procesando ? "Anulando…" : "Confirmar anulación")
+        </button>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public VentaHistorialDto Venta { get; set; } = null!;
+
+    /// <summary>Se invoca con el resultado y, si la nota de crédito quedó pendiente, el aviso para el usuario.</summary>
+    [Parameter] public EventCallback<(AnulacionDto? Anulacion, string? Aviso)> OnAnulada { get; set; }
+
+    [Parameter] public EventCallback OnCancelar { get; set; }
+
+    private string? motivo;
+    private string? error;
+    private bool procesando;
+
+    private async Task AnularAsync()
+    {
+        error = null;
+        procesando = true;
+        try
+        {
+            var anulacion = await Api.AnularVentaAsync(Venta.Id, motivo!.Trim());
+            await OnAnulada.InvokeAsync((anulacion, null));
+        }
+        catch (ApiException ex) when (ex.VentaPendienteId is not null)
+        {
+            // La anulación quedó hecha; falló solo la nota de crédito ante ARCA.
+            await OnAnulada.InvokeAsync((null, ex.Message));
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        catch (HttpRequestException)
+        {
+            error = "No se pudo conectar con el servidor.";
+        }
+        finally
+        {
+            procesando = false;
+        }
+    }
+
+    private Task CancelarAsync() => OnCancelar.InvokeAsync();
+
+    private static string Pesos(decimal valor) => valor.ToString("$ #,##0.00");
+}

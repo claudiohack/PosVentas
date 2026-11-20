@@ -134,6 +134,19 @@ public sealed class Producto : TenantEntity
 
     public bool TieneStockBajo => StockActual <= StockMinimo;
 
+    /// <summary>
+    /// Devuelve al stock lo que salió en una venta anulada. No toca el costo (la mercadería vuelve
+    /// al valor con el que está en el inventario) y se admite aunque el producto esté dado de baja.
+    /// </summary>
+    public void ReintegrarStock(decimal cantidad)
+    {
+        if (cantidad <= 0)
+            throw new DomainException("La cantidad a reintegrar debe ser mayor a cero.");
+
+        StockActual += cantidad;
+        MarcarModificado();
+    }
+
     public void DescontarStock(decimal cantidad)
     {
         if (cantidad <= 0)

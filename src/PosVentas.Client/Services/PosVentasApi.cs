@@ -129,6 +129,24 @@ public sealed class PosVentasApi(HttpClient http, SesionService sesion)
     public Task<ComprobanteImpresionDto> ObtenerComprobanteAsync(Guid ventaId, CancellationToken ct = default) =>
         EnviarAsync<ComprobanteImpresionDto>(HttpMethod.Get, $"api/ventas/{ventaId}/comprobante", null, ct);
 
+    // ---------- Historial y anulaciones ----------
+
+    public Task<List<VentaHistorialDto>> ObtenerHistorialVentasAsync(DateOnly desde, DateOnly hasta, EstadoVenta? estado, CancellationToken ct = default) =>
+        EnviarAsync<List<VentaHistorialDto>>(HttpMethod.Get,
+            $"api/ventas?desde={desde:yyyy-MM-dd}&hasta={hasta:yyyy-MM-dd}{(estado is { } e ? $"&estado={e}" : null)}", null, ct);
+
+    public Task<AnulacionDto> AnularVentaAsync(Guid ventaId, string motivoAnulacion, CancellationToken ct = default) =>
+        EnviarAsync<AnulacionDto>(HttpMethod.Post, $"api/ventas/{ventaId}/anular", new { motivoAnulacion }, ct);
+
+    public Task<AnulacionDto> ObtenerAnulacionAsync(Guid ventaId, CancellationToken ct = default) =>
+        EnviarAsync<AnulacionDto>(HttpMethod.Get, $"api/ventas/{ventaId}/anulacion", null, ct);
+
+    public Task<AnulacionDto> EmitirNotaCreditoAsync(Guid ventaId, CancellationToken ct = default) =>
+        EnviarAsync<AnulacionDto>(HttpMethod.Post, $"api/ventas/{ventaId}/nota-credito", new { }, ct);
+
+    public Task<ComprobanteImpresionDto> ObtenerNotaCreditoAsync(Guid ventaId, CancellationToken ct = default) =>
+        EnviarAsync<ComprobanteImpresionDto>(HttpMethod.Get, $"api/ventas/{ventaId}/nota-credito", null, ct);
+
     // ---------- Reportes (administradores y supervisores) ----------
 
     private static string Periodo(DateOnly desde, DateOnly hasta) => $"desde={desde:yyyy-MM-dd}&hasta={hasta:yyyy-MM-dd}";

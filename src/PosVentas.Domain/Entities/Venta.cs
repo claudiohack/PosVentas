@@ -29,6 +29,7 @@ public sealed class Venta : TenantEntity
     public string? Cae { get; private set; }
     public DateTime? VencimientoCae { get; private set; }
     public EstadoFacturacion EstadoFacturacion { get; private set; }
+    public EstadoVenta Estado { get; private set; } = EstadoVenta.Activa;
     public bool EsFiscal => !string.IsNullOrEmpty(Cae);
 
     /// <summary>Vuelto entregado en efectivo (lo pagado por encima del total).</summary>
@@ -81,6 +82,8 @@ public sealed class Venta : TenantEntity
     /// </summary>
     public void SolicitarFacturacion(TipoComprobante tipo)
     {
+        if (Estado == EstadoVenta.Anulada)
+            throw new DomainException("No se puede facturar una venta anulada.");
         if (EstadoFacturacion == EstadoFacturacion.Facturada)
             throw new DomainException("La venta ya está facturada.");
         if (!Fiscal.TiposComprobanteAfip.EsFactura(tipo))
@@ -181,6 +184,15 @@ public sealed class Venta : TenantEntity
             _pagos.Add(VentaPago.Crear(Id, medio, monto));
 
         Vuelto = totalPagado - TotalGeneral;
+    }
+
+    /// <summary>Marca la venta como anulada. La reversión (stock, caja, cuenta corriente) la coordina <see cref="AnulacionVenta"/>.</summary>
+    internal void MarcarAnulada()
+    {
+        if (Estado == EstadoVenta.Anulada)
+            throw new DomainException("La venta ya está anulada.");
+        Estado = EstadoVenta.Anulada;
+        MarcarModificado();
     }
 
     public void ValidarParaRegistrar()

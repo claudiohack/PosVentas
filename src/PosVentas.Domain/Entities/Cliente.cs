@@ -132,6 +132,22 @@ public sealed class Cliente : TenantEntity
             null, reciboId, usuarioId, "Recibo de cobranza");
     }
 
+    /// <summary>
+    /// Revierte el cargo de una venta anulada. Si el cliente ya había pagado parte de esa deuda,
+    /// el saldo puede quedar negativo: es saldo a favor del cliente.
+    /// </summary>
+    internal MovimientoCuentaCorriente RevertirCargo(decimal monto, Guid ventaId, Guid usuarioId)
+    {
+        if (monto <= 0)
+            throw new DomainException("El importe a acreditar debe ser mayor a cero.");
+
+        SaldoActual -= monto;
+        MarcarModificado();
+
+        return MovimientoCuentaCorriente.Crear(Id, TipoMovimientoCuentaCorriente.Abono, monto, SaldoActual,
+            ventaId, null, usuarioId, "Anulación de venta a cuenta corriente");
+    }
+
     public void Desactivar()
     {
         if (EsConsumidorFinalGenerico)

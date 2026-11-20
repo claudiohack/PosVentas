@@ -63,7 +63,29 @@ public enum TipoMovimientoCaja
     Cobranza = 2,
 
     /// <summary>Egreso: pago al contado de una compra a proveedor (monto negativo).</summary>
-    PagoProveedor = 3
+    PagoProveedor = 3,
+
+    /// <summary>Egreso: devolución del dinero de una venta anulada (monto negativo).</summary>
+    DevolucionAnulacion = 4
+}
+
+public enum EstadoVenta
+{
+    Activa = 1,
+    Anulada = 2
+}
+
+/// <summary>Situación de la nota de crédito de una anulación.</summary>
+public enum EstadoNotaCredito
+{
+    /// <summary>La venta no tenía factura con CAE: la anulación es solo interna.</summary>
+    NoRequerida = 1,
+
+    /// <summary>Falta el CAE de la nota de crédito (ARCA la rechazó o no respondió); se reintenta.</summary>
+    Pendiente = 2,
+
+    /// <summary>Nota de crédito autorizada por ARCA.</summary>
+    Emitida = 3
 }
 
 /// <summary>Cómo se paga una compra de mercadería.</summary>

@@ -1,4 +1,4 @@
-using PosVentas.Domain.Enums;
+﻿using PosVentas.Domain.Enums;
 
 namespace PosVentas.Application.Features.Reportes;
 
@@ -24,7 +24,9 @@ public sealed record DashboardResumenDto(
     decimal TicketPromedio,
     IReadOnlyList<IngresoPorMedioDto> IngresosPorMedio,
     int ProductosConStockBajo,
-    int VentasPendientesDeFacturar);
+    int VentasPendientesDeFacturar,
+    int CantidadVentasAnuladas,
+    decimal TotalAnulado);
 
 public enum OrdenRanking
 {

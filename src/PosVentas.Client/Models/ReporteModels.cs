@@ -1,4 +1,4 @@
-namespace PosVentas.Client.Models;
+﻿namespace PosVentas.Client.Models;
 
 public sealed record PeriodoDto(DateOnly Desde, DateOnly Hasta);
 
@@ -16,7 +16,9 @@ public sealed record DashboardResumenDto(
     decimal TicketPromedio,
     IReadOnlyList<IngresoPorMedioDto> IngresosPorMedio,
     int ProductosConStockBajo,
-    int VentasPendientesDeFacturar);
+    int VentasPendientesDeFacturar,
+    int CantidadVentasAnuladas = 0,
+    decimal TotalAnulado = 0);
 
 public sealed record TopProductoDto(
     int Posicion, Guid ProductoId, string Producto, string? Sku, string? Categoria,

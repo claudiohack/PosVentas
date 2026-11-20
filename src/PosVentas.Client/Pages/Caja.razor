@@ -1,4 +1,4 @@
-@page "/caja"
+﻿@page "/caja"
 @inject PosVentasApi Api
 @inject SesionService Sesion
 @inject NavigationManager Navegacion
@@ -63,6 +63,11 @@ else
                     · Vendido a cuenta corriente: @Pesos(resumen.TotalVentasCuentaCorriente)
                     <button class="btn-secundario" @onclick="() => mostrarCobranza = true">Registrar cobranza</button>
                 </p>
+
+                @if (resumen.CantidadDevoluciones > 0)
+                {
+                    <p>Devoluciones por anulación: @resumen.CantidadDevoluciones · @Pesos(resumen.TotalDevoluciones) (las devueltas en efectivo ya están descontadas).</p>
+                }
 
                 @if (resumen.CantidadPagosProveedores > 0)
                 {

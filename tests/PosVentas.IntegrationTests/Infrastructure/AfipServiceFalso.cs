@@ -44,6 +44,12 @@ public sealed class AfipServiceFalso : IAfipService
             return Task.FromResult(Rechazo(new MensajeAfip(10013,
                 "Si DocTipo = 80 (CUIT), el campo DocNro debe ser un CUIT registrado en el padrón de ARCA.")));
 
+        // Una nota de crédito debe informar la factura que anula, de la misma letra (CbtesAsoc)
+        var esNotaCredito = s.Tipo is TipoComprobante.NotaCreditoA or TipoComprobante.NotaCreditoB or TipoComprobante.NotaCreditoC;
+        if (esNotaCredito && (s.Asociado is null
+                              || Domain.Fiscal.TiposComprobanteAfip.Letra(s.Asociado.Tipo) != Domain.Fiscal.TiposComprobanteAfip.Letra(s.Tipo)))
+            return Task.FromResult(Rechazo(new MensajeAfip(10040, "Para notas de crédito es obligatorio informar el comprobante asociado de la misma letra.")));
+
         // Controles de importes equivalentes a los de WSFEv1 (10048 / 10051)
         if (s.ImporteTotal != s.ImporteNoGravado + s.ImporteNeto + s.ImporteExento + s.ImporteIva)
             return Task.FromResult(Rechazo(new MensajeAfip(10048, "ImpTotal debe ser igual a la suma de ImpTotConc + ImpNeto + ImpOpEx + ImpTrib + ImpIVA.")));

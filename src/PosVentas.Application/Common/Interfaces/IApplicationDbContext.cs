@@ -26,6 +26,7 @@ public interface IApplicationDbContext
     DbSet<Compra> Compras { get; }
     DbSet<CompraDetalle> CompraDetalles { get; }
     DbSet<ComprobanteFiscal> ComprobantesFiscales { get; }
+    DbSet<AnulacionVenta> AnulacionesVenta { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

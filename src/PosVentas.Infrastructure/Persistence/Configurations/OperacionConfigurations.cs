@@ -35,6 +35,7 @@ internal sealed class CajaSesionConfiguration : IEntityTypeConfiguration<CajaSes
         builder.Property(s => s.TotalVendido).HasPrecision(18, 2);
         builder.Property(s => s.TotalCobranzas).HasPrecision(18, 2);
         builder.Property(s => s.TotalPagosProveedores).HasPrecision(18, 2);
+        builder.Property(s => s.TotalDevoluciones).HasPrecision(18, 2);
         builder.Property(s => s.RowVersion).IsRowVersion();
 
         builder.HasOne(s => s.Caja)
@@ -76,6 +77,7 @@ internal sealed class VentaConfiguration : IEntityTypeConfiguration<Venta>
         builder.Property(v => v.TipoComprobante).HasConversion<string>().HasMaxLength(20);
         builder.Property(v => v.Cae).HasMaxLength(Venta.LongitudMaximaCae);
         builder.Property(v => v.EstadoFacturacion).HasConversion<string>().HasMaxLength(20);
+        builder.Property(v => v.Estado).HasConversion<string>().HasMaxLength(20);
 
         // Claves foráneas explícitas
         builder.HasOne<Cliente>()

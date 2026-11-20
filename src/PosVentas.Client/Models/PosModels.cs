@@ -126,6 +126,8 @@ public sealed record ResumenSesionDto(
     decimal TotalCobranzas,
     int CantidadPagosProveedores,
     decimal TotalPagosProveedores,
+    int CantidadDevoluciones,
+    decimal TotalDevoluciones,
     IReadOnlyList<TotalPorMedioDto> TotalesPorMedio,
     decimal EfectivoEsperado,
     decimal? MontoCierreReal,
@@ -180,7 +182,8 @@ public sealed record VentaDto(
     int? PuntoVenta,
     long? NumeroComprobante,
     string? Cae,
-    DateTime? VencimientoCae)
+    DateTime? VencimientoCae,
+    EstadoVenta Estado = EstadoVenta.Activa)
 {
     public string? NumeroFormateado => NumeroComprobante is { } n ? $"{PuntoVenta:00000}-{n:00000000}" : null;
 }
