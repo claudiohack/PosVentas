@@ -12,6 +12,11 @@
             <NavLink href="caja">Caja</NavLink>
             <NavLink href="clientes">Clientes</NavLink>
             <NavLink href="productos">Productos</NavLink>
+            @if (Sesion.PuedeSupervisar)
+            {
+                <NavLink href="compras">Compras</NavLink>
+                <NavLink href="proveedores">Proveedores</NavLink>
+            }
             @if (Sesion.EsAdministrador)
             {
                 <NavLink href="usuarios">Usuarios</NavLink>

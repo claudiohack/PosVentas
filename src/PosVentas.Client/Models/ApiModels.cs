@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace PosVentas.Client.Models;
 
@@ -38,6 +38,8 @@ public sealed record ProductoDto(
     string Moneda,
     decimal PorcentajeIva,
     decimal StockActual,
+    decimal StockMinimo,
+    bool StockBajo,
     bool VenderSinStock,
     bool EstaActivo);
 

@@ -1,4 +1,4 @@
-using PosVentas.Domain.Enums;
+﻿using PosVentas.Domain.Enums;
 
 namespace PosVentas.Application.Features.Cajas;
 
@@ -32,6 +32,8 @@ public sealed record ResumenSesionDto(
     decimal TotalVentasCuentaCorriente,
     int CantidadCobranzas,
     decimal TotalCobranzas,
+    int CantidadPagosProveedores,
+    decimal TotalPagosProveedores,
     IReadOnlyList<TotalPorMedioDto> TotalesPorMedio,
     decimal EfectivoEsperado,
     decimal? MontoCierreReal,

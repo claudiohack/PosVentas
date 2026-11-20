@@ -1,4 +1,4 @@
-using FluentValidation;
+﻿using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using PosVentas.Application.Common.Exceptions;
@@ -18,7 +18,8 @@ public sealed record CrearProductoCommand(
     decimal PorcentajeGanancia,
     decimal PorcentajeIva,
     Guid CategoriaId,
-    bool VenderSinStock) : IRequest<Guid>;
+    bool VenderSinStock,
+    decimal StockMinimo = 0) : IRequest<Guid>;
 
 public sealed class CrearProductoCommandValidator : AbstractValidator<CrearProductoCommand>
 {
@@ -33,6 +34,7 @@ public sealed class CrearProductoCommandValidator : AbstractValidator<CrearProdu
         RuleFor(x => x.PorcentajeGanancia).InclusiveBetween(0, 10_000);
         RuleFor(x => x.PorcentajeIva).InclusiveBetween(0, 100);
         RuleFor(x => x.CategoriaId).NotEmpty();
+        RuleFor(x => x.StockMinimo).InclusiveBetween(0, 1_000_000);
     }
 }
 
@@ -57,7 +59,8 @@ public sealed class CrearProductoCommandHandler(IApplicationDbContext db) : IReq
             request.PorcentajeGanancia,
             request.PorcentajeIva,
             request.CategoriaId,
-            request.VenderSinStock);
+            request.VenderSinStock,
+            request.StockMinimo);
 
         db.Productos.Add(producto);
         await db.SaveChangesAsync(cancellationToken);

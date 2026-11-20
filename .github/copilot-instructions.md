@@ -62,3 +62,8 @@ dotnet ef database update --project src/PosVentas.Infrastructure --startup-proje
 - Solo se emiten tickets internos hasta integrar la facturación electrónica (ARCA).
 - El vuelto solo se entrega en efectivo.
 - La venta a cuenta corriente requiere un cliente con la cuenta habilitada y no puede superar su límite de crédito.
+- El cierre y arqueo de caja lo hacen solo supervisores y administradores.
+- Compras: el stock solo ingresa por `Compra.AgregarItem` → `Producto.IngresarStock(cantidad, costo)`, que actualiza el costo por promedio ponderado y recalcula el precio de venta con el margen del producto.
+- Una compra al contado (efectivo / transferencia) con caja abierta genera un `MovimientoCaja` tipo `PagoProveedor` con monto **negativo**; el arqueo lo descuenta solo. No se puede pagar en efectivo más de lo que hay en la caja.
+- El mismo comprobante de un proveedor no se carga dos veces (409). El CUIT del proveedor es único por comercio.
+- Stock bajo = producto activo con `StockActual <= StockMinimo`.

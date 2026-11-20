@@ -1,4 +1,4 @@
-namespace PosVentas.Client.Models;
+﻿namespace PosVentas.Client.Models;
 
 public enum MedioPago
 {
@@ -124,6 +124,8 @@ public sealed record ResumenSesionDto(
     decimal TotalVentasCuentaCorriente,
     int CantidadCobranzas,
     decimal TotalCobranzas,
+    int CantidadPagosProveedores,
+    decimal TotalPagosProveedores,
     IReadOnlyList<TotalPorMedioDto> TotalesPorMedio,
     decimal EfectivoEsperado,
     decimal? MontoCierreReal,

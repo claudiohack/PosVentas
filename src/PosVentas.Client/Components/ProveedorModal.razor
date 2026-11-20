@@ -1,0 +1,88 @@
+@inject PosVentasApi Api
+
+@* Alta / edición de proveedor. Proveedor = null es alta. *@
+
+<div class="modal-fondo" @onclick="CancelarAsync"></div>
+<div class="modal" role="dialog" aria-modal="true" aria-labelledby="titulo-proveedor">
+    <h2 id="titulo-proveedor">@(Proveedor is null ? "Nuevo proveedor" : $"Editar {Proveedor.RazonSocial}")</h2>
+
+    <EditForm Model="formulario" OnValidSubmit="GuardarAsync" FormName="proveedor">
+        <DataAnnotationsValidator />
+
+        <label>
+            Razón social
+            <InputText @bind-Value="formulario.RazonSocial" />
+            <ValidationMessage For="() => formulario.RazonSocial" />
+        </label>
+        <label>
+            CUIT
+            <InputText @bind-Value="formulario.Cuit" placeholder="30-71234567-9" inputmode="numeric" />
+            <ValidationMessage For="() => formulario.Cuit" />
+        </label>
+        <label>
+            Teléfono
+            <InputText type="tel" @bind-Value="formulario.Telefono" />
+        </label>
+        <label>
+            Email
+            <InputText type="email" @bind-Value="formulario.Email" />
+            <ValidationMessage For="() => formulario.Email" />
+        </label>
+        <label>
+            Dirección
+            <InputText @bind-Value="formulario.Direccion" />
+        </label>
+
+        @if (error is not null)
+        {
+            <p class="error" role="alert">@error</p>
+        }
+
+        <div class="acciones">
+            <button type="button" class="btn-secundario" @onclick="CancelarAsync">Cancelar</button>
+            <button type="submit" class="btn-primario" disabled="@procesando">
+                @(procesando ? "Guardando…" : Proveedor is null ? "Crear proveedor" : "Guardar cambios")
+            </button>
+        </div>
+    </EditForm>
+</div>
+
+@code {
+    [Parameter] public ProveedorDto? Proveedor { get; set; }
+    [Parameter] public EventCallback<ProveedorDto> OnGuardado { get; set; }
+    [Parameter] public EventCallback OnCancelar { get; set; }
+
+    private ProveedorFormulario formulario = new();
+    private string? error;
+    private bool procesando;
+
+    protected override void OnParametersSet() =>
+        formulario = Proveedor is null ? new ProveedorFormulario() : ProveedorFormulario.Desde(Proveedor);
+
+    private async Task GuardarAsync()
+    {
+        error = null;
+        procesando = true;
+        try
+        {
+            var guardado = Proveedor is null
+                ? await Api.CrearProveedorAsync(formulario)
+                : await Api.ActualizarProveedorAsync(Proveedor.Id, formulario);
+            await OnGuardado.InvokeAsync(guardado);
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        catch (HttpRequestException)
+        {
+            error = "No se pudo conectar con el servidor.";
+        }
+        finally
+        {
+            procesando = false;
+        }
+    }
+
+    private Task CancelarAsync() => OnCancelar.InvokeAsync();
+}

@@ -1,4 +1,4 @@
-using FluentValidation;
+﻿using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using PosVentas.Application.Common.Exceptions;
@@ -136,8 +136,9 @@ internal static class ResumenSesionBuilder
 
     public static async Task<ResumenSesionDto> ConstruirAsync(IApplicationDbContext db, CajaSesion sesion, CancellationToken ct)
     {
+        // Ingresos (ventas + cobranzas) por medio. Los pagos a proveedores se informan aparte.
         var porMedio = await db.MovimientosCaja.AsNoTracking()
-            .Where(m => m.CajaSesionId == sesion.Id)
+            .Where(m => m.CajaSesionId == sesion.Id && m.Tipo != TipoMovimientoCaja.PagoProveedor)
             .GroupBy(m => m.Medio)
             .Select(g => new { Medio = g.Key, Total = g.Sum(m => m.Monto) })
             .ToListAsync(ct);
@@ -153,7 +154,8 @@ internal static class ResumenSesionBuilder
             .Join(db.Ventas.Where(v => v.CajaSesionId == sesion.Id), p => p.VentaId, v => v.Id, (p, _) => p.Monto)
             .SumAsync(m => (decimal?)m, ct) ?? 0m;
 
-        var efectivo = totales.Single(t => t.Medio == MedioPago.Efectivo).Total;
+        // Neto en efectivo: cobros menos pagos a proveedores en efectivo.
+        var efectivoNeto = await TotalEfectivoAsync(db, sesion.Id, ct);
 
         var resultado = sesion.DiferenciaArqueo switch
         {
@@ -176,8 +178,10 @@ internal static class ResumenSesionBuilder
             ventasACredito,
             sesion.CantidadCobranzas,
             sesion.TotalCobranzas,
+            sesion.CantidadPagosProveedores,
+            sesion.TotalPagosProveedores,
             totales,
-            sesion.MontoCierreSistema ?? sesion.MontoApertura + efectivo,
+            sesion.MontoCierreSistema ?? sesion.MontoApertura + efectivoNeto,
             sesion.MontoCierreReal,
             sesion.DiferenciaArqueo,
             resultado,

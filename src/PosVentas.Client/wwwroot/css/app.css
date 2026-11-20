@@ -241,3 +241,12 @@ code {
 tr.inactivo td { color: #7b8190; }
 .aviso { padding: 0.5rem 0.75rem; border-radius: 6px; background: #fdf1dc; color: #5c3b00; }
 .modal small { font-weight: 400; color: #4a5160; }
+
+/* ---------- Compras e inventario ---------- */
+.badge.alerta { background: #fdecea; color: var(--pv-error); border-color: #f3c2bd; margin-left: 0.35rem; }
+tr.fila-stock-bajo td { background: #fff7f6; }
+.alerta-stock { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; border-color: #f3c2bd; background: #fff7f6; }
+.minimo-form { display: inline-flex; gap: 0.35rem; justify-content: flex-end; }
+.btn-link { border: none; background: none; padding: 0; color: var(--pv-primario); text-decoration: underline dotted; cursor: pointer; font: inherit; }
+.ayuda { font-size: 0.85rem; color: #4a5160; margin-bottom: 0; }
+.cobro > label input { padding: 0.45rem; border: 1px solid var(--pv-borde); border-radius: 6px; font: inherit; }

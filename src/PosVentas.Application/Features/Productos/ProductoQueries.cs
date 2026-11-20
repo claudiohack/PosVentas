@@ -1,4 +1,4 @@
-using FluentValidation;
+﻿using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using PosVentas.Application.Common.Exceptions;
@@ -82,6 +82,8 @@ internal static class ProductoMapper
         p.PrecioVenta.Moneda,
         p.PorcentajeIva,
         p.StockActual,
+        p.StockMinimo,
+        p.TieneStockBajo,
         p.VenderSinStock,
         p.EstaActivo);
 }

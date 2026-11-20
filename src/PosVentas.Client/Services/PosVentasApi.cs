@@ -40,6 +40,41 @@ public sealed class PosVentasApi(HttpClient http, SesionService sesion)
         return EnviarAsync<List<ProductoDto>>(HttpMethod.Get, ruta, null, ct);
     }
 
+    public Task<List<ProductoDto>> ObtenerProductosStockBajoAsync(CancellationToken ct = default) =>
+        EnviarAsync<List<ProductoDto>>(HttpMethod.Get, "api/productos/stock-bajo", null, ct);
+
+    public Task<ProductoDto> ConfigurarStockMinimoAsync(Guid productoId, decimal stockMinimo, CancellationToken ct = default) =>
+        EnviarAsync<ProductoDto>(HttpMethod.Put, $"api/productos/{productoId}/stock-minimo", new { stockMinimo }, ct);
+
+    // ---------- Proveedores ----------
+
+    public Task<List<ProveedorDto>> ObtenerProveedoresAsync(string? buscar = null, bool incluirInactivos = false, CancellationToken ct = default)
+    {
+        var query = new List<string>();
+        if (!string.IsNullOrWhiteSpace(buscar)) query.Add($"buscar={Uri.EscapeDataString(buscar)}");
+        if (incluirInactivos) query.Add("incluirInactivos=true");
+        var ruta = query.Count == 0 ? "api/proveedores" : $"api/proveedores?{string.Join('&', query)}";
+        return EnviarAsync<List<ProveedorDto>>(HttpMethod.Get, ruta, null, ct);
+    }
+
+    public Task<ProveedorDto> CrearProveedorAsync(ProveedorFormulario f, CancellationToken ct = default) =>
+        EnviarAsync<ProveedorDto>(HttpMethod.Post, "api/proveedores", f, ct);
+
+    public Task<ProveedorDto> ActualizarProveedorAsync(Guid id, ProveedorFormulario f, CancellationToken ct = default) =>
+        EnviarAsync<ProveedorDto>(HttpMethod.Put, $"api/proveedores/{id}", f, ct);
+
+    public Task<ProveedorDto> CambiarEstadoProveedorAsync(Guid id, bool activo, CancellationToken ct = default) =>
+        EnviarAsync<ProveedorDto>(HttpMethod.Patch, $"api/proveedores/{id}/estado", new { activo }, ct);
+
+    // ---------- Compras ----------
+
+    public Task<List<CompraResumenDto>> ObtenerComprasAsync(Guid? proveedorId = null, CancellationToken ct = default) =>
+        EnviarAsync<List<CompraResumenDto>>(HttpMethod.Get,
+            proveedorId is { } id ? $"api/compras?proveedorId={id}" : "api/compras", null, ct);
+
+    public Task<CompraDto> RegistrarCompraAsync(RegistrarCompraRequest request, CancellationToken ct = default) =>
+        EnviarAsync<CompraDto>(HttpMethod.Post, "api/compras", request, ct);
+
     // ---------- Caja ----------
 
     public Task<List<CajaDto>> ObtenerCajasAsync(CancellationToken ct = default) =>

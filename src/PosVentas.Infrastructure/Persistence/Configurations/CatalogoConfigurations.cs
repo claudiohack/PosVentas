@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using PosVentas.Domain.Entities;
 using PosVentas.Domain.ValueObjects;
@@ -50,6 +50,8 @@ internal sealed class ProductoConfiguration : IEntityTypeConfiguration<Producto>
         builder.Property(p => p.PorcentajeGanancia).HasPrecision(9, 2);
         builder.Property(p => p.PorcentajeIva).HasPrecision(5, 2);
         builder.Property(p => p.StockActual).HasPrecision(18, 3);
+        builder.Property(p => p.StockMinimo).HasPrecision(18, 3);
+        builder.Ignore(p => p.TieneStockBajo);
         builder.Property(p => p.RowVersion).IsRowVersion();
 
         builder.HasOne(p => p.Categoria)

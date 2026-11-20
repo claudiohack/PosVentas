@@ -4,7 +4,8 @@ using PosVentas.Domain.Enums;
 namespace PosVentas.Domain.Entities;
 
 /// <summary>
-/// Ingreso de dinero en un turno de caja, discriminado por medio de pago.
+/// Movimiento de dinero en un turno de caja, discriminado por medio de pago. Ingresos con monto
+/// positivo (ventas, cobranzas) y egresos con monto negativo (pagos a proveedores).
 /// Base del arqueo: el efectivo esperado al cierre es el fondo inicial más los movimientos en efectivo.
 /// </summary>
 public sealed class MovimientoCaja : TenantEntity
@@ -19,6 +20,7 @@ public sealed class MovimientoCaja : TenantEntity
     public decimal Monto { get; private set; }
 
     public Guid? VentaId { get; private set; }
+    public Guid? CompraId { get; private set; }
     public Guid UsuarioId { get; private set; }
     public DateTime FechaUtc { get; private set; }
     public string Descripcion { get; private set; } = string.Empty;
@@ -65,6 +67,30 @@ public sealed class MovimientoCaja : TenantEntity
         }
 
         return movimientos;
+    }
+
+    /// <summary>
+    /// Egreso por el pago al contado de una compra. Se guarda con monto negativo para que
+    /// el efectivo esperado del arqueo (fondo + suma de movimientos en efectivo) lo descuente.
+    /// </summary>
+    internal static MovimientoCaja PorPagoProveedor(CajaSesion sesion, Compra compra)
+    {
+        if (!sesion.EnCurso)
+            throw new DomainException("No se pueden registrar movimientos en una caja cerrada.");
+        if (compra.CajaSesionId != sesion.Id)
+            throw new DomainException("La compra no está vinculada a este turno de caja.");
+
+        return new MovimientoCaja(Guid.NewGuid())
+        {
+            CajaSesionId = sesion.Id,
+            Tipo = TipoMovimientoCaja.PagoProveedor,
+            Medio = compra.FormaPago == FormaPagoCompra.Efectivo ? MedioPago.Efectivo : MedioPago.Transferencia,
+            Monto = -compra.MontoTotal,
+            CompraId = compra.Id,
+            UsuarioId = compra.UsuarioId,
+            FechaUtc = compra.FechaRegistroUtc,
+            Descripcion = $"Pago a proveedor · comprobante {compra.NumeroComprobante}"
+        };
     }
 
     /// <summary>Ingreso en caja por un recibo de cobranza de cuenta corriente.</summary>

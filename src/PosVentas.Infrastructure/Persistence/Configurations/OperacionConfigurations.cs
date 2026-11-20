@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using PosVentas.Domain.Entities;
 
@@ -34,6 +34,7 @@ internal sealed class CajaSesionConfiguration : IEntityTypeConfiguration<CajaSes
         builder.Property(s => s.Observaciones).HasMaxLength(500);
         builder.Property(s => s.TotalVendido).HasPrecision(18, 2);
         builder.Property(s => s.TotalCobranzas).HasPrecision(18, 2);
+        builder.Property(s => s.TotalPagosProveedores).HasPrecision(18, 2);
         builder.Property(s => s.RowVersion).IsRowVersion();
 
         builder.HasOne(s => s.Caja)
@@ -151,6 +152,11 @@ internal sealed class MovimientoCajaConfiguration : IEntityTypeConfiguration<Mov
         builder.HasOne<Venta>()
             .WithMany()
             .HasForeignKey(m => m.VentaId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne<Compra>()
+            .WithMany()
+            .HasForeignKey(m => m.CompraId)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne<Usuario>()

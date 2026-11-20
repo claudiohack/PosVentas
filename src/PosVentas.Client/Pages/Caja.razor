@@ -64,6 +64,11 @@ else
                     <button class="btn-secundario" @onclick="() => mostrarCobranza = true">Registrar cobranza</button>
                 </p>
 
+                @if (resumen.CantidadPagosProveedores > 0)
+                {
+                    <p>Pagos a proveedores: @resumen.CantidadPagosProveedores · @Pesos(resumen.TotalPagosProveedores) (los pagos en efectivo ya están descontados).</p>
+                }
+
                 <p class="destacado">Efectivo esperado en caja: <strong>@Pesos(resumen.EfectivoEsperado)</strong></p>
 
                 @if (!Sesion.PuedeSupervisar)

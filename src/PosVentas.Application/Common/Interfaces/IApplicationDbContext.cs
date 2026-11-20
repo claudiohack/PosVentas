@@ -22,6 +22,9 @@ public interface IApplicationDbContext
     DbSet<MovimientoCaja> MovimientosCaja { get; }
     DbSet<MovimientoCuentaCorriente> MovimientosCuentaCorriente { get; }
     DbSet<ReciboCobranza> RecibosCobranza { get; }
+    DbSet<Proveedor> Proveedores { get; }
+    DbSet<Compra> Compras { get; }
+    DbSet<CompraDetalle> CompraDetalles { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

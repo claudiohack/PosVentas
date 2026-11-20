@@ -1,4 +1,4 @@
-namespace PosVentas.Application.Features.Productos;
+﻿namespace PosVentas.Application.Features.Productos;
 
 public sealed record ProductoDto(
     Guid Id,
@@ -12,5 +12,7 @@ public sealed record ProductoDto(
     string Moneda,
     decimal PorcentajeIva,
     decimal StockActual,
+    decimal StockMinimo,
+    bool StockBajo,
     bool VenderSinStock,
     bool EstaActivo);

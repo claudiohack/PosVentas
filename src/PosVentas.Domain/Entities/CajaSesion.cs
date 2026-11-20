@@ -30,6 +30,8 @@ public sealed class CajaSesion : TenantEntity
     public decimal TotalVendido { get; private set; }
     public int CantidadCobranzas { get; private set; }
     public decimal TotalCobranzas { get; private set; }
+    public int CantidadPagosProveedores { get; private set; }
+    public decimal TotalPagosProveedores { get; private set; }
     public byte[] RowVersion { get; private set; } = [];
 
     private CajaSesion(Guid id) : base(id) { }
@@ -87,7 +89,18 @@ public sealed class CajaSesion : TenantEntity
         MarcarModificado();
     }
 
-    /// <param name="totalCobradoEnEfectivo">Suma de lo cobrado en efectivo durante el turno (lo calcula la capa de aplicación).</param>
+    /// <summary>Acumula un pago a proveedor salido de este turno (misma protección de concurrencia que las ventas).</summary>
+    internal void RegistrarPagoProveedor(Compra compra)
+    {
+        if (!EnCurso)
+            throw new DomainException("No se puede pagar desde una caja cerrada.");
+
+        CantidadPagosProveedores++;
+        TotalPagosProveedores += compra.MontoTotal;
+        MarcarModificado();
+    }
+
+    /// <param name="totalCobradoEnEfectivo">Neto de los movimientos en efectivo del turno: cobros menos pagos (lo calcula la capa de aplicación).</param>
     public void Cerrar(Caja caja, Guid usuarioCierreId, decimal totalCobradoEnEfectivo, decimal montoCierreReal, string? observaciones)
     {
         ArgumentNullException.ThrowIfNull(caja);
@@ -97,7 +110,8 @@ public sealed class CajaSesion : TenantEntity
             throw new DomainException("La sesión de caja ya está cerrada.");
         if (usuarioCierreId == Guid.Empty)
             throw new DomainException("El usuario que cierra la caja es obligatorio.");
-        if (totalCobradoEnEfectivo < 0 || montoCierreReal < 0)
+        // El neto en efectivo puede ser negativo (pagos a proveedores con el fondo), no el total en caja.
+        if (MontoApertura + totalCobradoEnEfectivo < 0 || montoCierreReal < 0)
             throw new DomainException("Los montos de cierre no pueden ser negativos.");
 
         caja.MarcarComoCerrada();

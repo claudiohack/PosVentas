@@ -37,7 +37,23 @@ public enum TipoMovimientoCaja
     Venta = 1,
 
     /// <summary>Recibo de cobranza de cuenta corriente.</summary>
-    Cobranza = 2
+    Cobranza = 2,
+
+    /// <summary>Egreso: pago al contado de una compra a proveedor (monto negativo).</summary>
+    PagoProveedor = 3
+}
+
+/// <summary>Cómo se paga una compra de mercadería.</summary>
+public enum FormaPagoCompra
+{
+    /// <summary>Sale efectivo de la caja abierta.</summary>
+    Efectivo = 1,
+
+    /// <summary>Transferencia bancaria; queda registrada en el turno de caja como egreso no efectivo.</summary>
+    Transferencia = 2,
+
+    /// <summary>A pagar más adelante: no mueve dinero de la caja.</summary>
+    CuentaCorrienteProveedor = 3
 }
 
 public enum TipoMovimientoCuentaCorriente

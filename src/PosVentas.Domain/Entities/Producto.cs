@@ -18,6 +18,7 @@ public sealed class Producto : TenantEntity
     public Money PrecioVenta { get; private set; } = null!;
     public decimal PorcentajeIva { get; private set; }
     public decimal StockActual { get; private set; }
+    public decimal StockMinimo { get; private set; }
     public bool VenderSinStock { get; private set; }
     public bool EstaActivo { get; private set; }
 
@@ -39,9 +40,11 @@ public sealed class Producto : TenantEntity
         decimal porcentajeGanancia,
         decimal porcentajeIva,
         Guid categoriaId,
-        bool venderSinStock)
+        bool venderSinStock,
+        decimal stockMinimo = 0)
     {
         var producto = new Producto(Guid.NewGuid()) { EstaActivo = true, StockActual = 0 };
+        producto.ConfigurarStockMinimo(stockMinimo);
         producto.ActualizarDatosBasicos(sku, nombre, porcentajeIva);
         producto.AsignarPreciosYMargen(precioCompra, porcentajeGanancia);
         producto.CambiarCategoria(categoriaId);
@@ -89,6 +92,7 @@ public sealed class Producto : TenantEntity
         MarcarModificado();
     }
 
+    /// <summary>Ajuste manual de existencias (sin costo asociado).</summary>
     public void IngresarStock(decimal cantidad)
     {
         if (cantidad <= 0)
@@ -97,6 +101,38 @@ public sealed class Producto : TenantEntity
         StockActual += cantidad;
         MarcarModificado();
     }
+
+    /// <summary>
+    /// Ingreso por compra: suma existencias y actualiza el costo por promedio ponderado
+    /// ((stock × costo actual + cantidad × costo nuevo) / stock total). Si no había stock positivo,
+    /// el costo pasa a ser directamente el de la compra. El precio de venta se recalcula
+    /// manteniendo el margen de ganancia configurado.
+    /// </summary>
+    public void IngresarStock(decimal cantidad, decimal nuevoCosto)
+    {
+        if (cantidad <= 0)
+            throw new DomainException("La cantidad a ingresar debe ser mayor a cero.");
+        if (nuevoCosto < 0)
+            throw new DomainException("El costo unitario no puede ser negativo.");
+
+        var costoPromedio = StockActual > 0
+            ? (StockActual * PrecioCompra.Monto + cantidad * nuevoCosto) / (StockActual + cantidad)
+            : nuevoCosto;
+
+        StockActual += cantidad;
+        AsignarPreciosYMargen(Money.Crear(costoPromedio, PrecioCompra.Moneda), PorcentajeGanancia);
+    }
+
+    /// <summary>Umbral de alerta: el producto figura con stock bajo cuando StockActual &lt;= StockMinimo.</summary>
+    public void ConfigurarStockMinimo(decimal stockMinimo)
+    {
+        if (stockMinimo < 0)
+            throw new DomainException("El stock mínimo no puede ser negativo.");
+        StockMinimo = stockMinimo;
+        MarcarModificado();
+    }
+
+    public bool TieneStockBajo => StockActual <= StockMinimo;
 
     public void DescontarStock(decimal cantidad)
     {
