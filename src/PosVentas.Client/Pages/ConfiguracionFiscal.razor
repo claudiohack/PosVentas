@@ -1,0 +1,193 @@
+@page "/configuracion-fiscal"
+@inject PosVentasApi Api
+@inject SesionService Sesion
+@inject NavigationManager Navegacion
+
+<PageTitle>Facturación electrónica · PosVentas</PageTitle>
+
+<h1>Facturación electrónica (ARCA)</h1>
+
+@if (!Sesion.EsAdministrador)
+{
+    <section class="tarjeta"><p>La configuración fiscal está disponible solo para administradores.</p></section>
+}
+else
+{
+    @if (mensaje is not null)
+    {
+        <p class="ok" role="status">@mensaje</p>
+    }
+    @if (error is not null)
+    {
+        <p class="error" role="alert">@error</p>
+    }
+
+    @if (config is null)
+    {
+        <p>Cargando…</p>
+    }
+    else
+    {
+        <section class="tarjeta">
+            <div class="encabezado">
+                <h2>Estado</h2>
+                <span class="badge @(config.FacturacionConfigurada ? "activo" : "baja")">
+                    @(config.FacturacionConfigurada ? "Lista para facturar" : "Configuración incompleta")
+                </span>
+            </div>
+            <p>
+                Ambiente: <strong>@(config.Produccion ? "Producción" : "Homologación (pruebas)")</strong>
+                @if (config.TieneCertificado)
+                {
+                    <span> · Certificado: @config.CertificadoSujeto · vence el @config.CertificadoVenceUtc?.ToLocalTime().ToString("dd/MM/yyyy")</span>
+                }
+                else
+                {
+                    <span> · Sin certificado cargado</span>
+                }
+            </p>
+            <button class="btn-secundario" disabled="@(procesando || !config.FacturacionConfigurada)" @onclick="VerificarAsync">Probar conexión con ARCA</button>
+            @if (estado is not null)
+            {
+                <p class="@(estado.ServidoresOk && estado.Autenticado ? "ok" : "faltante")">@estado.Detalle</p>
+            }
+        </section>
+
+        <section class="tarjeta">
+            <h2>Datos fiscales del comercio</h2>
+            <EditForm Model="datos" OnValidSubmit="GuardarDatosAsync" FormName="datos-fiscales" class="grilla-form">
+                <DataAnnotationsValidator />
+                <label>CUIT <InputText @bind-Value="datos.Cuit" placeholder="20-12345678-6" /><ValidationMessage For="() => datos.Cuit" /></label>
+                <label>
+                    Condición frente al IVA
+                    <InputSelect @bind-Value="datos.CondicionIva">
+                        <option value="@CondicionIva.ResponsableInscripto">Responsable Inscripto (factura A / B)</option>
+                        <option value="@CondicionIva.Monotributista">Monotributista (factura C)</option>
+                    </InputSelect>
+                </label>
+                <label>Punto de venta (Web Services) <InputNumber @bind-Value="datos.PuntoVenta" min="1" /><ValidationMessage For="() => datos.PuntoVenta" /></label>
+                <label>Domicilio fiscal <InputText @bind-Value="datos.DomicilioFiscal" /></label>
+                <label>Ingresos Brutos <InputText @bind-Value="datos.IngresosBrutos" /></label>
+                <label>Inicio de actividades <InputDate @bind-Value="datos.InicioActividades" /></label>
+                <label class="check"><InputCheckbox @bind-Value="datos.Produccion" /> Facturar en producción (comprobantes con validez fiscal)</label>
+                <div><button type="submit" class="btn-primario" disabled="@procesando">Guardar datos fiscales</button></div>
+            </EditForm>
+        </section>
+
+        <section class="tarjeta">
+            <h2>Certificado digital</h2>
+            <p class="ayuda">
+                Se genera en ARCA (Administración de certificados digitales) y se asocia al servicio "wsfe".
+                Se guarda cifrado y nunca se vuelve a mostrar.
+            </p>
+            <div class="fila-form">
+                <label class="check"><input type="radio" name="formato" checked="@(!usarPem)" @onchange="() => usarPem = false" /> Archivo .p12 / .pfx</label>
+                <label class="check"><input type="radio" name="formato" checked="@usarPem" @onchange="() => usarPem = true" /> Certificado .crt + clave .key</label>
+            </div>
+            <div class="fila-form">
+                @if (usarPem)
+                {
+                    <label>Certificado (.crt) <InputFile OnChange="e => LeerArchivoAsync(e, 0)" accept=".crt,.pem,.cer" /></label>
+                    <label>Clave privada (.key) <InputFile OnChange="e => LeerArchivoAsync(e, 1)" accept=".key,.pem" /></label>
+                }
+                else
+                {
+                    <label>Archivo .p12 <InputFile OnChange="e => LeerArchivoAsync(e, 0)" accept=".p12,.pfx" /></label>
+                }
+                <label>Contraseña (si tiene) <input type="password" @bind="password" autocomplete="off" /></label>
+                <button class="btn-primario" disabled="@(procesando || !ArchivosListos)" @onclick="CargarCertificadoAsync">Cargar certificado</button>
+            </div>
+        </section>
+    }
+}
+
+@code {
+    private const long TamanioMaximo = 64 * 1024;
+
+    private ConfiguracionFiscalDto? config;
+    private DatosFiscalesFormulario datos = new();
+    private EstadoServicioAfipDto? estado;
+    private bool usarPem;
+    private byte[]? archivoPrincipal;
+    private byte[]? archivoClave;
+    private string? password;
+    private string? mensaje;
+    private string? error;
+    private bool procesando;
+
+    private bool ArchivosListos => archivoPrincipal is not null && (!usarPem || archivoClave is not null);
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Sesion.EstaAutenticado)
+        {
+            Navegacion.NavigateTo("/");
+            return;
+        }
+        if (Sesion.EsAdministrador)
+            await EjecutarAsync(async () => Aplicar(await Api.ObtenerConfiguracionFiscalAsync()));
+    }
+
+    private void Aplicar(ConfiguracionFiscalDto nueva)
+    {
+        config = nueva;
+        datos = DatosFiscalesFormulario.Desde(nueva);
+    }
+
+    private async Task GuardarDatosAsync() => await EjecutarAsync(async () =>
+    {
+        Aplicar(await Api.ActualizarDatosFiscalesAsync(datos));
+        mensaje = "Datos fiscales guardados.";
+    });
+
+    private async Task LeerArchivoAsync(InputFileChangeEventArgs e, int indice)
+    {
+        error = null;
+        if (e.File.Size > TamanioMaximo)
+        {
+            error = "El archivo es demasiado grande para ser un certificado.";
+            return;
+        }
+        using var memoria = new MemoryStream();
+        await e.File.OpenReadStream(TamanioMaximo).CopyToAsync(memoria);
+        if (indice == 0) archivoPrincipal = memoria.ToArray(); else archivoClave = memoria.ToArray();
+    }
+
+    private async Task CargarCertificadoAsync() => await EjecutarAsync(async () =>
+    {
+        var nueva = usarPem
+            ? await Api.CargarCertificadoPemAsync(System.Text.Encoding.UTF8.GetString(archivoPrincipal!),
+                System.Text.Encoding.UTF8.GetString(archivoClave!), password)
+            : await Api.CargarCertificadoPkcs12Async(archivoPrincipal!, password);
+        Aplicar(nueva);
+        archivoPrincipal = archivoClave = null;
+        password = null;
+        mensaje = "Certificado cargado y cifrado.";
+    });
+
+    private async Task VerificarAsync() => await EjecutarAsync(async () => estado = await Api.VerificarConexionAfipAsync());
+
+    private async Task EjecutarAsync(Func<Task> accion)
+    {
+        error = null;
+        mensaje = null;
+        procesando = true;
+        try
+        {
+            await accion();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            if (!Sesion.EstaAutenticado) Navegacion.NavigateTo("/");
+        }
+        catch (HttpRequestException)
+        {
+            error = "No se pudo conectar con el servidor.";
+        }
+        finally
+        {
+            procesando = false;
+        }
+    }
+}

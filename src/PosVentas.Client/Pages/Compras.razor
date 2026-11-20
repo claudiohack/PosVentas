@@ -1,0 +1,326 @@
+@page "/compras"
+@inject PosVentasApi Api
+@inject SesionService Sesion
+@inject NavigationManager Navegacion
+
+<PageTitle>Compras · PosVentas</PageTitle>
+
+<h1>Ingreso de stock / Compras</h1>
+
+@if (!Sesion.PuedeSupervisar)
+{
+    <section class="tarjeta"><p>La carga de compras está disponible para supervisores y administradores.</p></section>
+}
+else
+{
+    @if (ultima is not null)
+    {
+        <section class="tarjeta venta-ok" role="status">
+            <strong>Compra registrada · @Pesos(ultima.MontoTotal)</strong>
+            <span>@ultima.Proveedor · @ultima.NumeroComprobante · @ultima.Detalles.Count productos</span>
+            @if (ultima.CajaSesionId is not null)
+            {
+                <span>Pago registrado como egreso de caja.</span>
+            }
+            <button class="btn-secundario" @onclick="() => ultima = null">Cargar otra</button>
+        </section>
+    }
+    @if (error is not null)
+    {
+        <p class="error" role="alert">@error</p>
+    }
+
+    <div class="pos">
+        <section class="tarjeta">
+            <h2>Productos</h2>
+            <div class="encabezado">
+                <form class="buscador" @onsubmit="BuscarAsync">
+                    <input type="search" @bind="buscar" placeholder="Buscar producto por nombre" aria-label="Buscar producto" />
+                    <button type="submit" class="btn-secundario">Buscar</button>
+                </form>
+                @if (stockBajo.Count > 0)
+                {
+                    <button class="btn-secundario" @onclick="AgregarStockBajo">Agregar los @stockBajo.Count con stock bajo</button>
+                }
+            </div>
+
+            @if (resultados.Count > 0)
+            {
+                <ul class="resultados">
+                    @foreach (var p in resultados)
+                    {
+                        <li>
+                            <span>
+                                @p.Nombre <small>(@p.Sku · stock @p.StockActual.ToString("0.###"))</small>
+                                @if (p.StockBajo)
+                                {
+                                    <span class="badge alerta">Stock bajo</span>
+                                }
+                            </span>
+                            <span class="num">costo @Pesos(p.PrecioCompra)</span>
+                            <button class="btn-secundario" @onclick="() => Agregar(p)">Agregar</button>
+                        </li>
+                    }
+                </ul>
+            }
+
+            <table>
+                <thead>
+                    <tr><th>Producto</th><th class="num">Stock</th><th class="num">Cantidad</th><th class="num">Costo unit.</th><th class="num">Subtotal</th><th></th></tr>
+                </thead>
+                <tbody>
+                    @if (renglones.Count == 0)
+                    {
+                        <tr><td colspan="6">Agregá los productos del comprobante.</td></tr>
+                    }
+                    @foreach (var r in renglones)
+                    {
+                        <tr>
+                            <td>@r.Producto.Nombre</td>
+                            <td class="num @(r.Producto.StockBajo ? "faltante" : null)">@r.Producto.StockActual.ToString("0.###")</td>
+                            <td class="num"><input class="cantidad" type="number" min="0.001" step="0.001" @bind="r.Cantidad" aria-label="Cantidad de @r.Producto.Nombre" /></td>
+                            <td class="num"><input class="cantidad" type="number" min="0" step="0.01" @bind="r.CostoUnitario" aria-label="Costo de @r.Producto.Nombre" /></td>
+                            <td class="num">@Pesos(r.Subtotal)</td>
+                            <td><button class="btn-secundario" @onclick="() => renglones.Remove(r)" aria-label="Quitar @r.Producto.Nombre">✕</button></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            <p class="ayuda">El costo del producto se actualiza por promedio ponderado y el precio de venta se recalcula con su margen.</p>
+        </section>
+
+        <section class="tarjeta cobro">
+            <h2>Comprobante</h2>
+            <label>
+                Proveedor
+                <select @bind="proveedorId">
+                    <option value="@Guid.Empty">Elegí un proveedor…</option>
+                    @foreach (var p in proveedores)
+                    {
+                        <option value="@p.Id">@p.RazonSocial (@p.CuitFormateado)</option>
+                    }
+                </select>
+            </label>
+            @if (proveedores.Count == 0 && cargado)
+            {
+                <p>No hay proveedores activos. <a href="proveedores">Cargá uno</a>.</p>
+            }
+            <label>
+                Nº de remito / factura
+                <input type="text" maxlength="30" @bind="numeroComprobante" placeholder="FC-A 0001-00001234" />
+            </label>
+            <label>
+                Fecha del comprobante
+                <input type="date" @bind="fechaCompra" max="@Hoy.ToString("yyyy-MM-dd")" />
+            </label>
+            <label>
+                Forma de pago
+                <select @bind="formaPago">
+                    @foreach (var f in Enum.GetValues<FormaPagoCompra>())
+                    {
+                        <option value="@f">@EtiquetasCompra.FormaPago(f)</option>
+                    }
+                </select>
+            </label>
+
+            @if (formaPago != FormaPagoCompra.CuentaCorrienteProveedor)
+            {
+                @if (sesionesAbiertas.Count == 0)
+                {
+                    <p class="aviso">No hay caja abierta: la compra se registra sin egreso de caja.</p>
+                }
+                else if (sesionesAbiertas.Count == 1)
+                {
+                    <p>Se paga desde: <strong>@sesionesAbiertas[0].Caja</strong></p>
+                }
+                else
+                {
+                    <label>
+                        Caja desde la que se paga
+                        <select @bind="sesionId">
+                            @foreach (var s in sesionesAbiertas)
+                            {
+                                <option value="@s.Id">@s.Caja</option>
+                            }
+                        </select>
+                    </label>
+                }
+            }
+
+            <label>
+                Observaciones
+                <input type="text" maxlength="250" @bind="observaciones" />
+            </label>
+
+            <dl class="cifras">
+                <dt>Productos</dt><dd>@renglones.Count</dd>
+                <dt class="total">Total</dt><dd class="total">@Pesos(Total)</dd>
+            </dl>
+
+            <button class="btn-primario" @onclick="RegistrarAsync" disabled="@(!PuedeRegistrar || procesando)">
+                @(procesando ? "Registrando…" : $"Registrar compra {Pesos(Total)}")
+            </button>
+        </section>
+    </div>
+
+    <section class="tarjeta">
+        <h2>Últimas compras</h2>
+        @if (compras.Count == 0)
+        {
+            <p>Todavía no se registraron compras.</p>
+        }
+        else
+        {
+            <table>
+                <thead>
+                    <tr><th>Fecha</th><th>Proveedor</th><th>Comprobante</th><th>Pago</th><th class="num">Ítems</th><th class="num">Total</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var c in compras)
+                    {
+                        <tr>
+                            <td>@c.FechaCompra.ToString("dd/MM/yyyy")</td>
+                            <td>@c.Proveedor</td>
+                            <td>@c.NumeroComprobante</td>
+                            <td>@EtiquetasCompra.FormaPago(c.FormaPago) @(c.ImpactoEnCaja ? "· caja" : null)</td>
+                            <td class="num">@c.CantidadItems</td>
+                            <td class="num">@Pesos(c.MontoTotal)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </section>
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "proveedor")] public Guid? ProveedorInicial { get; set; }
+
+    private static DateOnly Hoy => DateOnly.FromDateTime(DateTime.Now);
+
+    private List<ProveedorDto> proveedores = [];
+    private List<SesionCajaDto> sesionesAbiertas = [];
+    private List<ProductoDto> stockBajo = [];
+    private List<ProductoDto> resultados = [];
+    private List<CompraResumenDto> compras = [];
+    private readonly List<RenglonCompra> renglones = [];
+
+    private Guid proveedorId;
+    private string? numeroComprobante;
+    private DateOnly fechaCompra = Hoy;
+    private FormaPagoCompra formaPago = FormaPagoCompra.Efectivo;
+    private Guid sesionId;
+    private string? observaciones;
+    private string? buscar;
+    private CompraDto? ultima;
+    private string? error;
+    private bool procesando;
+    private bool cargado;
+
+    private decimal Total => renglones.Sum(r => r.Subtotal);
+
+    private bool PuedeRegistrar => proveedorId != Guid.Empty
+        && !string.IsNullOrWhiteSpace(numeroComprobante)
+        && renglones.Count > 0
+        && renglones.All(r => r.Cantidad > 0 && r.CostoUnitario >= 0);
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Sesion.EstaAutenticado)
+        {
+            Navegacion.NavigateTo("/");
+            return;
+        }
+        if (!Sesion.PuedeSupervisar)
+            return;
+
+        await EjecutarAsync(async () =>
+        {
+            proveedores = await Api.ObtenerProveedoresAsync();
+            if (ProveedorInicial is { } inicial && proveedores.Any(p => p.Id == inicial))
+                proveedorId = inicial;
+            await RefrescarContextoAsync();
+        });
+        cargado = true;
+    }
+
+    private async Task RefrescarContextoAsync()
+    {
+        var cajas = await Api.ObtenerCajasAsync();
+        sesionesAbiertas = cajas.Where(c => c.SesionActiva is not null).Select(c => c.SesionActiva!).ToList();
+        if (sesionesAbiertas.All(s => s.Id != sesionId))
+            sesionId = sesionesAbiertas.FirstOrDefault()?.Id ?? Guid.Empty;
+        stockBajo = await Api.ObtenerProductosStockBajoAsync();
+        compras = (await Api.ObtenerComprasAsync()).Take(20).ToList();
+    }
+
+    private async Task BuscarAsync() =>
+        await EjecutarAsync(async () => resultados = (await Api.ObtenerProductosAsync(buscar)).Take(15).ToList());
+
+    private void Agregar(ProductoDto producto)
+    {
+        var existente = renglones.FirstOrDefault(r => r.Producto.Id == producto.Id);
+        if (existente is not null)
+            existente.Cantidad += 1;
+        else
+            renglones.Add(new RenglonCompra(producto));
+        ultima = null;
+    }
+
+    /// <summary>Agrega lo que falta para llegar al stock mínimo (al menos 1) de cada producto en alerta.</summary>
+    private void AgregarStockBajo()
+    {
+        foreach (var p in stockBajo.Where(p => renglones.All(r => r.Producto.Id != p.Id)))
+            renglones.Add(new RenglonCompra(p) { Cantidad = Math.Max(1, p.StockMinimo - p.StockActual) });
+        ultima = null;
+    }
+
+    private async Task RegistrarAsync()
+    {
+        await EjecutarAsync(async () =>
+        {
+            var pagaDesdeCaja = formaPago != FormaPagoCompra.CuentaCorrienteProveedor && sesionId != Guid.Empty;
+            var request = new RegistrarCompraRequest(
+                proveedorId,
+                numeroComprobante!.Trim(),
+                fechaCompra,
+                formaPago,
+                pagaDesdeCaja ? sesionId : null,
+                observaciones,
+                renglones.Select(r => new ItemCompraRequest(r.Producto.Id, r.Cantidad, r.CostoUnitario)).ToList());
+
+            ultima = await Api.RegistrarCompraAsync(request);
+
+            renglones.Clear();
+            resultados = [];
+            numeroComprobante = null;
+            observaciones = null;
+            await RefrescarContextoAsync();
+        });
+    }
+
+    private async Task EjecutarAsync(Func<Task> accion)
+    {
+        error = null;
+        procesando = true;
+        try
+        {
+            await accion();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            if (!Sesion.EstaAutenticado) Navegacion.NavigateTo("/");
+        }
+        catch (HttpRequestException)
+        {
+            error = "No se pudo conectar con el servidor.";
+        }
+        finally
+        {
+            procesando = false;
+        }
+    }
+
+    private static string Pesos(decimal valor) => valor.ToString("$ #,##0.00");
+}

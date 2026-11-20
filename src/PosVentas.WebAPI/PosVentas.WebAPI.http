@@ -1,0 +1,49 @@
+@baseUrl = https://localhost:7098
+@token = pegar-aqui-el-accessToken
+
+### Alta de comercio (onboarding)
+POST {{baseUrl}}/api/auth/registro
+Content-Type: application/json
+
+{
+  "nombreComercio": "Almacén Demo",
+  "slug": "almacen-demo",
+  "cuit": null,
+  "nombreAdministrador": "Administrador Demo",
+  "username": "admin",
+  "password": "cambiar-esta-clave-123"
+}
+
+### Login (devuelve JWT con uid, tid y role)
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "comercio": "almacen-demo",
+  "username": "admin",
+  "password": "cambiar-esta-clave-123"
+}
+
+### Categorías del comercio
+GET {{baseUrl}}/api/categorias
+Authorization: Bearer {{token}}
+
+### Productos del comercio (filtrados por TenantId)
+GET {{baseUrl}}/api/productos
+Authorization: Bearer {{token}}
+
+### Crear producto (solo Administrador)
+POST {{baseUrl}}/api/productos
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "sku": "7790001",
+  "nombre": "Yerba 1kg",
+  "precioCompra": 1000,
+  "moneda": "ARS",
+  "porcentajeGanancia": 30,
+  "porcentajeIva": 21,
+  "categoriaId": "pegar-id-de-categoria",
+  "venderSinStock": false
+}

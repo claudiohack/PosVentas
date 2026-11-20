@@ -1,0 +1,174 @@
+@inject PosVentasApi Api
+
+@* Modal de recibo de cobranza. Si no recibe Cliente, deja elegir entre los clientes con deuda. *@
+
+<div class="modal-fondo" @onclick="CancelarAsync"></div>
+<div class="modal" role="dialog" aria-modal="true" aria-labelledby="titulo-cobranza">
+    <h2 id="titulo-cobranza">Registrar cobro</h2>
+
+    @if (cargando)
+    {
+        <p>Cargando…</p>
+    }
+    else if (sesiones.Count == 0)
+    {
+        <p>No hay ninguna caja abierta. <a href="caja">Abrí una caja</a> para registrar cobros.</p>
+        <div class="acciones"><button class="btn-secundario" @onclick="CancelarAsync">Cerrar</button></div>
+    }
+    else
+    {
+        <form @onsubmit="RegistrarAsync">
+            @if (Cliente is null)
+            {
+                <label>
+                    Cliente
+                    <select @bind="clienteId" @bind:after="AlElegirCliente" required>
+                        <option value="@Guid.Empty">Elegí un cliente…</option>
+                        @foreach (var c in deudores)
+                        {
+                            <option value="@c.Id">@c.RazonSocial · debe @Pesos(c.SaldoActual)</option>
+                        }
+                    </select>
+                </label>
+                @if (deudores.Count == 0)
+                {
+                    <p>No hay clientes con saldo pendiente.</p>
+                }
+            }
+            else
+            {
+                <p><strong>@Cliente.RazonSocial</strong> · saldo @Pesos(Cliente.SaldoActual)</p>
+            }
+
+            @if (sesiones.Count > 1)
+            {
+                <label>
+                    Caja donde ingresa el dinero
+                    <select @bind="sesionId">
+                        @foreach (var s in sesiones)
+                        {
+                            <option value="@s.Id">@s.Caja</option>
+                        }
+                    </select>
+                </label>
+            }
+            else
+            {
+                <p>Ingresa en: <strong>@sesiones[0].Caja</strong></p>
+            }
+
+            <label>
+                Medio de pago
+                <select @bind="medio">
+                    @foreach (var m in Etiquetas.MediosCobranza)
+                    {
+                        <option value="@m">@Etiquetas.Medio(m)</option>
+                    }
+                </select>
+            </label>
+
+            <label>
+                Monto
+                <input type="number" min="0.01" step="0.01" max="@SaldoCliente" @bind="monto" required />
+            </label>
+
+            <label>
+                Observaciones
+                <input type="text" maxlength="250" @bind="observaciones" />
+            </label>
+
+            @if (error is not null)
+            {
+                <p class="error" role="alert">@error</p>
+            }
+
+            <div class="acciones">
+                <button type="button" class="btn-secundario" @onclick="CancelarAsync">Cancelar</button>
+                <button type="submit" class="btn-primario" disabled="@(procesando || clienteId == Guid.Empty || monto <= 0)">
+                    @(procesando ? "Registrando…" : $"Cobrar {Pesos(monto)}")
+                </button>
+            </div>
+        </form>
+    }
+</div>
+
+@code {
+    /// <summary>Cliente a cobrar. Null = elegir en el modal entre los clientes con deuda.</summary>
+    [Parameter] public ClienteDto? Cliente { get; set; }
+
+    [Parameter] public EventCallback<ReciboCobranzaDto> OnRegistrado { get; set; }
+    [Parameter] public EventCallback OnCancelar { get; set; }
+
+    private List<SesionCajaDto> sesiones = [];
+    private List<ClienteDto> deudores = [];
+    private Guid sesionId;
+    private Guid clienteId;
+    private MedioPago medio = MedioPago.Efectivo;
+    private decimal monto;
+    private string? observaciones;
+    private string? error;
+    private bool cargando = true;
+    private bool procesando;
+
+    private decimal SaldoCliente => Cliente?.SaldoActual ?? deudores.FirstOrDefault(c => c.Id == clienteId)?.SaldoActual ?? 0m;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var cajas = await Api.ObtenerCajasAsync();
+            sesiones = cajas.Where(c => c.SesionActiva is not null).Select(c => c.SesionActiva!).ToList();
+            sesionId = sesiones.FirstOrDefault()?.Id ?? Guid.Empty;
+
+            if (Cliente is null)
+            {
+                deudores = (await Api.ObtenerClientesAsync(soloCuentaCorriente: true))
+                    .Where(c => c.SaldoActual > 0)
+                    .OrderBy(c => c.RazonSocial)
+                    .ToList();
+            }
+            else
+            {
+                clienteId = Cliente.Id;
+                monto = Cliente.SaldoActual;
+            }
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private void AlElegirCliente() => monto = SaldoCliente;
+
+    private async Task RegistrarAsync()
+    {
+        error = null;
+        procesando = true;
+        try
+        {
+            var recibo = await Api.RegistrarCobranzaAsync(clienteId, monto, medio, sesionId, observaciones);
+            await OnRegistrado.InvokeAsync(recibo);
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        catch (HttpRequestException)
+        {
+            error = "No se pudo conectar con el servidor.";
+        }
+        finally
+        {
+            procesando = false;
+        }
+    }
+
+    private Task CancelarAsync() => OnCancelar.InvokeAsync();
+
+    private static string Pesos(decimal valor) => valor.ToString("$ #,##0.00");
+}

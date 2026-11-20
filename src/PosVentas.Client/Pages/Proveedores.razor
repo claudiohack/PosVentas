@@ -1,0 +1,157 @@
+@page "/proveedores"
+@inject PosVentasApi Api
+@inject SesionService Sesion
+@inject NavigationManager Navegacion
+
+<PageTitle>Proveedores · PosVentas</PageTitle>
+
+<div class="encabezado">
+    <h1>Proveedores</h1>
+    @if (Sesion.PuedeSupervisar)
+    {
+        <button class="btn-primario ancho-auto" @onclick="() => AbrirModal(null)">Nuevo proveedor</button>
+    }
+</div>
+
+@if (!Sesion.PuedeSupervisar)
+{
+    <section class="tarjeta"><p>La gestión de proveedores está disponible para supervisores y administradores.</p></section>
+}
+else
+{
+    @if (mensaje is not null)
+    {
+        <p class="ok" role="status">@mensaje</p>
+    }
+    @if (error is not null)
+    {
+        <p class="error" role="alert">@error</p>
+    }
+
+    <section class="tarjeta">
+        <div class="encabezado">
+            <form class="buscador" @onsubmit="CargarAsync">
+                <input type="search" @bind="buscar" placeholder="Buscar por razón social o CUIT" aria-label="Buscar proveedores" />
+                <button type="submit" class="btn-secundario">Buscar</button>
+            </form>
+            <label class="check"><input type="checkbox" @bind="incluirInactivos" @bind:after="CargarAsync" /> Incluir dados de baja</label>
+        </div>
+
+        @if (proveedores is null)
+        {
+            <p>Cargando…</p>
+        }
+        else if (proveedores.Count == 0)
+        {
+            <p>No hay proveedores para mostrar.</p>
+        }
+        else
+        {
+            <table>
+                <thead>
+                    <tr><th>Razón social</th><th>CUIT</th><th>Teléfono</th><th>Email</th><th>Estado</th><th></th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var p in proveedores)
+                    {
+                        <tr class="@(p.EstaActivo ? null : "inactivo")">
+                            <td>@p.RazonSocial<br /><small>@p.Direccion</small></td>
+                            <td>@p.CuitFormateado</td>
+                            <td>@p.Telefono</td>
+                            <td>@p.Email</td>
+                            <td><span class="badge @(p.EstaActivo ? "activo" : "baja")">@(p.EstaActivo ? "Activo" : "Inactivo")</span></td>
+                            <td class="acciones-fila">
+                                @if (p.EstaActivo)
+                                {
+                                    <a href="compras?proveedor=@p.Id">Cargar compra</a>
+                                }
+                                <button class="btn-secundario" @onclick="() => AbrirModal(p)">Editar</button>
+                                <button class="btn-secundario" disabled="@procesando" @onclick="() => CambiarEstadoAsync(p)">
+                                    @(p.EstaActivo ? "Dar de baja" : "Reactivar")
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </section>
+
+    @if (mostrarModal)
+    {
+        <ProveedorModal Proveedor="editado" OnGuardado="AlGuardarAsync" OnCancelar="() => mostrarModal = false" />
+    }
+}
+
+@code {
+    private List<ProveedorDto>? proveedores;
+    private ProveedorDto? editado;
+    private string? buscar;
+    private bool incluirInactivos;
+    private bool mostrarModal;
+    private string? mensaje;
+    private string? error;
+    private bool procesando;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Sesion.EstaAutenticado)
+        {
+            Navegacion.NavigateTo("/");
+            return;
+        }
+        if (Sesion.PuedeSupervisar)
+            await CargarAsync();
+    }
+
+    private async Task CargarAsync() =>
+        await EjecutarAsync(async () => proveedores = await Api.ObtenerProveedoresAsync(buscar, incluirInactivos));
+
+    private void AbrirModal(ProveedorDto? proveedor)
+    {
+        editado = proveedor;
+        mensaje = null;
+        mostrarModal = true;
+    }
+
+    private async Task AlGuardarAsync(ProveedorDto guardado)
+    {
+        mensaje = editado is null ? $"Proveedor '{guardado.RazonSocial}' creado." : $"Proveedor '{guardado.RazonSocial}' actualizado.";
+        mostrarModal = false;
+        await CargarAsync();
+    }
+
+    private async Task CambiarEstadoAsync(ProveedorDto proveedor)
+    {
+        mensaje = null;
+        await EjecutarAsync(async () =>
+        {
+            var actualizado = await Api.CambiarEstadoProveedorAsync(proveedor.Id, !proveedor.EstaActivo);
+            mensaje = actualizado.EstaActivo ? $"'{actualizado.RazonSocial}' reactivado." : $"'{actualizado.RazonSocial}' dado de baja.";
+            proveedores = await Api.ObtenerProveedoresAsync(buscar, incluirInactivos);
+        });
+    }
+
+    private async Task EjecutarAsync(Func<Task> accion)
+    {
+        error = null;
+        procesando = true;
+        try
+        {
+            await accion();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            if (!Sesion.EstaAutenticado) Navegacion.NavigateTo("/");
+        }
+        catch (HttpRequestException)
+        {
+            error = "No se pudo conectar con el servidor.";
+        }
+        finally
+        {
+            procesando = false;
+        }
+    }
+}

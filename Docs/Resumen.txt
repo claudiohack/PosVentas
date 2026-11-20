@@ -1,0 +1,198 @@
+
+Auditoría Técnica PosVentas
+18 nov 2026 · @Claudio Sergio Hack
+Veredicto: Opción B — reiniciar el esqueleto sobre la plataforma objetivo y portar el modelo de dominio. La base actual no tiene aislamiento multi-tenant, el cliente de escritorio (WPF) accede directo a la base de datos y ninguno de los 5 estándares institucionales se cumple por completo. El dominio (~670 líneas) es de buena calidad y se reutiliza.
+1. Resumen de lo desarrollado
+La solución tiene 5 proyectos y unas 4.900 líneas propias; el 75 % es la aplicación de escritorio WPF. Todo apunta a .NET 10 y SQL Server Express. No hay proyectos de tests. El historial tiene 9 commits.
+Proyecto
+Rol
+Líneas aprox.
+Contenido real
+PosVentas.Domain
+Dominio
+670
+10 entidades, value objects Money y Sku, interfaces de repositorio
+PosVentas.Application
+Aplicación
+200
+VentaService, un comando MediatR (CrearProducto), ValidationBehavior sin registrar
+PosVentas.Infrastructure
+Infraestructura
+250 (+ migraciones)
+ApplicationDbContext (SQL Server), repositorios, 4 migraciones
+PosVentas.CentralAPI
+API
+110
+Un único endpoint: GET /api/productos/ping
+PosVentas.Desktop
+Presentación (WPF)
+3.700
+15 ventanas/vistas; 14 de ellas usan ApplicationDbContext directamente en code-behind
+Estado funcional por módulo:
+Módulo
+Estado
+Qué existe
+Qué falta
+POS / Ventas
+No operativo
+Carrito, buscador, cálculo de IVA gravado/no gravado, campos AFIP
+La venta falla: usa un ID de cliente fijo que no existe en la BD. Sin medios de pago, descuentos ni comprobante
+Inventario
+Básico
+ABM de productos y categorías con costo, margen e IVA
+No hay forma de ingresar stock (solo se descuenta). Sin movimientos, alertas ni carga masiva
+Clientes / Cta. Cte.
+Solo ficha
+ABM con flag de cuenta corriente y límite de crédito
+Sin saldos, movimientos, recibos ni control de límite en la venta
+Proveedores
+Básico
+ABM completo con baja lógica
+Sin compras ni cuenta corriente
+Caja
+Parcial
+Apertura, cierre y arqueo con diferencia calculada en dominio
+El teórico ignora las ventas: totalVentas = 0 fijo
+Autenticación
+Local, insegura
+Login WPF con roles Administrador/Cajero
+Sin JWT, sin autorización efectiva, hash débil
+Reportes
+No existe
+—
+Todo el módulo
+2. Evaluación de calidad y deuda técnica
+De los 5 estándares, 3 no se cumplen y 2 se cumplen parcialmente. El núcleo (Domain ← Application ← Infrastructure) respeta la dirección de dependencias, pero la presentación la saltea y habla con la base de datos.
+Estándar
+Estado
+Evidencia
+1. Stack (.NET LTS, WebAPI, Blazor WASM, EF Core, PostgreSQL)
+No cumple
+.NET 10, WPF y SQL Server. La API solo expone /ping. No hay Blazor ni Npgsql
+2. Clean Architecture
+Parcial
+Proyectos bien separados, pero Desktop referencia Infrastructure y 14 pantallas usan el DbContext en code-behind. Coexisten dos patrones de datos (Repository+UoW+MediatR y IApplicationDbContext); Application depende de EF Core
+3. Aislamiento multi-tenant
+No cumple
+0 de 10 entidades tienen TenantId/ComercioId. No existe entidad Comercio, HasQueryFilter ni middleware de tenant
+4. Seguridad y calidad
+No cumple
+Contraseñas en SHA-256 sin sal, sin JWT, sin RBAC efectivo, FluentValidation y middleware de errores sin registrar
+5. Persistencia Code-First
+Parcial
+Usa migraciones, pero se borraron 7 ya commiteadas y se regeneró una inicial; hay una migración vacía y configuraciones EF que nunca se aplican
+Nota sobre el estándar 1: .NET 8 dejó de tener soporte el 10/11/2026. Recomiendo actualizar el estándar a .NET 10 LTS; en ese punto el repo ya está alineado.
+Hallazgos, del más grave al menor:
+#
+Severidad
+Hallazgo
+Evidencia
+1
+Crítica
+Sin diseño multi-tenant en ninguna capa: entidades, índices, consultas ni autenticación
+ApplicationDbContext.cs, todas las entidades
+2
+Crítica
+El cliente WPF se conecta directo a la BD central. En un SaaS, cada terminal tendría credenciales de la base compartida y no hay frontera de API donde aplicar tenant y JWT
+Desktop.csproj referencia Infrastructure; App.xaml.cs:37
+3
+Crítica
+Hash de contraseñas SHA-256 sin sal ni costo, con comparación no constante. Usuario semilla admin / admin123 en código
+Usuario.cs:629-636; App.xaml.cs:570
+4
+Crítica
+Sin autorización: sesión en una clase estática y EsAdmin() nunca se invoca. Un cajero accede a todo
+SesionUsuario.cs
+5
+Crítica
+La venta no funciona de punta a punta: usa un ClienteId fijo que no coincide con el cliente semilla (generado con Guid.NewGuid()), y un UsuarioId ficticio en lugar del usuario logueado
+VentasViewModel.cs:166-168, 527, 537
+6
+Alta
+Sin control de concurrencia: las columnas Version no están configuradas como rowversion. Dos cajas pueden vender la última unidad
+ModelSnapshot (varbinary simple)
+7
+Alta
+El stock se descuenta por reflexión sobre un setter privado, rompiendo el dominio; no existe ningún flujo de ingreso de stock
+VentaService.cs:66-67
+8
+Alta
+El arqueo de caja ignora las ventas del turno
+CierreCajaWindow.xaml.cs:59
+9
+Alta
+CAE y número de comprobante fiscal simulados con Random en código productivo
+VentaService.cs:81-89
+10
+Alta
+ProductoConfiguration y CategoriaConfiguration nunca se aplican: no hay índice único de SKU y la moneda de Money se pierde (siempre ARS)
+Falta ApplyConfigurationsFromAssembly
+11
+Alta
+Validación inerte: ValidationBehavior, validadores y GlobalExceptionMiddleware no están registrados. RegistrarVentaDto acepta un carrito vacío
+Application/DependencyInjection.cs; Program.cs
+12
+Alta
+Historial de migraciones reescrito y migración vacía AgregarModuloVentas. Venta no tiene FK a Cliente, Usuario ni CajaSesion
+Migrations/
+13
+Media
+DbContext de vida larga: las vistas se resuelven desde el proveedor raíz y MainWindow es singleton
+App.xaml.cs, MainWindow.xaml.cs
+14
+Media
+Valores hardcodeados: nombre de máquina en la cadena de conexión, GUIDs de roles, códigos de comprobante inconsistentes (TK / TKT / FAC)
+appsettings.json, App.xaml.cs:163, Venta.cs, DTO
+15
+Media
+NuGetAudit desactivado en Infrastructure y API, lo que oculta vulnerabilidades de paquetes
+.csproj
+16
+Media
+Modelo inconsistente: Usuario, Rol, Venta y VentaDetalle no heredan de Entity<Guid>; mezcla de DateTime.Now y UtcNow; sin tests
+Domain/Entities
+No encontré secretos con contraseña en los archivos de configuración: la conexión usa autenticación integrada de Windows.
+3. Veredicto técnico
+Opción B: re-arquitecturar el esqueleto desde cero, reutilizando el dominio. Refactorizar no es un esfuerzo bajo o medio: lo que falta está en el núcleo y lo que sobra no se reutiliza.
+Criterio
+Opción A: continuar y refactorizar
+Opción B: nuevo esqueleto + portar dominio
+Multi-tenant
+Retrofit en las 10 entidades, cada consulta de 14 pantallas y los datos existentes
+Se diseña en la base: ITenantEntity, filtro global e interceptor desde el día 1
+Presentación
+Las ~3.700 líneas de WPF no sirven para Blazor WASM: se reescriben igual
+Se construye Blazor contra la API desde el inicio
+API y seguridad
+Se construye igual desde cero (hoy solo /ping)
+Igual, pero sin convivir con el acceso directo a BD
+Base de datos
+Migrar SQL Server → PostgreSQL con un historial ya reescrito
+Migración inicial limpia en PostgreSQL
+Código reutilizado
+Todo, con la deuda incluida
+Dominio y piezas de Application (~900 líneas), revisadas
+En la práctica, la Opción A también termina reescribiendo presentación, API, autenticación y persistencia, pero arrastrando las restricciones de la estructura actual. La base es chica (~4.900 líneas y 9 commits), así que el costo hundido es bajo.
+Si el producto necesita un POS de escritorio con modo offline, WPF puede volver más adelante como cliente de la API. Nunca con acceso directo a la base.
+4. Resumen ejecutivo
+Puntos fuertes reutilizables
+• Modelo de dominio rico: constructores con invariantes, setters privados, baja lógica y auditoría de fechas en las entidades principales.
+• Value objects Money y Sku, y la base Entity<TId> / ValueObject.
+• Venta con estructura fiscal argentina: totales gravado, no gravado e IVA, y campos AFIP (punto de venta, CAE, vencimiento).
+• Arqueo de caja en el dominio: CajaSesion.CerrarSesion calcula sobrante o faltante.
+• Piezas transversales listas para cablear: ValidationBehavior de MediatR, GlobalExceptionMiddleware con ProblemDetails, validador de CrearProducto.
+Fallos críticos / bloqueantes
+1.  Ausencia total de aislamiento multi-tenant.
+2.  Cliente de escritorio con acceso directo a la base de datos central.
+3.  Contraseñas con SHA-256 sin sal y credenciales semilla en el código.
+4.  Sin JWT ni RBAC: cualquier usuario autenticado accede a todo.
+5.  Flujo de venta roto por IDs ficticios; stock y arqueo inconsistentes.
+6.  Stack fuera de estándar: WPF y SQL Server en lugar de Blazor WASM y PostgreSQL.
+Recomendación final: reiniciar el esqueleto (Opción B)
+El multi-tenancy es una propiedad del núcleo, no un agregado: toca cada entidad, índice único, consulta y token. Sumado a que el 75 % del código es WPF no reutilizable, alinear la base actual cuesta más que construir el esqueleto correcto y portar el dominio. Plan propuesto:
+1.  Nueva solución en .NET 10 LTS: Domain, Application, Infrastructure, WebAPI y Blazor WASM, con proyectos de tests desde el inicio.
+2.  Núcleo multi-tenant: entidad Comercio, TenantId en todas las entidades, ICurrentTenant leído del claim JWT, HasQueryFilter global, interceptor que asigna el tenant al guardar e índices únicos compuestos (TenantId + Sku).
+3.  Seguridad: JWT con políticas por permiso, hashing con BCrypt, rate limiting, CORS y secretos en User Secrets / variables de entorno.
+4.  PostgreSQL con Npgsql, una migración inicial limpia y concurrencia optimista con xmin.
+5.  Portar el dominio actual corrigiendo la deuda: métodos DescontarStock / IngresarStock, FKs de Venta, códigos de comprobante como enum, todas las entidades heredando de Entity<Guid>.
+6.  Tests de aislamiento entre tenants como criterio de aceptación de cada módulo antes de construir POS, inventario y cuenta corriente.

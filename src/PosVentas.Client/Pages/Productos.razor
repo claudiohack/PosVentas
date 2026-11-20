@@ -1,0 +1,181 @@
+@page "/productos"
+@inject PosVentasApi Api
+@inject SesionService Sesion
+@inject NavigationManager Navegacion
+
+<PageTitle>Productos · PosVentas</PageTitle>
+
+@if (cantidadStockBajo > 0 && !soloStockBajo)
+{
+    <section class="tarjeta alerta-stock" role="status">
+        <strong>@cantidadStockBajo @(cantidadStockBajo == 1 ? "producto está" : "productos están") en o por debajo del stock mínimo.</strong>
+        <button class="btn-secundario" @onclick="VerStockBajoAsync">Ver cuáles</button>
+        @if (Sesion.PuedeSupervisar)
+        {
+            <a href="compras">Cargar una compra</a>
+        }
+    </section>
+}
+
+<section class="tarjeta">
+    <div class="encabezado">
+        <h1>Productos</h1>
+        <form class="buscador" @onsubmit="CargarAsync">
+            <input type="search" @bind="buscar" placeholder="Buscar por nombre" aria-label="Buscar productos" disabled="@soloStockBajo" />
+            <button type="submit" class="btn-secundario" disabled="@soloStockBajo">Buscar</button>
+        </form>
+        <label class="check"><input type="checkbox" @bind="soloStockBajo" @bind:after="CargarAsync" /> Solo stock bajo</label>
+    </div>
+
+    @if (mensaje is not null)
+    {
+        <p class="ok" role="status">@mensaje</p>
+    }
+    @if (error is not null)
+    {
+        <p class="error" role="alert">@error</p>
+    }
+
+    @if (productos is null)
+    {
+        <p>Cargando…</p>
+    }
+    else if (productos.Count == 0)
+    {
+        <p>@(soloStockBajo ? "No hay productos con stock bajo." : "No hay productos cargados.")</p>
+    }
+    else
+    {
+        <table>
+            <thead>
+                <tr>
+                    <th>SKU</th>
+                    <th>Nombre</th>
+                    <th>Categoría</th>
+                    <th class="num">Costo</th>
+                    <th class="num">Precio neto</th>
+                    <th class="num">IVA %</th>
+                    <th class="num">Stock</th>
+                    <th class="num">Mínimo</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var p in productos)
+                {
+                    <tr class="@(p.StockBajo ? "fila-stock-bajo" : null)">
+                        <td>@p.Sku</td>
+                        <td>
+                            @p.Nombre
+                            @if (p.StockBajo)
+                            {
+                                <span class="badge alerta" title="Stock actual menor o igual al mínimo">Stock bajo</span>
+                            }
+                        </td>
+                        <td>@p.Categoria</td>
+                        <td class="num">@p.PrecioCompra.ToString("N2")</td>
+                        <td class="num">@p.Moneda @p.PrecioVenta.ToString("N2")</td>
+                        <td class="num">@p.PorcentajeIva.ToString("0.##")</td>
+                        <td class="num @(p.StockBajo ? "faltante" : null)">@p.StockActual.ToString("0.###")</td>
+                        <td class="num">
+                            @if (Sesion.PuedeSupervisar && editandoMinimo == p.Id)
+                            {
+                                <form class="minimo-form" @onsubmit="() => GuardarMinimoAsync(p)">
+                                    <input class="cantidad" type="number" min="0" step="0.001" @bind="nuevoMinimo" aria-label="Stock mínimo de @p.Nombre" />
+                                    <button type="submit" class="btn-secundario" disabled="@procesando">OK</button>
+                                </form>
+                            }
+                            else if (Sesion.PuedeSupervisar)
+                            {
+                                <button class="btn-link" @onclick="() => EditarMinimo(p)" title="Cambiar stock mínimo">@p.StockMinimo.ToString("0.###")</button>
+                            }
+                            else
+                            {
+                                @p.StockMinimo.ToString("0.###")
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</section>
+
+@code {
+    private List<ProductoDto>? productos;
+    private string? buscar;
+    private bool soloStockBajo;
+    private int cantidadStockBajo;
+    private Guid? editandoMinimo;
+    private decimal nuevoMinimo;
+    private string? mensaje;
+    private string? error;
+    private bool procesando;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Sesion.EstaAutenticado)
+        {
+            Navegacion.NavigateTo("/");
+            return;
+        }
+
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        await EjecutarAsync(async () =>
+        {
+            var bajos = await Api.ObtenerProductosStockBajoAsync();
+            cantidadStockBajo = bajos.Count;
+            productos = soloStockBajo ? bajos : await Api.ObtenerProductosAsync(buscar);
+        });
+    }
+
+    private async Task VerStockBajoAsync()
+    {
+        soloStockBajo = true;
+        await CargarAsync();
+    }
+
+    private void EditarMinimo(ProductoDto producto)
+    {
+        mensaje = null;
+        editandoMinimo = producto.Id;
+        nuevoMinimo = producto.StockMinimo;
+    }
+
+    private async Task GuardarMinimoAsync(ProductoDto producto)
+    {
+        await EjecutarAsync(async () =>
+        {
+            var actualizado = await Api.ConfigurarStockMinimoAsync(producto.Id, nuevoMinimo);
+            editandoMinimo = null;
+            mensaje = $"Stock mínimo de '{actualizado.Nombre}': {actualizado.StockMinimo:0.###}.";
+        });
+        await CargarAsync();
+    }
+
+    private async Task EjecutarAsync(Func<Task> accion)
+    {
+        error = null;
+        procesando = true;
+        try
+        {
+            await accion();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            if (!Sesion.EstaAutenticado) Navegacion.NavigateTo("/");
+        }
+        catch (HttpRequestException)
+        {
+            error = "No se pudo conectar con el servidor.";
+        }
+        finally
+        {
+            procesando = false;
+        }
+    }
+}

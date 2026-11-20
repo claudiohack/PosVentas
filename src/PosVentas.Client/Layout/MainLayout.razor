@@ -1,0 +1,47 @@
+﻿@inherits LayoutComponentBase
+@implements IDisposable
+@inject SesionService Sesion
+@inject NavigationManager Navegacion
+
+<header class="barra">
+    <strong>PosVentas</strong>
+    @if (Sesion.EstaAutenticado)
+    {
+        <nav class="menu">
+            <NavLink href="pos">Vender</NavLink>
+            <NavLink href="caja">Caja</NavLink>
+            <NavLink href="clientes">Clientes</NavLink>
+            <NavLink href="productos">Productos</NavLink>
+            @if (Sesion.PuedeSupervisar)
+            {
+                <NavLink href="compras">Compras</NavLink>
+                <NavLink href="proveedores">Proveedores</NavLink>
+            }
+            @if (Sesion.EsAdministrador)
+            {
+                <NavLink href="usuarios">Usuarios</NavLink>
+                <NavLink href="configuracion-fiscal">Facturación</NavLink>
+            }
+        </nav>
+        <span class="barra-info">@Sesion.Actual!.Comercio · @Sesion.Actual.NombreCompleto (@Sesion.Actual.Rol)</span>
+        <button class="btn-secundario" @onclick="CerrarSesion">Salir</button>
+    }
+</header>
+
+<main class="contenido">
+    @Body
+</main>
+
+@code {
+    protected override void OnInitialized() => Sesion.Cambio += AlCambiar;
+
+    private void AlCambiar() => InvokeAsync(StateHasChanged);
+
+    private void CerrarSesion()
+    {
+        Sesion.Cerrar();
+        Navegacion.NavigateTo("/");
+    }
+
+    public void Dispose() => Sesion.Cambio -= AlCambiar;
+}

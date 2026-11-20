@@ -1,0 +1,164 @@
+@page "/clientes/{ClienteId:guid}"
+@inject PosVentasApi Api
+@inject SesionService Sesion
+@inject NavigationManager Navegacion
+
+<PageTitle>Cuenta corriente · PosVentas</PageTitle>
+
+<p><a href="clientes">← Clientes</a></p>
+
+@if (mensaje is not null)
+{
+    <p class="ok" role="status">@mensaje</p>
+}
+@if (error is not null)
+{
+    <p class="error" role="alert">@error</p>
+}
+
+@if (cuenta is null)
+{
+    <p>Cargando…</p>
+}
+else
+{
+    var c = cuenta.Cliente;
+
+    <section class="tarjeta">
+        <div class="encabezado">
+            <h1>@c.RazonSocial</h1>
+            @if (c.SaldoActual > 0)
+            {
+                <button class="btn-primario ancho-auto" @onclick="() => mostrarCobranza = true">Registrar cobro</button>
+            }
+        </div>
+        <p>@c.CondicionIva @(c.Documento is null ? null : $"· {c.Documento}") @(c.Telefono is null ? null : $"· {c.Telefono}") @(c.Email is null ? null : $"· {c.Email}")</p>
+
+        <dl class="cifras">
+            <dt>Saldo adeudado</dt><dd class="total @(c.SaldoActual > 0 ? "faltante" : null)">@Pesos(c.SaldoActual)</dd>
+            <dt>Límite de crédito</dt><dd>@(c.PermiteCuentaCorriente ? Pesos(c.LimiteCredito) : "Cuenta corriente no habilitada")</dd>
+            <dt>Crédito disponible</dt><dd>@Pesos(c.CreditoDisponible)</dd>
+        </dl>
+
+        @if (EsAdmin)
+        {
+            <form class="fila-form" @onsubmit="GuardarCreditoAsync">
+                <label class="check"><input type="checkbox" @bind="permiteCuentaCorriente" /> Cuenta corriente habilitada</label>
+                <label>
+                    Límite de crédito
+                    <input type="number" min="0" step="0.01" @bind="limiteCredito" disabled="@(!permiteCuentaCorriente)" />
+                </label>
+                <button type="submit" class="btn-secundario" disabled="@procesando">Guardar crédito</button>
+            </form>
+        }
+    </section>
+
+    <section class="tarjeta">
+        <h2>Movimientos</h2>
+        @if (cuenta.Movimientos.Count == 0)
+        {
+            <p>Sin movimientos.</p>
+        }
+        else
+        {
+            <table>
+                <thead>
+                    <tr><th>Fecha</th><th>Concepto</th><th class="num">Debe</th><th class="num">Haber</th><th class="num">Saldo</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var m in cuenta.Movimientos)
+                    {
+                        <tr>
+                            <td>@m.FechaUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                            <td>@m.Descripcion</td>
+                            <td class="num">@(m.Tipo == TipoMovimientoCuentaCorriente.Cargo ? Pesos(m.Monto) : null)</td>
+                            <td class="num">@(m.Tipo == TipoMovimientoCuentaCorriente.Abono ? Pesos(m.Monto) : null)</td>
+                            <td class="num">@Pesos(m.SaldoResultante)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </section>
+
+    @if (mostrarCobranza)
+    {
+        <CobranzaModal Cliente="c" OnRegistrado="AlRegistrarCobranzaAsync" OnCancelar="() => mostrarCobranza = false" />
+    }
+}
+
+@code {
+    [Parameter] public Guid ClienteId { get; set; }
+
+    private CuentaCorrienteDto? cuenta;
+    private bool permiteCuentaCorriente;
+    private decimal limiteCredito;
+    private bool mostrarCobranza;
+    private string? mensaje;
+    private string? error;
+    private bool procesando;
+
+    private bool EsAdmin => Sesion.EsAdministrador;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!Sesion.EstaAutenticado)
+        {
+            Navegacion.NavigateTo("/");
+            return;
+        }
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        await EjecutarAsync(async () =>
+        {
+            cuenta = await Api.ObtenerCuentaCorrienteAsync(ClienteId);
+            permiteCuentaCorriente = cuenta.Cliente.PermiteCuentaCorriente;
+            limiteCredito = cuenta.Cliente.LimiteCredito;
+        });
+    }
+
+    private async Task GuardarCreditoAsync()
+    {
+        await EjecutarAsync(async () =>
+        {
+            await Api.ActualizarCreditoAsync(ClienteId, permiteCuentaCorriente, permiteCuentaCorriente ? limiteCredito : 0m);
+            mensaje = "Crédito actualizado.";
+            await CargarAsync();
+        });
+    }
+
+    private async Task AlRegistrarCobranzaAsync(ReciboCobranzaDto recibo)
+    {
+        mostrarCobranza = false;
+        mensaje = $"Cobro de {Pesos(recibo.Monto)} registrado ({Etiquetas.Medio(recibo.Medio)}). Nuevo saldo: {Pesos(recibo.SaldoResultante)}.";
+        await CargarAsync();
+    }
+
+    private async Task EjecutarAsync(Func<Task> accion)
+    {
+        error = null;
+        procesando = true;
+        try
+        {
+            await accion();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            if (!Sesion.EstaAutenticado) Navegacion.NavigateTo("/");
+        }
+        catch (HttpRequestException)
+        {
+            error = "No se pudo conectar con el servidor.";
+        }
+        finally
+        {
+            procesando = false;
+        }
+    }
+
+    private static string Pesos(decimal valor) => valor.ToString("$ #,##0.00");
+}

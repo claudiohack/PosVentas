@@ -1,0 +1,210 @@
+@page "/caja"
+@inject PosVentasApi Api
+@inject SesionService Sesion
+@inject NavigationManager Navegacion
+
+<PageTitle>Caja · PosVentas</PageTitle>
+
+<h1>Caja</h1>
+
+@if (error is not null)
+{
+    <p class="error" role="alert">@error</p>
+}
+
+@if (cierre is not null)
+{
+    <section class="tarjeta resultado-cierre">
+        <h2>Turno cerrado · @cierre.Caja</h2>
+        <dl class="cifras">
+            <dt>Efectivo esperado</dt><dd>@Pesos(cierre.EfectivoEsperado)</dd>
+            <dt>Efectivo contado</dt><dd>@Pesos(cierre.MontoCierreReal ?? 0)</dd>
+            <dt>Diferencia</dt>
+            <dd class="@ClaseArqueo(cierre.DiferenciaArqueo)">@Pesos(cierre.DiferenciaArqueo ?? 0) · @cierre.ResultadoArqueo</dd>
+            <dt>Ventas del turno</dt><dd>@cierre.CantidadVentas · @Pesos(cierre.TotalVendido)</dd>
+        </dl>
+        <button class="btn-secundario" @onclick="() => cierre = null">Aceptar</button>
+    </section>
+}
+
+@if (cajas is null)
+{
+    <p>Cargando…</p>
+}
+else
+{
+    @foreach (var caja in cajas)
+    {
+        <section class="tarjeta caja">
+            <div class="encabezado">
+                <h2>@caja.Nombre</h2>
+                <span class="estado @(caja.EstaAbierta ? "abierta" : "cerrada")">@(caja.EstaAbierta ? "Abierta" : "Cerrada")</span>
+            </div>
+
+            @if (caja.SesionActiva is { } sesion && resumenes.TryGetValue(sesion.Id, out var resumen))
+            {
+                <p>Abierta el @sesion.FechaAperturaUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm") con un fondo de @Pesos(sesion.MontoApertura).</p>
+
+                <table>
+                    <thead><tr><th>Medio de pago</th><th class="num">Cobrado</th></tr></thead>
+                    <tbody>
+                        @foreach (var total in resumen.TotalesPorMedio)
+                        {
+                            <tr><td>@Etiquetas.Medio(total.Medio)</td><td class="num">@Pesos(total.Total)</td></tr>
+                        }
+                    </tbody>
+                    <tfoot>
+                        <tr><th>@resumen.CantidadVentas ventas</th><th class="num">@Pesos(resumen.TotalVendido)</th></tr>
+                    </tfoot>
+                </table>
+
+                <p>
+                    Cobranzas de cuenta corriente: @resumen.CantidadCobranzas · @Pesos(resumen.TotalCobranzas)
+                    · Vendido a cuenta corriente: @Pesos(resumen.TotalVentasCuentaCorriente)
+                    <button class="btn-secundario" @onclick="() => mostrarCobranza = true">Registrar cobranza</button>
+                </p>
+
+                @if (resumen.CantidadPagosProveedores > 0)
+                {
+                    <p>Pagos a proveedores: @resumen.CantidadPagosProveedores · @Pesos(resumen.TotalPagosProveedores) (los pagos en efectivo ya están descontados).</p>
+                }
+
+                <p class="destacado">Efectivo esperado en caja: <strong>@Pesos(resumen.EfectivoEsperado)</strong></p>
+
+                @if (!Sesion.PuedeSupervisar)
+                {
+                    <p class="aviso">El cierre y arqueo de caja lo realiza un supervisor o un administrador.</p>
+                }
+                else
+                {
+                <form class="fila-form" @onsubmit="() => CerrarAsync(sesion.Id)">
+                    <label>
+                        Efectivo contado
+                        <input type="number" min="0" step="0.01" @bind="montoContado" required />
+                    </label>
+                    <label class="ancho">
+                        Observaciones
+                        <input type="text" maxlength="500" @bind="observaciones" />
+                    </label>
+                    <button type="submit" class="btn-primario" disabled="@procesando">Cerrar caja</button>
+                </form>
+                }
+            }
+            else if (!caja.EstaAbierta)
+            {
+                <form class="fila-form" @onsubmit="() => AbrirAsync(caja.Id)">
+                    <label>
+                        Fondo inicial
+                        <input type="number" min="0" step="0.01" @bind="montoApertura" required />
+                    </label>
+                    <button type="submit" class="btn-primario" disabled="@procesando">Abrir caja</button>
+                </form>
+            }
+        </section>
+    }
+}
+
+@if (mensaje is not null)
+{
+    <p class="ok" role="status">@mensaje</p>
+}
+
+@if (mostrarCobranza)
+{
+    <CobranzaModal OnRegistrado="AlRegistrarCobranzaAsync" OnCancelar="() => mostrarCobranza = false" />
+}
+
+@code {
+    private bool mostrarCobranza;
+    private string? mensaje;
+
+    private async Task AlRegistrarCobranzaAsync(ReciboCobranzaDto recibo)
+    {
+        mostrarCobranza = false;
+        mensaje = $"Cobro de {Pesos(recibo.Monto)} a {recibo.Cliente} registrado. Saldo restante: {Pesos(recibo.SaldoResultante)}.";
+        await CargarAsync();
+    }
+
+    private List<CajaDto>? cajas;
+    private readonly Dictionary<Guid, ResumenSesionDto> resumenes = [];
+    private ResumenSesionDto? cierre;
+    private decimal montoApertura;
+    private decimal montoContado;
+    private string? observaciones;
+    private string? error;
+    private bool procesando;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Sesion.EstaAutenticado)
+        {
+            Navegacion.NavigateTo("/");
+            return;
+        }
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        await EjecutarAsync(async () =>
+        {
+            cajas = await Api.ObtenerCajasAsync();
+            resumenes.Clear();
+            foreach (var sesion in cajas.Where(c => c.SesionActiva is not null).Select(c => c.SesionActiva!))
+                resumenes[sesion.Id] = await Api.ObtenerResumenAsync(sesion.Id);
+        });
+    }
+
+    private async Task AbrirAsync(Guid cajaId)
+    {
+        await EjecutarAsync(async () =>
+        {
+            await Api.AbrirCajaAsync(cajaId, montoApertura);
+            montoApertura = 0;
+            await CargarAsync();
+        });
+    }
+
+    private async Task CerrarAsync(Guid sesionId)
+    {
+        await EjecutarAsync(async () =>
+        {
+            cierre = await Api.CerrarCajaAsync(sesionId, montoContado, observaciones);
+            montoContado = 0;
+            observaciones = null;
+            await CargarAsync();
+        });
+    }
+
+    private async Task EjecutarAsync(Func<Task> accion)
+    {
+        error = null;
+        procesando = true;
+        try
+        {
+            await accion();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            if (!Sesion.EstaAutenticado) Navegacion.NavigateTo("/");
+        }
+        catch (HttpRequestException)
+        {
+            error = "No se pudo conectar con el servidor.";
+        }
+        finally
+        {
+            procesando = false;
+        }
+    }
+
+    private static string Pesos(decimal valor) => valor.ToString("$ #,##0.00");
+
+    private static string ClaseArqueo(decimal? diferencia) => diferencia switch
+    {
+        > 0 => "sobrante",
+        < 0 => "faltante",
+        _ => "exacto"
+    };
+}

@@ -1,0 +1,78 @@
+﻿@page "/"
+@inject PosVentasApi Api
+@inject SesionService Sesion
+@inject NavigationManager Navegacion
+
+<PageTitle>Ingresar · PosVentas</PageTitle>
+
+<section class="tarjeta login">
+    <h1>Ingresar</h1>
+
+    <EditForm Model="modelo" OnValidSubmit="IngresarAsync" FormName="login">
+        <DataAnnotationsValidator />
+
+        <label>
+            Comercio
+            <InputText @bind-Value="modelo.Comercio" placeholder="almacen-don-jose" autocomplete="organization" />
+            <ValidationMessage For="() => modelo.Comercio" />
+        </label>
+
+        <label>
+            Usuario
+            <InputText @bind-Value="modelo.Username" autocomplete="username" />
+            <ValidationMessage For="() => modelo.Username" />
+        </label>
+
+        <label>
+            Contraseña
+            <InputText type="password" @bind-Value="modelo.Password" autocomplete="current-password" />
+            <ValidationMessage For="() => modelo.Password" />
+        </label>
+
+        @if (error is not null)
+        {
+            <p class="error" role="alert">@error</p>
+        }
+
+        <button type="submit" class="btn-primario" disabled="@enviando">
+            @(enviando ? "Ingresando…" : "Ingresar")
+        </button>
+    </EditForm>
+</section>
+
+@code {
+    private readonly LoginRequest modelo = new();
+    private string? error;
+    private bool enviando;
+
+    protected override void OnInitialized()
+    {
+        if (Sesion.EstaAutenticado)
+            Navegacion.NavigateTo("/pos");
+    }
+
+    private async Task IngresarAsync()
+    {
+        error = null;
+        enviando = true;
+        try
+        {
+            var respuesta = await Api.LoginAsync(modelo);
+            Sesion.Iniciar(respuesta);
+            Navegacion.NavigateTo("/pos");
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        catch (HttpRequestException)
+        {
+            error = "No se pudo conectar con el servidor.";
+        }
+        finally
+        {
+            modelo.Password = string.Empty;
+            enviando = false;
+        }
+    }
+}
