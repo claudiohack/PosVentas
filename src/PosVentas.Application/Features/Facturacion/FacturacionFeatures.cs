@@ -84,7 +84,9 @@ public sealed record ComprobanteImpresionDto(
     string? QrUrl,
     string? QrPngBase64,
     string Leyenda,
-    bool Homologacion);
+    bool Homologacion,
+    bool Anulada,
+    string? ComprobanteAsociado);
 
 public sealed record ObtenerComprobanteQuery(Guid VentaId) : IRequest<ComprobanteImpresionDto>;
 
@@ -96,18 +98,67 @@ public sealed class ObtenerComprobanteQueryHandler(IApplicationDbContext db, ICu
 
     public async Task<ComprobanteImpresionDto> Handle(ObtenerComprobanteQuery request, CancellationToken ct)
     {
-        var venta = await db.Ventas.AsNoTracking().Include(v => v.Detalles)
-            .SingleOrDefaultAsync(v => v.Id == request.VentaId, ct)
-            ?? throw new NotFoundException(nameof(Venta), request.VentaId);
+        var (venta, cliente, comercio) = await ComprobanteImpresion.CargarAsync(db, tenant, request.VentaId, ct);
+        var factura = await db.ComprobantesFiscales.AsNoTracking().SingleOrDefaultAsync(c =>
+            c.VentaId == venta.Id && c.ComprobanteAsociadoId == null && c.Resultado == ResultadoComprobanteFiscal.Aprobado, ct);
 
+        return ComprobanteImpresion.Construir(venta, cliente, comercio, factura, generadorQr, comprobanteAsociado: null,
+            leyendaSinCae: "Documento no válido como factura");
+    }
+
+    /// <summary>JSON del QR fiscal (RG 4892, versión 1), en UTF-8 para codificar en Base64.</summary>
+    public static byte[] DatosQr(ComprobanteFiscal c) => ComprobanteImpresion.DatosQr(c);
+}
+
+// ---------- Nota de crédito para impresión ----------
+
+public sealed record ObtenerNotaCreditoQuery(Guid VentaId) : IRequest<ComprobanteImpresionDto>;
+
+public sealed class ObtenerNotaCreditoQueryHandler(IApplicationDbContext db, ICurrentTenantService tenant, IGeneradorQr generadorQr)
+    : IRequestHandler<ObtenerNotaCreditoQuery, ComprobanteImpresionDto>
+{
+    public async Task<ComprobanteImpresionDto> Handle(ObtenerNotaCreditoQuery request, CancellationToken ct)
+    {
+        var (venta, cliente, comercio) = await ComprobanteImpresion.CargarAsync(db, tenant, request.VentaId, ct);
+        if (venta.Estado != EstadoVenta.Anulada)
+            throw new NotFoundException("la nota de crédito de la venta", request.VentaId);
+
+        var fiscales = await db.ComprobantesFiscales.AsNoTracking()
+            .Where(c => c.VentaId == venta.Id && c.Resultado == ResultadoComprobanteFiscal.Aprobado).ToListAsync(ct);
+        var factura = fiscales.SingleOrDefault(c => c.ComprobanteAsociadoId == null);
+        var nota = fiscales.SingleOrDefault(c => c.ComprobanteAsociadoId != null);
+
+        var asociado = factura is null ? null
+            : $"{TiposComprobanteAfip.Descripcion(factura.TipoComprobante)} {factura.PuntoVenta:00000}-{factura.NumeroComprobante:00000000}";
+        var leyenda = factura is null
+            ? "Comprobante interno de anulación: no es una nota de crédito fiscal"
+            : "Nota de crédito pendiente de autorización por ARCA";
+
+        return ComprobanteImpresion.Construir(venta, cliente, comercio, nota, generadorQr, asociado, leyenda, esAnulacion: true);
+    }
+}
+
+internal static class ComprobanteImpresion
+{
+    public static async Task<(Venta Venta, Cliente Cliente, Comercio Comercio)> CargarAsync(
+        IApplicationDbContext db, ICurrentTenantService tenant, Guid ventaId, CancellationToken ct)
+    {
+        var venta = await db.Ventas.AsNoTracking().Include(v => v.Detalles)
+            .SingleOrDefaultAsync(v => v.Id == ventaId, ct)
+            ?? throw new NotFoundException(nameof(Venta), ventaId);
         var cliente = await db.Clientes.AsNoTracking().SingleAsync(c => c.Id == venta.ClienteId, ct);
         var comercio = await db.Comercios.AsNoTracking().SingleAsync(c => c.Id == tenant.TenantId, ct);
-        var fiscal = await db.ComprobantesFiscales.AsNoTracking()
-            .SingleOrDefaultAsync(c => c.VentaId == venta.Id && c.Resultado == ResultadoComprobanteFiscal.Aprobado, ct);
+        return (venta, cliente, comercio);
+    }
 
+    /// <param name="fiscal">Comprobante aprobado a imprimir (factura o nota de crédito); null = documento interno.</param>
+    public static ComprobanteImpresionDto Construir(
+        Venta venta, Cliente cliente, Comercio comercio, ComprobanteFiscal? fiscal, IGeneradorQr generadorQr,
+        string? comprobanteAsociado, string leyendaSinCae, bool esAnulacion = false)
+    {
         var esFactura = fiscal is not null;
         var tipo = esFactura ? fiscal!.TipoComprobante : TipoComprobante.Ticket;
-        var discriminaIva = tipo == TipoComprobante.FacturaA;
+        var discriminaIva = TiposComprobanteAfip.Letra(tipo) == 'A';
 
         var renglones = venta.Detalles.Select(d => discriminaIva
                 ? new RenglonComprobanteDto(d.NombreProducto, d.Cantidad, d.PrecioUnitario, d.PorcentajeIva, d.Subtotal)
@@ -127,14 +178,17 @@ public sealed class ObtenerComprobanteQueryHandler(IApplicationDbContext db, ICu
         string? qrUrl = null, qrPng = null;
         if (esFactura)
         {
-            qrUrl = UrlBaseQr + Convert.ToBase64String(DatosQr(fiscal!));
+            qrUrl = ObtenerComprobanteQueryHandler.UrlBaseQr + Convert.ToBase64String(DatosQr(fiscal!));
             qrPng = generadorQr.GenerarPngBase64(qrUrl);
         }
+
+        var descripcion = esFactura ? TiposComprobanteAfip.Descripcion(tipo)
+            : esAnulacion ? "Comprobante de anulación" : TiposComprobanteAfip.Descripcion(tipo);
 
         return new ComprobanteImpresionDto(
             venta.Id,
             tipo,
-            TiposComprobanteAfip.Descripcion(tipo),
+            descripcion,
             esFactura ? TiposComprobanteAfip.Letra(tipo) : null,
             esFactura ? TiposComprobanteAfip.Codigo(tipo) : null,
             esFactura ? $"{fiscal!.PuntoVenta:00000}-{fiscal.NumeroComprobante:00000000}" : null,
@@ -157,8 +211,10 @@ public sealed class ObtenerComprobanteQueryHandler(IApplicationDbContext db, ICu
             fiscal?.FechaVencimientoCae,
             qrUrl,
             qrPng,
-            esFactura ? "Comprobante autorizado por ARCA" : "Documento no válido como factura",
-            esFactura && !fiscal!.Produccion);
+            esFactura ? "Comprobante autorizado por ARCA" : leyendaSinCae,
+            esFactura && !fiscal!.Produccion,
+            venta.Estado == EstadoVenta.Anulada,
+            comprobanteAsociado);
     }
 
     /// <summary>JSON del QR fiscal (RG 4892, versión 1), en UTF-8 para codificar en Base64.</summary>

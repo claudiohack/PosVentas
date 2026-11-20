@@ -66,7 +66,7 @@ public sealed class GlobalExceptionMiddleware(ILogger<GlobalExceptionMiddleware>
     private static ProblemDetails CrearRechazoAfip(AfipRechazoException ex)
     {
         var problema = Crear(StatusCodes.Status400BadRequest, "ARCA rechazó el comprobante.",
-            "La venta quedó registrada como pendiente de facturación. Corregí los datos y reintentá con POST /api/ventas/{id}/facturar.");
+            ex.Detalle ?? "La venta quedó registrada como pendiente de facturación. Corregí los datos y reintentá con POST /api/ventas/{id}/facturar.");
         problema.Extensions["ventaId"] = ex.VentaId;
         problema.Extensions["erroresAfip"] = ex.Errores.Select(e => new { codigo = e.Codigo, mensaje = e.Mensaje }).ToArray();
         return problema;

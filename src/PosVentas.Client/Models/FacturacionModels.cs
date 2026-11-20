@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace PosVentas.Client.Models;
 
@@ -61,7 +61,9 @@ public sealed record ComprobanteImpresionDto(
     string? QrUrl,
     string? QrPngBase64,
     string Leyenda,
-    bool Homologacion);
+    bool Homologacion,
+    bool Anulada = false,
+    string? ComprobanteAsociado = null);
 
 public sealed record ConfiguracionFiscalDto(
     string RazonSocial,

@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using FluentValidation;
 using FluentValidation.Results;
 using Microsoft.EntityFrameworkCore;
@@ -44,11 +44,7 @@ public sealed class EmisorComprobantesFiscales(
     /// </summary>
     public void ValidarDatosFiscales(Comercio comercio, Cliente cliente, TipoComprobante tipo, decimal total)
     {
-        if (!comercio.FacturacionConfigurada)
-            throw new DomainException(
-                "El comercio no tiene configurada la facturación electrónica (CUIT, condición IVA, punto de venta y certificado).");
-        if (comercio.CertificadoAfipVenceUtc <= DateTime.UtcNow)
-            throw new DomainException("El certificado de ARCA del comercio está vencido. Cargá uno nuevo en la configuración fiscal.");
+        ValidarConfiguracion(comercio);
 
         var errores = new List<ValidationFailure>();
         void Error(string campo, string mensaje) => errores.Add(new ValidationFailure(campo, mensaje));
@@ -90,6 +86,16 @@ public sealed class EmisorComprobantesFiscales(
             throw new ValidationException(errores);
     }
 
+    /// <summary>El comercio puede emitir comprobantes: datos fiscales completos y certificado vigente (si no, 422).</summary>
+    public static void ValidarConfiguracion(Comercio comercio)
+    {
+        if (!comercio.FacturacionConfigurada)
+            throw new DomainException(
+                "El comercio no tiene configurada la facturación electrónica (CUIT, condición IVA, punto de venta y certificado).");
+        if (comercio.CertificadoAfipVenceUtc <= DateTime.UtcNow)
+            throw new DomainException("El certificado de ARCA del comercio está vencido. Cargá uno nuevo en la configuración fiscal.");
+    }
+
     /// <summary>
     /// Pide el CAE para una venta pendiente de facturación ya persistida. Aprobado: registra el comprobante
     /// y lo devuelve. Rechazado: guarda el rechazo y lanza <see cref="AfipRechazoException"/> (400).
@@ -105,12 +111,12 @@ public sealed class EmisorComprobantesFiscales(
         {
             // Otra solicitud concurrente pudo haber facturado esta venta mientras esperábamos.
             if (await db.ComprobantesFiscales.AnyAsync(
-                    c => c.VentaId == venta.Id && c.Resultado == ResultadoComprobanteFiscal.Aprobado, ct))
+                    c => c.VentaId == venta.Id && c.ComprobanteAsociadoId == null && c.Resultado == ResultadoComprobanteFiscal.Aprobado, ct))
                 throw new ConflictException("La venta ya fue facturada.");
 
             var (docTipo, docNro) = DocumentoReceptor(cliente);
             var fecha = FechaFiscal.Hoy();
-            var solicitud = ArmarSolicitud(venta, cliente, comercio, docTipo, docNro, fecha);
+            var solicitud = ArmarSolicitud(venta, cliente, comercio, venta.TipoComprobante, docTipo, docNro, fecha, asociado: null);
 
             ResultadoAutorizacionAfip resultado;
             try
@@ -169,6 +175,90 @@ public sealed class EmisorComprobantesFiscales(
         }
     }
 
+    /// <summary>
+    /// Pide el CAE de la nota de crédito que anula la factura aprobada de una venta ya anulada (la anulación
+    /// está persistida). Mismos importes y receptor que la factura, con la factura como comprobante asociado.
+    /// Rechazo → 400 (queda pendiente); sin comunicación → 503 (queda pendiente).
+    /// </summary>
+    public async Task<ComprobanteFiscal> EmitirNotaCreditoAsync(Venta venta, AnulacionVenta anulacion, Cliente cliente, Comercio comercio)
+    {
+        var ct = CancellationToken.None;
+        ValidarConfiguracion(comercio);
+
+        var candado = Candados.GetOrAdd(comercio.Id, _ => new SemaphoreSlim(1, 1));
+        await candado.WaitAsync(ct);
+        try
+        {
+            var factura = await db.ComprobantesFiscales.SingleOrDefaultAsync(c =>
+                    c.VentaId == venta.Id && c.ComprobanteAsociadoId == null && c.Resultado == ResultadoComprobanteFiscal.Aprobado, ct)
+                ?? throw new DomainException("La venta no tiene una factura aprobada que anular con nota de crédito.");
+
+            if (await db.ComprobantesFiscales.AnyAsync(
+                    c => c.ComprobanteAsociadoId == factura.Id && c.Resultado == ResultadoComprobanteFiscal.Aprobado, ct))
+                throw new ConflictException("La nota de crédito de esta venta ya fue emitida.");
+
+            var tipo = TiposComprobanteAfip.NotaCreditoDe(factura.TipoComprobante);
+            var fecha = FechaFiscal.Hoy();
+            var asociado = new ComprobanteAsociadoAfip(factura.TipoComprobante, factura.PuntoVenta, factura.NumeroComprobante!.Value,
+                factura.CuitEmisor, factura.FechaEmision);
+            // El receptor tiene que ser el mismo de la factura que se anula.
+            var solicitud = ArmarSolicitud(venta, cliente, comercio, tipo, factura.DocTipoReceptor, factura.DocNroReceptor, fecha, asociado);
+
+            ResultadoAutorizacionAfip resultado;
+            try
+            {
+                resultado = await afip.AutorizarComprobanteAsync(solicitud, ct);
+            }
+            catch (AfipNoDisponibleException ex)
+            {
+                logger.LogWarning(ex, "ARCA no disponible al emitir la nota de crédito de la venta {VentaId}; queda pendiente.", venta.Id);
+                throw new AfipNoDisponibleException(
+                    "La venta quedó anulada, pero no se pudo comunicar con ARCA para la nota de crédito. Reintentá en unos minutos.", ex)
+                { VentaId = venta.Id };
+            }
+
+            var observaciones = string.Join(" | ", resultado.Errores.Concat(resultado.Observaciones));
+            if (!resultado.Aprobado || resultado.Cae is null || resultado.Numero is null || resultado.VencimientoCae is null)
+            {
+                db.ComprobantesFiscales.Add(ComprobanteFiscal.Rechazado(venta, tipo, factura.PuntoVenta, resultado.Numero,
+                    factura.CuitEmisor, fecha, factura.DocTipoReceptor, factura.DocNroReceptor, comercio.AfipProduccion,
+                    observaciones.Length > 0 ? observaciones : "Rechazado sin detalle.", factura));
+                await db.SaveChangesAsync(ct);
+                throw new AfipRechazoException(venta.Id,
+                    resultado.Errores.Count > 0 ? resultado.Errores : resultado.Observaciones.Count > 0 ? resultado.Observaciones
+                        : [new MensajeAfip(0, "ARCA rechazó la nota de crédito sin detalle.")])
+                {
+                    Detalle = "La venta quedó anulada (stock, caja y cuenta corriente revertidos), pero la nota de crédito quedó pendiente. " +
+                              "Reintentá con POST /api/ventas/{id}/nota-credito."
+                };
+            }
+
+            var notaCredito = ComprobanteFiscal.Aprobado(venta, tipo, factura.PuntoVenta, resultado.Numero.Value, resultado.Cae,
+                resultado.VencimientoCae.Value, factura.CuitEmisor, fecha, factura.DocTipoReceptor, factura.DocNroReceptor,
+                comercio.AfipProduccion, observaciones.Length > 0 ? observaciones : null, factura);
+            db.ComprobantesFiscales.Add(notaCredito);
+            anulacion.RegistrarNotaCreditoEmitida();
+
+            try
+            {
+                await db.SaveChangesAsync(ct);
+            }
+            catch (Exception ex)
+            {
+                logger.LogCritical(ex,
+                    "CAE de nota de crédito otorgado pero no persistido. Venta {VentaId}, tipo {Tipo}, PV {PuntoVenta}, número {Numero}, CAE {Cae}.",
+                    venta.Id, tipo, notaCredito.PuntoVenta, resultado.Numero, resultado.Cae);
+                throw;
+            }
+
+            return notaCredito;
+        }
+        finally
+        {
+            candado.Release();
+        }
+    }
+
     /// <summary>Tipo y número de documento del receptor según la tabla de ARCA.</summary>
     public static (int Tipo, long Numero) DocumentoReceptor(Cliente cliente)
     {
@@ -184,20 +274,20 @@ public sealed class EmisorComprobantesFiscales(
     }
 
     private static SolicitudComprobanteAfip ArmarSolicitud(
-        Venta venta, Cliente cliente, Comercio comercio, int docTipo, long docNro, DateOnly fecha)
+        Venta venta, Cliente cliente, Comercio comercio, TipoComprobante tipo, int docTipo, long docNro, DateOnly fecha,
+        ComprobanteAsociadoAfip? asociado)
     {
-        var tipo = venta.TipoComprobante;
         var condicionReceptor = cliente.EsConsumidorFinalGenerico
             ? CondicionIvaReceptorAfip.Codigo(CondicionIva.ConsumidorFinal)
             : CondicionIvaReceptorAfip.Codigo(cliente.CondicionIva);
 
-        // Factura C: el monotributista no discrimina IVA; todo el importe va como neto.
-        if (tipo == TipoComprobante.FacturaC)
+        // Comprobantes C: el monotributista no discrimina IVA; todo el importe va como neto.
+        if (TiposComprobanteAfip.Letra(tipo) == 'C')
         {
             return new SolicitudComprobanteAfip(comercio.Id, comercio.Cuit!, comercio.PuntoVentaAfip!.Value, comercio.AfipProduccion,
                 tipo, docTipo, docNro, condicionReceptor, fecha,
                 ImporteTotal: venta.TotalGeneral, ImporteNoGravado: 0, ImporteNeto: venta.TotalGeneral, ImporteExento: 0,
-                ImporteIva: 0, Iva: []);
+                ImporteIva: 0, Iva: [], Asociado: asociado);
         }
 
         var alicuotas = venta.Detalles
@@ -213,6 +303,7 @@ public sealed class EmisorComprobantesFiscales(
             ImporteNeto: venta.TotalNetoGravado,
             ImporteExento: 0,
             ImporteIva: venta.TotalIva,
-            Iva: alicuotas);
+            Iva: alicuotas,
+            Asociado: asociado);
     }
 }

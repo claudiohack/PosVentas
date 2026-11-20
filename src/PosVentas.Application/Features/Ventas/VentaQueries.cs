@@ -46,7 +46,7 @@ public sealed class ObtenerVentasDeSesionQueryHandler(IApplicationDbContext db)
             .OrderByDescending(v => v.FechaUtc)
             .Join(db.Clientes, v => v.ClienteId, c => c.Id, (v, c) => new VentaResumenDto(
                 v.Id, v.FechaUtc, c.RazonSocial, v.Detalles.Count, v.TotalGeneral,
-                v.TipoComprobante, v.EstadoFacturacion, v.NumeroComprobante))
+                v.TipoComprobante, v.EstadoFacturacion, v.NumeroComprobante, v.Estado))
             .ToListAsync(cancellationToken);
     }
 }
@@ -74,5 +74,6 @@ internal static class VentaMapper
         v.PuntoVenta,
         v.NumeroComprobante,
         v.Cae,
-        v.VencimientoCae);
+        v.VencimientoCae,
+        v.Estado);
 }

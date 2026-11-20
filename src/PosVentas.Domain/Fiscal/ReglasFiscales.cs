@@ -24,6 +24,15 @@ public static class TiposComprobanteAfip
         _ => 'X'
     };
 
+    /// <summary>Nota de crédito de la misma letra que la factura.</summary>
+    public static TipoComprobante NotaCreditoDe(TipoComprobante factura) => factura switch
+    {
+        TipoComprobante.FacturaA => TipoComprobante.NotaCreditoA,
+        TipoComprobante.FacturaB => TipoComprobante.NotaCreditoB,
+        TipoComprobante.FacturaC => TipoComprobante.NotaCreditoC,
+        _ => throw new ArgumentOutOfRangeException(nameof(factura), factura, "Solo una factura tiene nota de crédito.")
+    };
+
     public static bool EsFactura(TipoComprobante tipo) =>
         tipo is TipoComprobante.FacturaA or TipoComprobante.FacturaB or TipoComprobante.FacturaC;
 

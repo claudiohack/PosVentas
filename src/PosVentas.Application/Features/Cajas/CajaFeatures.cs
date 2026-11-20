@@ -138,7 +138,8 @@ internal static class ResumenSesionBuilder
     {
         // Ingresos (ventas + cobranzas) por medio. Los pagos a proveedores se informan aparte.
         var porMedio = await db.MovimientosCaja.AsNoTracking()
-            .Where(m => m.CajaSesionId == sesion.Id && m.Tipo != TipoMovimientoCaja.PagoProveedor)
+            .Where(m => m.CajaSesionId == sesion.Id
+                        && m.Tipo != TipoMovimientoCaja.PagoProveedor && m.Tipo != TipoMovimientoCaja.DevolucionAnulacion)
             .GroupBy(m => m.Medio)
             .Select(g => new { Medio = g.Key, Total = g.Sum(m => m.Monto) })
             .ToListAsync(ct);
@@ -180,6 +181,8 @@ internal static class ResumenSesionBuilder
             sesion.TotalCobranzas,
             sesion.CantidadPagosProveedores,
             sesion.TotalPagosProveedores,
+            sesion.CantidadDevoluciones,
+            sesion.TotalDevoluciones,
             totales,
             sesion.MontoCierreSistema ?? sesion.MontoApertura + efectivoNeto,
             sesion.MontoCierreReal,

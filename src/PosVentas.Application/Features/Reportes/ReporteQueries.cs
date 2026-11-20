@@ -1,4 +1,4 @@
-using FluentValidation;
+﻿using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using PosVentas.Application.Common.Exceptions;
@@ -52,8 +52,9 @@ internal readonly record struct Periodo(DateOnly Desde, DateOnly Hasta)
 
 internal static class Consultas
 {
+    /// <summary>Ventas vigentes del período: las anuladas no cuentan como venta (se informan aparte).</summary>
     public static IQueryable<Venta> VentasDel(this IApplicationDbContext db, Periodo p) =>
-        db.Ventas.Where(v => v.FechaUtc >= p.InicioUtc && v.FechaUtc < p.FinUtc);
+        db.Ventas.Where(v => v.FechaUtc >= p.InicioUtc && v.FechaUtc < p.FinUtc && v.Estado == EstadoVenta.Activa);
 
     public static IQueryable<VentaDetalle> DetallesDel(this IApplicationDbContext db, Periodo p) =>
         from d in db.VentaDetalles
@@ -106,6 +107,12 @@ public sealed class GetDashboardResumenQueryHandler(IApplicationDbContext db) : 
 
         var stockBajo = await db.Productos.CountAsync(p => p.EstaActivo && p.StockActual <= p.StockMinimo, ct);
 
+        var anuladas = await db.Ventas.AsNoTracking()
+            .Where(v => v.FechaUtc >= periodo.InicioUtc && v.FechaUtc < periodo.FinUtc && v.Estado == EstadoVenta.Anulada)
+            .GroupBy(_ => 1)
+            .Select(g => new { Cantidad = g.Count(), Total = g.Sum(v => v.TotalGeneral) })
+            .SingleOrDefaultAsync(ct);
+
         var cantidad = totales?.Cantidad ?? 0;
         var total = totales?.Total ?? 0m;
         var neto = totales?.Neto ?? 0m;
@@ -132,7 +139,9 @@ public sealed class GetDashboardResumenQueryHandler(IApplicationDbContext db) : 
             cantidad == 0 ? 0 : Consultas.Pesos(total / cantidad),
             ingresos,
             stockBajo,
-            totales?.Pendientes ?? 0);
+            totales?.Pendientes ?? 0,
+            anuladas?.Cantidad ?? 0,
+            Consultas.Pesos(anuladas?.Total ?? 0m));
     }
 }
 

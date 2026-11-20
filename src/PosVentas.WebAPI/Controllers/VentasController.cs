@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PosVentas.Application.Common.Security;
+using PosVentas.Application.Features.Anulaciones;
 using PosVentas.Application.Features.Facturacion;
 using PosVentas.Application.Features.Ventas;
 using PosVentas.Domain.Enums;
@@ -58,5 +59,55 @@ public sealed class VentasController(ISender mediator) : ControllerBase
     public async Task<ActionResult<ComprobanteImpresionDto>> Comprobante(Guid id, CancellationToken ct)
         => Ok(await mediator.Send(new ObtenerComprobanteQuery(id), ct));
 
+    /// <summary>Historial de ventas del período (fechas yyyy-MM-dd, calendario argentino; sin fechas = hoy).</summary>
+    [HttpGet]
+    [ProducesResponseType<IReadOnlyList<VentaHistorialDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<IReadOnlyList<VentaHistorialDto>>> Historial(
+        [FromQuery] DateOnly? desde, [FromQuery] DateOnly? hasta, [FromQuery] EstadoVenta? estado, CancellationToken ct)
+        => Ok(await mediator.Send(new ObtenerHistorialVentasQuery(desde, hasta, estado), ct));
+
+    /// <summary>
+    /// Anula la venta en una sola transacción: reintegra el stock, devuelve el dinero en la caja abierta
+    /// y acredita la cuenta corriente. Si estaba facturada, pide además la nota de crédito a ARCA
+    /// (si ARCA la rechaza: 400; si no responde: 503; en ambos casos la anulación ya quedó hecha).
+    /// </summary>
+    [HttpPost("{id:guid}/anular")]
+    [Authorize(Policy = Politicas.Supervision)]
+    [ProducesResponseType<AnulacionDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<ActionResult<AnulacionDto>> Anular(Guid id, AnularRequest request, CancellationToken ct)
+        => Ok(await mediator.Send(new AnularVentaCommand(id, request.MotivoAnulacion, request.CajaSesionId), ct));
+
+    [HttpGet("{id:guid}/anulacion")]
+    [ProducesResponseType<AnulacionDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<AnulacionDto>> Anulacion(Guid id, CancellationToken ct)
+        => Ok(await mediator.Send(new ObtenerAnulacionQuery(id), ct));
+
+    /// <summary>Reintenta la nota de crédito pendiente de una venta anulada.</summary>
+    [HttpPost("{id:guid}/nota-credito")]
+    [Authorize(Policy = Politicas.Supervision)]
+    [ProducesResponseType<AnulacionDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<ActionResult<AnulacionDto>> EmitirNotaCredito(Guid id, CancellationToken ct)
+        => Ok(await mediator.Send(new EmitirNotaCreditoPendienteCommand(id), ct));
+
+    /// <summary>Datos para imprimir la nota de crédito (CAE y QR de ARCA) o el comprobante interno de anulación.</summary>
+    [HttpGet("{id:guid}/nota-credito")]
+    [ProducesResponseType<ComprobanteImpresionDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ComprobanteImpresionDto>> NotaCredito(Guid id, CancellationToken ct)
+        => Ok(await mediator.Send(new ObtenerNotaCreditoQuery(id), ct));
+
     public sealed record FacturarRequest(TipoComprobante TipoComprobante);
+    public sealed record AnularRequest(string MotivoAnulacion, Guid? CajaSesionId = null);
 }

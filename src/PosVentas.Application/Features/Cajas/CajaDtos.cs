@@ -34,6 +34,8 @@ public sealed record ResumenSesionDto(
     decimal TotalCobranzas,
     int CantidadPagosProveedores,
     decimal TotalPagosProveedores,
+    int CantidadDevoluciones,
+    decimal TotalDevoluciones,
     IReadOnlyList<TotalPorMedioDto> TotalesPorMedio,
     decimal EfectivoEsperado,
     decimal? MontoCierreReal,

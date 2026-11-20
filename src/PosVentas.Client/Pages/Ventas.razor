@@ -1,0 +1,166 @@
+@page "/ventas"
+@inject PosVentasApi Api
+@inject SesionService Sesion
+@inject NavigationManager Navegacion
+
+<PageTitle>Ventas · PosVentas</PageTitle>
+
+<h1>Historial de ventas</h1>
+
+@if (mensaje is not null)
+{
+    <p class="ok" role="status">@mensaje</p>
+}
+@if (aviso is not null)
+{
+    <section class="tarjeta aviso-fiscal" role="alert">
+        <strong>La venta quedó anulada, pero la nota de crédito quedó pendiente.</strong>
+        <span>@aviso</span>
+    </section>
+}
+@if (error is not null)
+{
+    <p class="error" role="alert">@error</p>
+}
+
+<section class="tarjeta">
+    <form class="fila-form" @onsubmit="CargarAsync">
+        <label>Desde <input type="date" @bind="desde" max="@hasta.ToString("yyyy-MM-dd")" /></label>
+        <label>Hasta <input type="date" @bind="hasta" /></label>
+        <label>
+            Estado
+            <select @bind="filtroEstado">
+                <option value="">Todas</option>
+                <option value="@EstadoVenta.Activa">Activas</option>
+                <option value="@EstadoVenta.Anulada">Anuladas</option>
+            </select>
+        </label>
+        <button type="submit" class="btn-primario" disabled="@cargando">Buscar</button>
+    </form>
+
+    @if (ventas is null)
+    {
+        <p>Cargando…</p>
+    }
+    else if (ventas.Count == 0)
+    {
+        <p>No hay ventas en el período.</p>
+    }
+    else
+    {
+        <table>
+            <thead>
+                <tr><th>Fecha</th><th>Comprobante</th><th>Cliente</th><th class="num">Ítems</th><th class="num">Total</th><th>Estado</th><th></th></tr>
+            </thead>
+            <tbody>
+                @foreach (var v in ventas)
+                {
+                    <tr class="@(v.Estado == EstadoVenta.Anulada ? "inactivo" : null)">
+                        <td>@v.FechaUtc.ToLocalTime().ToString("dd/MM HH:mm")</td>
+                        <td>
+                            @Comprobantes.Texto(v.TipoComprobante) @v.NumeroFormateado
+                            @if (v.EstadoFacturacion == EstadoFacturacion.Pendiente && v.Estado == EstadoVenta.Activa)
+                            {
+                                <span class="badge alerta">Sin CAE</span>
+                            }
+                        </td>
+                        <td>@v.Cliente</td>
+                        <td class="num">@v.Items</td>
+                        <td class="num">@Pesos(v.TotalGeneral)</td>
+                        <td>
+                            <span class="badge @(v.Estado == EstadoVenta.Activa ? "activo" : "baja")">@(v.Estado == EstadoVenta.Activa ? "Activa" : "Anulada")</span>
+                            @if (v.EstadoNotaCredito == EstadoNotaCredito.Pendiente)
+                            {
+                                <span class="badge alerta">NC pendiente</span>
+                            }
+                        </td>
+                        <td class="acciones-fila">
+                            <a href="comprobante/@v.Id">Comprobante</a>
+                            @if (v.Estado == EstadoVenta.Anulada)
+                            {
+                                <a href="nota-credito/@v.Id">@(v.EstadoNotaCredito == EstadoNotaCredito.NoRequerida ? "Anulación" : "Nota de crédito")</a>
+                            }
+                            else if (Sesion.PuedeSupervisar)
+                            {
+                                <button class="btn-secundario" @onclick="() => aAnular = v">Anular</button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        @if (ventas.Count == 500)
+        {
+            <p class="ayuda">Se muestran las 500 ventas más recientes del período: acotá las fechas para ver el resto.</p>
+        }
+    }
+</section>
+
+@if (aAnular is not null)
+{
+    <AnularVentaModal Venta="aAnular" OnAnulada="AlAnularAsync" OnCancelar="() => aAnular = null" />
+}
+
+@code {
+    private static DateOnly Hoy => DateOnly.FromDateTime(DateTime.Now);
+
+    private List<VentaHistorialDto>? ventas;
+    private DateOnly desde = Hoy;
+    private DateOnly hasta = Hoy;
+    private string filtroEstado = string.Empty;
+    private VentaHistorialDto? aAnular;
+    private string? mensaje;
+    private string? aviso;
+    private string? error;
+    private bool cargando;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Sesion.EstaAutenticado)
+        {
+            Navegacion.NavigateTo("/");
+            return;
+        }
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        error = null;
+        cargando = true;
+        try
+        {
+            EstadoVenta? estado = Enum.TryParse<EstadoVenta>(filtroEstado, out var e) ? e : null;
+            ventas = await Api.ObtenerHistorialVentasAsync(desde, hasta, estado);
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            if (!Sesion.EstaAutenticado) Navegacion.NavigateTo("/");
+        }
+        catch (HttpRequestException)
+        {
+            error = "No se pudo conectar con el servidor.";
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private async Task AlAnularAsync((AnulacionDto? Anulacion, string? Aviso) resultado)
+    {
+        aAnular = null;
+        mensaje = null;
+        aviso = resultado.Aviso;
+        if (resultado.Anulacion is { } a)
+        {
+            mensaje = $"Venta anulada: se devolvieron {Pesos(a.MontoDevueltoEnCaja)} en caja"
+                      + (a.MontoAcreditadoCuentaCorriente > 0 ? $" y se acreditaron {Pesos(a.MontoAcreditadoCuentaCorriente)} en cuenta corriente" : "")
+                      + (a.EstadoNotaCredito == EstadoNotaCredito.Emitida ? $". Nota de crédito {a.NotaCreditoNumero} · CAE {a.NotaCreditoCae}." : ".");
+        }
+        await CargarAsync();
+    }
+
+    private static string Pesos(decimal valor) => valor.ToString("$ #,##0.00");
+}

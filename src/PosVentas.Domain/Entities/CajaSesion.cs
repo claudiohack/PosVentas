@@ -32,6 +32,8 @@ public sealed class CajaSesion : TenantEntity
     public decimal TotalCobranzas { get; private set; }
     public int CantidadPagosProveedores { get; private set; }
     public decimal TotalPagosProveedores { get; private set; }
+    public int CantidadDevoluciones { get; private set; }
+    public decimal TotalDevoluciones { get; private set; }
     public byte[] RowVersion { get; private set; } = [];
 
     private CajaSesion(Guid id) : base(id) { }
@@ -97,6 +99,17 @@ public sealed class CajaSesion : TenantEntity
 
         CantidadPagosProveedores++;
         TotalPagosProveedores += compra.MontoTotal;
+        MarcarModificado();
+    }
+
+    /// <summary>Acumula la devolución de dinero de una venta anulada (misma protección de concurrencia que las ventas).</summary>
+    internal void RegistrarDevolucion(decimal monto)
+    {
+        if (!EnCurso)
+            throw new DomainException("No se puede devolver dinero desde una caja cerrada.");
+
+        CantidadDevoluciones++;
+        TotalDevoluciones += monto;
         MarcarModificado();
     }
 

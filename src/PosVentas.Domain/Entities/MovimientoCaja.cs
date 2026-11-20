@@ -93,6 +93,27 @@ public sealed class MovimientoCaja : TenantEntity
         };
     }
 
+    /// <summary>Egreso por la devolución del dinero de una venta anulada, en el medio en que se cobró (monto negativo).</summary>
+    internal static MovimientoCaja PorDevolucion(CajaSesion sesion, Venta venta, MedioPago medio, decimal monto, Guid usuarioId)
+    {
+        if (!sesion.EnCurso)
+            throw new DomainException("No se pueden registrar movimientos en una caja cerrada.");
+        if (monto <= 0)
+            throw new DomainException("El importe a devolver debe ser mayor a cero.");
+
+        return new MovimientoCaja(Guid.NewGuid())
+        {
+            CajaSesionId = sesion.Id,
+            Tipo = TipoMovimientoCaja.DevolucionAnulacion,
+            Medio = medio,
+            Monto = -monto,
+            VentaId = venta.Id,
+            UsuarioId = usuarioId,
+            FechaUtc = DateTime.UtcNow,
+            Descripcion = "Devolución por anulación de venta"
+        };
+    }
+
     /// <summary>Ingreso en caja por un recibo de cobranza de cuenta corriente.</summary>
     internal static MovimientoCaja PorCobranza(CajaSesion sesion, ReciboCobranza recibo)
     {

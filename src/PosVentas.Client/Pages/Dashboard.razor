@@ -1,4 +1,4 @@
-@page "/dashboard"
+﻿@page "/dashboard"
 @inject PosVentasApi Api
 @inject SesionService Sesion
 @inject NavigationManager Navegacion
@@ -64,7 +64,11 @@ else
                 <span class="kpi-etiqueta">Operaciones</span>
                 <span class="kpi-valor">@resumen.CantidadVentas.ToString("N0")</span>
                 <span class="kpi-detalle">
-                    @if (resumen.VentasPendientesDeFacturar > 0)
+                    @if (resumen.CantidadVentasAnuladas > 0)
+                    {
+                        <span>@resumen.CantidadVentasAnuladas anuladas (@Pesos(resumen.TotalAnulado)) no incluidas</span>
+                    }
+                    else if (resumen.VentasPendientesDeFacturar > 0)
                     {
                         <span>@resumen.VentasPendientesDeFacturar pendientes de facturar</span>
                     }

@@ -71,6 +71,11 @@ dotnet ef database update --project src/PosVentas.Infrastructure --startup-proje
 - Una compra al contado (efectivo / transferencia) con caja abierta genera un `MovimientoCaja` tipo `PagoProveedor` con monto **negativo**; el arqueo lo descuenta solo. No se puede pagar en efectivo más de lo que hay en la caja.
 - El mismo comprobante de un proveedor no se carga dos veces (409). El CUIT del proveedor es único por comercio.
 - Stock bajo = producto activo con `StockActual <= StockMinimo`.
+- Anulaciones (`POST /api/ventas/{id}/anular`, política `Supervision`): anulación total vía `AnulacionVenta.Registrar` en un solo `SaveChanges`.
+  - Revierte: stock con `Producto.ReintegrarStock`, egresos `DevolucionAnulacion` (monto negativo, efectivo neto del vuelto) en la caja abierta, y `Cliente.RevertirCargo` (el saldo puede quedar a favor del cliente).
+  - Una venta se anula una sola vez: índice único por `VentaId` (409). No se puede devolver más efectivo del que hay en la caja (422).
+  - Si la venta tenía factura con CAE, la nota de crédito (misma letra, con `ComprobanteAsociadoId` a la factura) se pide **después** de confirmar la anulación. Si ARCA falla, queda `EstadoNotaCredito.Pendiente` y se reintenta con `POST /api/ventas/{id}/nota-credito`.
+  - Las ventas anuladas no cuentan en los reportes de venta (`Consultas.VentasDel`); el dashboard las informa aparte.
 - Reportes (`/api/reportes/*`, política `Supervision`): agregan en SQL sobre DbSets con filtro de tenant; nunca cargar ventas en memoria para sumarlas.
   - Períodos en fechas calendario argentinas (`FechaFiscal.InicioDelDiaUtc`), extremos incluidos, máximo 366 días; sin fechas = hoy.
   - Margen bruto = venta neta (sin IVA) − Σ cantidad × `VentaDetalle.CostoUnitario`. El costo se congela al vender: no usar el costo actual del producto.

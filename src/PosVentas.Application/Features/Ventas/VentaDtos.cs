@@ -38,8 +38,23 @@ public sealed record VentaDto(
     int? PuntoVenta,
     long? NumeroComprobante,
     string? Cae,
-    DateTime? VencimientoCae);
+    DateTime? VencimientoCae,
+    EstadoVenta Estado);
 
 public sealed record VentaResumenDto(
     Guid Id, DateTime FechaUtc, string Cliente, int Items, decimal TotalGeneral,
-    TipoComprobante TipoComprobante, EstadoFacturacion EstadoFacturacion, long? NumeroComprobante);
+    TipoComprobante TipoComprobante, EstadoFacturacion EstadoFacturacion, long? NumeroComprobante, EstadoVenta Estado);
+
+/// <summary>Renglón del historial de ventas.</summary>
+public sealed record VentaHistorialDto(
+    Guid Id,
+    DateTime FechaUtc,
+    string Cliente,
+    int Items,
+    decimal TotalGeneral,
+    TipoComprobante TipoComprobante,
+    int? PuntoVenta,
+    long? NumeroComprobante,
+    EstadoFacturacion EstadoFacturacion,
+    EstadoVenta Estado,
+    EstadoNotaCredito? EstadoNotaCredito);

@@ -1,4 +1,5 @@
-@page "/comprobante/{VentaId:guid}"
+﻿@page "/comprobante/{VentaId:guid}"
+@page "/nota-credito/{VentaId:guid}"
 @inject PosVentasApi Api
 @inject SesionService Sesion
 @inject NavigationManager Navegacion
@@ -7,7 +8,7 @@
 <PageTitle>Comprobante · PosVentas</PageTitle>
 
 <div class="no-imprimir encabezado">
-    <a href="pos">← Volver al POS</a>
+    <span><a href="ventas">← Historial de ventas</a> · <a href="pos">POS</a></span>
     @if (comprobante is not null)
     {
         <button class="btn-primario ancho-auto" @onclick="ImprimirAsync">Imprimir</button>
@@ -31,7 +32,38 @@ else
 {
     var c = comprobante;
 
-    @if (c.EstadoFacturacion != EstadoFacturacion.Facturada)
+    @if (!EsNotaCredito && c.Anulada)
+    {
+        <section class="tarjeta aviso-fiscal no-imprimir">
+            <strong>Venta anulada.</strong>
+            <a href="nota-credito/@VentaId">Ver @(c.Cae is null ? "comprobante de anulación" : "nota de crédito")</a>
+        </section>
+    }
+
+    @if (EsNotaCredito && anulacion is not null)
+    {
+        <section class="tarjeta no-imprimir @(anulacion.EstadoNotaCredito == EstadoNotaCredito.Pendiente ? "aviso-fiscal" : null)">
+            <p>
+                Anulada el @anulacion.FechaAnulacionUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm") por @anulacion.Usuario.
+                Motivo: <em>@anulacion.Motivo</em>
+            </p>
+            <p>
+                Devuelto en caja: @Pesos(anulacion.MontoDevueltoEnCaja)
+                @if (anulacion.MontoAcreditadoCuentaCorriente > 0)
+                {
+                    <span> · acreditado en cuenta corriente: @Pesos(anulacion.MontoAcreditadoCuentaCorriente)</span>
+                }
+            </p>
+            @if (anulacion.EstadoNotaCredito == EstadoNotaCredito.Pendiente && Sesion.PuedeSupervisar)
+            {
+                <button class="btn-primario ancho-auto" disabled="@procesando" @onclick="ReintentarNotaCreditoAsync">
+                    @(procesando ? "Solicitando CAE…" : "Reintentar nota de crédito ante ARCA")
+                </button>
+            }
+        </section>
+    }
+
+    @if (!EsNotaCredito && !c.Anulada && c.EstadoFacturacion != EstadoFacturacion.Facturada)
     {
         <section class="tarjeta no-imprimir @(c.EstadoFacturacion == EstadoFacturacion.Pendiente ? "aviso-fiscal" : null)">
             <h2>@(c.EstadoFacturacion == EstadoFacturacion.Pendiente ? "Factura pendiente" : "Facturar este ticket")</h2>
@@ -72,9 +104,17 @@ else
             </div>
             <div class="comprobante-datos">
                 <strong>@c.Descripcion.ToUpperInvariant()</strong>
+                @if (!EsNotaCredito && c.Anulada)
+                {
+                    <div class="sello-anulada">ANULADA</div>
+                }
                 @if (c.Numero is not null)
                 {
                     <div>Nº @c.Numero</div>
+                }
+                @if (c.ComprobanteAsociado is not null)
+                {
+                    <div>Anula: @c.ComprobanteAsociado</div>
                 }
                 <div>Fecha: @c.FechaEmision.ToString("dd/MM/yyyy HH:mm")</div>
                 @if (c.Emisor.Cuit is not null)
@@ -180,6 +220,9 @@ else
     [Parameter] public Guid VentaId { get; set; }
 
     private ComprobanteImpresionDto? comprobante;
+    private AnulacionDto? anulacion;
+
+    private bool EsNotaCredito => Navegacion.Uri.Contains("/nota-credito/", StringComparison.OrdinalIgnoreCase);
     private string tipoAFacturar = Comprobantes.FacturaB;
     private string? mensaje;
     private string? error;
@@ -199,9 +242,18 @@ else
     {
         try
         {
-            comprobante = await Api.ObtenerComprobanteAsync(VentaId);
-            if (comprobante.Tipo != Comprobantes.Ticket)
-                tipoAFacturar = comprobante.Tipo;
+            if (EsNotaCredito)
+            {
+                comprobante = await Api.ObtenerNotaCreditoAsync(VentaId);
+                anulacion = await Api.ObtenerAnulacionAsync(VentaId);
+            }
+            else
+            {
+                comprobante = await Api.ObtenerComprobanteAsync(VentaId);
+                anulacion = null;
+                if (comprobante.Tipo != Comprobantes.Ticket)
+                    tipoAFacturar = comprobante.Tipo;
+            }
         }
         catch (ApiException ex)
         {
@@ -223,6 +275,31 @@ else
         {
             var venta = await Api.FacturarVentaAsync(VentaId, tipoAFacturar);
             mensaje = $"{Comprobantes.Texto(venta.TipoComprobante)} {venta.NumeroFormateado} autorizada. CAE {venta.Cae}.";
+            await CargarAsync();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        catch (HttpRequestException)
+        {
+            error = "No se pudo conectar con el servidor.";
+        }
+        finally
+        {
+            procesando = false;
+        }
+    }
+
+    private async Task ReintentarNotaCreditoAsync()
+    {
+        error = null;
+        mensaje = null;
+        procesando = true;
+        try
+        {
+            var resultado = await Api.EmitirNotaCreditoAsync(VentaId);
+            mensaje = $"Nota de crédito {resultado.NotaCreditoNumero} autorizada. CAE {resultado.NotaCreditoCae}.";
             await CargarAsync();
         }
         catch (ApiException ex)
