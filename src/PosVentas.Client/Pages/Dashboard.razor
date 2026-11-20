@@ -1,0 +1,353 @@
+@page "/dashboard"
+@inject PosVentasApi Api
+@inject SesionService Sesion
+@inject NavigationManager Navegacion
+
+<PageTitle>Dashboard · PosVentas</PageTitle>
+
+<div class="encabezado">
+    <h1>Dashboard</h1>
+    @if (Sesion.PuedeSupervisar)
+    {
+        <div class="selector-periodo" role="group" aria-label="Período">
+            @foreach (var (rango, texto) in Rangos)
+            {
+                <button class="btn-secundario @(rangoActual == rango ? "activo" : null)" aria-pressed="@(rangoActual == rango)"
+                        @onclick="() => ElegirAsync(rango)">@texto</button>
+            }
+        </div>
+    }
+</div>
+
+@if (!Sesion.PuedeSupervisar)
+{
+    <section class="tarjeta"><p>Los reportes financieros están disponibles para supervisores y administradores.</p></section>
+}
+else
+{
+    @if (rangoActual == RangoRapido.Personalizado)
+    {
+        <form class="fila-form tarjeta" @onsubmit="CargarAsync">
+            <label>Desde <input type="date" @bind="desde" max="@hasta.ToString("yyyy-MM-dd")" /></label>
+            <label>Hasta <input type="date" @bind="hasta" max="@Hoy.ToString("yyyy-MM-dd")" /></label>
+            <button type="submit" class="btn-primario" disabled="@cargando">Aplicar</button>
+        </form>
+    }
+
+    <p class="periodo">
+        @(desde == hasta ? $"Día {desde:dd/MM/yyyy}" : $"Del {desde:dd/MM/yyyy} al {hasta:dd/MM/yyyy}")
+        @if (cargando)
+        {
+            <span> · actualizando…</span>
+        }
+    </p>
+
+    @if (error is not null)
+    {
+        <p class="error" role="alert">@error</p>
+    }
+
+    @if (resumen is not null)
+    {
+        <section class="kpis" aria-label="Indicadores del período">
+            <div class="kpi">
+                <span class="kpi-etiqueta">Total vendido</span>
+                <span class="kpi-valor">@Pesos(resumen.TotalVendido)</span>
+                <span class="kpi-detalle">Neto @Pesos(resumen.VentaNeta) · IVA @Pesos(resumen.TotalIva)</span>
+            </div>
+            <div class="kpi">
+                <span class="kpi-etiqueta">Ganancia bruta estimada</span>
+                <span class="kpi-valor">@Pesos(resumen.MargenBruto)</span>
+                <span class="kpi-detalle">@resumen.MargenPorcentaje.ToString("0.#")% sobre la venta neta · costo @Pesos(resumen.CostoEstimado)</span>
+            </div>
+            <div class="kpi">
+                <span class="kpi-etiqueta">Operaciones</span>
+                <span class="kpi-valor">@resumen.CantidadVentas.ToString("N0")</span>
+                <span class="kpi-detalle">
+                    @if (resumen.VentasPendientesDeFacturar > 0)
+                    {
+                        <span>@resumen.VentasPendientesDeFacturar pendientes de facturar</span>
+                    }
+                    else
+                    {
+                        <span>ventas registradas</span>
+                    }
+                </span>
+            </div>
+            <div class="kpi">
+                <span class="kpi-etiqueta">Ticket promedio</span>
+                <span class="kpi-valor">@Pesos(resumen.TicketPromedio)</span>
+                <span class="kpi-detalle">por operación</span>
+            </div>
+        </section>
+
+        <div class="grilla-reportes">
+            <section class="tarjeta">
+                <h2>Ingresos por medio de pago</h2>
+                <table>
+                    <thead><tr><th>Medio</th><th class="num">Importe</th><th class="num">Operaciones</th><th class="col-participacion">Participación</th></tr></thead>
+                    <tbody>
+                        @foreach (var m in resumen.IngresosPorMedio.OrderByDescending(m => m.Total))
+                        {
+                            <tr title="@Etiquetas.Medio(m.Medio): @Pesos(m.Total) · @m.Porcentaje.ToString("0.#")% del total">
+                                <td>@Etiquetas.Medio(m.Medio)</td>
+                                <td class="num">@Pesos(m.Total)</td>
+                                <td class="num">@m.Operaciones</td>
+                                <td class="col-participacion">
+                                    <span class="medidor" role="img" aria-label="@m.Porcentaje.ToString("0.#")% del total">
+                                        <span class="medidor-relleno" style="width: @Ancho(m.Porcentaje)"></span>
+                                    </span>
+                                    <span class="medidor-valor">@m.Porcentaje.ToString("0.#")%</span>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+                <p class="ayuda">El efectivo se informa neto del vuelto entregado. La cuenta corriente es venta a crédito, no dinero cobrado.</p>
+            </section>
+
+            <section class="tarjeta">
+                <div class="encabezado">
+                    <h2>Productos más vendidos</h2>
+                    <select @bind="ordenTop" @bind:after="CargarTopAsync" aria-label="Ordenar ranking por">
+                        <option value="Unidades">por unidades</option>
+                        <option value="Recaudacion">por recaudación</option>
+                    </select>
+                </div>
+                @if (top is null || top.Productos.Count == 0)
+                {
+                    <p>Sin ventas en el período.</p>
+                }
+                else
+                {
+                    <table>
+                        <thead><tr><th>#</th><th>Producto</th><th class="num">Unidades</th><th class="num">Recaudación</th><th class="num">Margen</th></tr></thead>
+                        <tbody>
+                            @foreach (var p in top.Productos)
+                            {
+                                <tr>
+                                    <td>@p.Posicion</td>
+                                    <td>@p.Producto <small>@p.Categoria</small></td>
+                                    <td class="num">@p.Unidades.ToString("0.###")</td>
+                                    <td class="num">@Pesos(p.Recaudacion)</td>
+                                    <td class="num">@Pesos(p.Margen)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </section>
+
+            <section class="tarjeta">
+                <h2>Rentabilidad por categoría</h2>
+                @if (categorias is null || categorias.Categorias.Count == 0)
+                {
+                    <p>Sin ventas en el período.</p>
+                }
+                else
+                {
+                    <table>
+                        <thead><tr><th>Categoría</th><th class="num">Venta neta</th><th class="num">Costo</th><th class="num">Margen</th><th class="num">Margen %</th><th class="num">Part.</th></tr></thead>
+                        <tbody>
+                            @foreach (var c in categorias.Categorias)
+                            {
+                                <tr>
+                                    <td>@c.Categoria</td>
+                                    <td class="num">@Pesos(c.VentaNeta)</td>
+                                    <td class="num">@Pesos(c.Costo)</td>
+                                    <td class="num">@Pesos(c.Margen)</td>
+                                    <td class="num">@c.MargenPorcentaje.ToString("0.#")%</td>
+                                    <td class="num">@c.ParticipacionPorcentaje.ToString("0.#")%</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </section>
+
+            <section class="tarjeta">
+                <div class="encabezado">
+                    <h2>Productos críticos</h2>
+                    @if (criticos.Count > 0)
+                    {
+                        <a href="compras">Reponer</a>
+                    }
+                </div>
+                @if (criticos.Count == 0)
+                {
+                    <p>Ningún producto está en o por debajo de su stock mínimo.</p>
+                }
+                else
+                {
+                    <table>
+                        <thead><tr><th>Producto</th><th class="num">Stock</th><th class="num">Mínimo</th></tr></thead>
+                        <tbody>
+                            @foreach (var p in criticos.Take(10))
+                            {
+                                <tr>
+                                    <td>@p.Nombre <span class="badge alerta">Stock bajo</span></td>
+                                    <td class="num">@p.StockActual.ToString("0.###")</td>
+                                    <td class="num">@p.StockMinimo.ToString("0.###")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                    @if (criticos.Count > 10)
+                    {
+                        <p class="ayuda">Y @(criticos.Count - 10) más en <a href="productos">Productos</a>.</p>
+                    }
+                }
+            </section>
+        </div>
+
+        @if (cajas is not null)
+        {
+            <section class="tarjeta">
+                <h2>Auditoría de cajas</h2>
+                <dl class="cifras cifras-cajas">
+                    <dt>Turnos cerrados</dt><dd>@cajas.CantidadTurnos (@cajas.TurnosExactos exactos)</dd>
+                    <dt>Sobrantes</dt><dd>@cajas.TurnosConSobrante turnos · @Pesos(cajas.TotalSobrantes)</dd>
+                    <dt>Faltantes</dt><dd class="@(cajas.TotalFaltantes > 0 ? "faltante" : null)">@cajas.TurnosConFaltante turnos · @Pesos(cajas.TotalFaltantes)</dd>
+                    <dt>Diferencia neta</dt><dd>@Pesos(cajas.DiferenciaNeta)</dd>
+                </dl>
+                @if (cajas.Turnos.Count > 0)
+                {
+                    <table>
+                        <thead>
+                            <tr><th>Caja</th><th>Cierre</th><th>Cerró</th><th class="num">Esperado</th><th class="num">Contado</th><th class="num">Diferencia</th><th>Resultado</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var t in cajas.Turnos)
+                            {
+                                <tr>
+                                    <td>@t.Caja</td>
+                                    <td>@t.FechaCierreUtc.ToLocalTime().ToString("dd/MM HH:mm")</td>
+                                    <td>@t.UsuarioCierre</td>
+                                    <td class="num">@Pesos(t.EfectivoEsperado)</td>
+                                    <td class="num">@Pesos(t.EfectivoContado)</td>
+                                    <td class="num">@Pesos(t.Diferencia)</td>
+                                    <td class="@ClaseArqueo(t.Diferencia)">@t.Resultado</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </section>
+        }
+    }
+}
+
+@code {
+    private static readonly (RangoRapido Rango, string Texto)[] Rangos =
+    [
+        (RangoRapido.Hoy, "Hoy"),
+        (RangoRapido.EstaSemana, "Esta semana"),
+        (RangoRapido.EsteMes, "Este mes"),
+        (RangoRapido.Personalizado, "Personalizado")
+    ];
+
+    private static DateOnly Hoy => DateOnly.FromDateTime(DateTime.Now);
+
+    private RangoRapido rangoActual = RangoRapido.Hoy;
+    private DateOnly desde = Hoy;
+    private DateOnly hasta = Hoy;
+    private string ordenTop = "Unidades";
+
+    private DashboardResumenDto? resumen;
+    private TopProductosDto? top;
+    private RentabilidadPorCategoriaDto? categorias;
+    private ReporteCierresCajaDto? cajas;
+    private List<ProductoDto> criticos = [];
+    private string? error;
+    private bool cargando;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Sesion.EstaAutenticado)
+        {
+            Navegacion.NavigateTo("/");
+            return;
+        }
+        if (Sesion.PuedeSupervisar)
+            await CargarAsync();
+    }
+
+    private async Task ElegirAsync(RangoRapido rango)
+    {
+        rangoActual = rango;
+        var hoy = Hoy;
+        switch (rango)
+        {
+            case RangoRapido.Hoy:
+                (desde, hasta) = (hoy, hoy);
+                break;
+            case RangoRapido.EstaSemana: // semana que empieza el lunes
+                (desde, hasta) = (hoy.AddDays(-(((int)hoy.DayOfWeek + 6) % 7)), hoy);
+                break;
+            case RangoRapido.EsteMes:
+                (desde, hasta) = (new DateOnly(hoy.Year, hoy.Month, 1), hoy);
+                break;
+            case RangoRapido.Personalizado:
+                return; // espera a que elija las fechas y toque Aplicar
+        }
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        error = null;
+        cargando = true;
+        try
+        {
+            var tareaResumen = Api.ObtenerDashboardAsync(desde, hasta);
+            var tareaTop = Api.ObtenerTopProductosAsync(desde, hasta, 10, ordenTop);
+            var tareaCategorias = Api.ObtenerRentabilidadPorCategoriaAsync(desde, hasta);
+            var tareaCajas = Api.ObtenerReporteCajasAsync(desde, hasta);
+            var tareaCriticos = Api.ObtenerProductosStockBajoAsync();
+            await Task.WhenAll(tareaResumen, tareaTop, tareaCategorias, tareaCajas, tareaCriticos);
+
+            resumen = tareaResumen.Result;
+            top = tareaTop.Result;
+            categorias = tareaCategorias.Result;
+            cajas = tareaCajas.Result;
+            criticos = tareaCriticos.Result;
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            if (!Sesion.EstaAutenticado) Navegacion.NavigateTo("/");
+        }
+        catch (HttpRequestException)
+        {
+            error = "No se pudo conectar con el servidor.";
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private async Task CargarTopAsync()
+    {
+        try
+        {
+            top = await Api.ObtenerTopProductosAsync(desde, hasta, 10, ordenTop);
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+    }
+
+    private static string Ancho(decimal porcentaje) =>
+        $"{Math.Clamp(porcentaje, 0, 100).ToString(System.Globalization.CultureInfo.InvariantCulture)}%";
+
+    private static string Pesos(decimal valor) => valor.ToString("$ #,##0.00");
+
+    private static string ClaseArqueo(decimal diferencia) => diferencia switch
+    {
+        > 0 => "sobrante",
+        < 0 => "faltante",
+        _ => "exacto"
+    };
+}

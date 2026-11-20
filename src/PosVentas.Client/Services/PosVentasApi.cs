@@ -129,6 +129,22 @@ public sealed class PosVentasApi(HttpClient http, SesionService sesion)
     public Task<ComprobanteImpresionDto> ObtenerComprobanteAsync(Guid ventaId, CancellationToken ct = default) =>
         EnviarAsync<ComprobanteImpresionDto>(HttpMethod.Get, $"api/ventas/{ventaId}/comprobante", null, ct);
 
+    // ---------- Reportes (administradores y supervisores) ----------
+
+    private static string Periodo(DateOnly desde, DateOnly hasta) => $"desde={desde:yyyy-MM-dd}&hasta={hasta:yyyy-MM-dd}";
+
+    public Task<DashboardResumenDto> ObtenerDashboardAsync(DateOnly desde, DateOnly hasta, CancellationToken ct = default) =>
+        EnviarAsync<DashboardResumenDto>(HttpMethod.Get, $"api/reportes/dashboard?{Periodo(desde, hasta)}", null, ct);
+
+    public Task<TopProductosDto> ObtenerTopProductosAsync(DateOnly desde, DateOnly hasta, int top, string ordenarPor, CancellationToken ct = default) =>
+        EnviarAsync<TopProductosDto>(HttpMethod.Get, $"api/reportes/top-productos?{Periodo(desde, hasta)}&top={top}&ordenarPor={ordenarPor}", null, ct);
+
+    public Task<RentabilidadPorCategoriaDto> ObtenerRentabilidadPorCategoriaAsync(DateOnly desde, DateOnly hasta, CancellationToken ct = default) =>
+        EnviarAsync<RentabilidadPorCategoriaDto>(HttpMethod.Get, $"api/reportes/categorias?{Periodo(desde, hasta)}", null, ct);
+
+    public Task<ReporteCierresCajaDto> ObtenerReporteCajasAsync(DateOnly desde, DateOnly hasta, CancellationToken ct = default) =>
+        EnviarAsync<ReporteCierresCajaDto>(HttpMethod.Get, $"api/reportes/cajas?{Periodo(desde, hasta)}", null, ct);
+
     // ---------- Configuración fiscal (solo administradores) ----------
 
     public Task<ConfiguracionFiscalDto> ObtenerConfiguracionFiscalAsync(CancellationToken ct = default) =>

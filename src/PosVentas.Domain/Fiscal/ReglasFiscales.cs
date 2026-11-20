@@ -84,6 +84,10 @@ public static class FechaFiscal
     public static DateTime ALocal(DateTime utc) =>
         TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), ZonaArgentina);
 
+    /// <summary>Instante UTC en que empieza el día indicado en la Argentina (00:00 ART).</summary>
+    public static DateTime InicioDelDiaUtc(DateOnly dia) =>
+        TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(dia.ToDateTime(TimeOnly.MinValue), DateTimeKind.Unspecified), ZonaArgentina);
+
     private static TimeZoneInfo ObtenerZona()
     {
         try

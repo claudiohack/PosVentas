@@ -185,6 +185,7 @@ internal sealed class VentaDetalleConfiguration : IEntityTypeConfiguration<Venta
         builder.Property(d => d.PorcentajeIva).HasPrecision(5, 2);
         builder.Property(d => d.Subtotal).HasPrecision(18, 2);
         builder.Property(d => d.MontoIva).HasPrecision(18, 2);
+        builder.Property(d => d.CostoUnitario).HasPrecision(18, 2);
 
         builder.HasOne<Producto>()
             .WithMany()

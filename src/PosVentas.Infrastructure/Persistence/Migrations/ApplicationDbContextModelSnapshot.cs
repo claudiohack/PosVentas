@@ -1023,6 +1023,10 @@ namespace PosVentas.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 3)
                         .HasColumnType("decimal(18,3)");
 
+                    b.Property<decimal>("CostoUnitario")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<DateTime>("FechaCreacionUtc")
                         .HasColumnType("datetime2");
 

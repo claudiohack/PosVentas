@@ -1,9 +1,9 @@
-using PosVentas.Domain.Common;
+﻿using PosVentas.Domain.Common;
 
 namespace PosVentas.Domain.Entities;
 
 /// <summary>
-/// Renglón de una venta. Congela nombre, precio e IVA del producto al momento de vender.
+/// Renglón de una venta. Congela nombre, precio, IVA y costo del producto al momento de vender.
 /// </summary>
 public sealed class VentaDetalle : TenantEntity
 {
@@ -15,6 +15,12 @@ public sealed class VentaDetalle : TenantEntity
     public decimal PorcentajeIva { get; private set; }
     public decimal Subtotal { get; private set; }
     public decimal MontoIva { get; private set; }
+
+    /// <summary>
+    /// Costo unitario del producto al vender (promedio ponderado vigente). Base del margen bruto:
+    /// no se recalcula aunque el costo del producto cambie después con nuevas compras.
+    /// </summary>
+    public decimal CostoUnitario { get; private set; }
 
     public decimal TotalConIva => Subtotal + MontoIva;
 
@@ -40,7 +46,8 @@ public sealed class VentaDetalle : TenantEntity
             PrecioUnitario = producto.PrecioVenta.Monto,
             PorcentajeIva = producto.PorcentajeIva,
             Subtotal = subtotal,
-            MontoIva = iva
+            MontoIva = iva,
+            CostoUnitario = producto.PrecioCompra.Monto
         };
     }
 }

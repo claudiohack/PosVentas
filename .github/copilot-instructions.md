@@ -71,3 +71,7 @@ dotnet ef database update --project src/PosVentas.Infrastructure --startup-proje
 - Una compra al contado (efectivo / transferencia) con caja abierta genera un `MovimientoCaja` tipo `PagoProveedor` con monto **negativo**; el arqueo lo descuenta solo. No se puede pagar en efectivo más de lo que hay en la caja.
 - El mismo comprobante de un proveedor no se carga dos veces (409). El CUIT del proveedor es único por comercio.
 - Stock bajo = producto activo con `StockActual <= StockMinimo`.
+- Reportes (`/api/reportes/*`, política `Supervision`): agregan en SQL sobre DbSets con filtro de tenant; nunca cargar ventas en memoria para sumarlas.
+  - Períodos en fechas calendario argentinas (`FechaFiscal.InicioDelDiaUtc`), extremos incluidos, máximo 366 días; sin fechas = hoy.
+  - Margen bruto = venta neta (sin IVA) − Σ cantidad × `VentaDetalle.CostoUnitario`. El costo se congela al vender: no usar el costo actual del producto.
+  - Efectivo por medio de pago se informa neto del vuelto. La cuenta corriente es crédito, no dinero cobrado.
