@@ -274,3 +274,27 @@ tr.fila-stock-bajo td { background: #fff7f6; }
     .contenido { padding: 0; max-width: none; }
     .comprobante { border: none; margin: 0; max-width: none; }
 }
+
+/* ---------- Dashboard y reportes ---------- */
+:root { --pv-primario-suave: #dce8f6; --pv-texto-secundario: #4a5160; }
+.selector-periodo { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.selector-periodo .activo { background: var(--pv-primario); color: #fff; border-color: var(--pv-primario); }
+.periodo { color: var(--pv-texto-secundario); margin: 0.25rem 0 0.75rem; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+.kpi { display: flex; flex-direction: column; gap: 0.2rem; padding: 1rem 1.1rem; background: var(--pv-superficie); border: 1px solid var(--pv-borde); border-radius: 8px; }
+.kpi-etiqueta { font-size: 0.9rem; color: var(--pv-texto-secundario); }
+.kpi-valor { font-size: 1.75rem; font-weight: 600; color: var(--pv-texto); line-height: 1.2; }
+.kpi-detalle { font-size: 0.82rem; color: var(--pv-texto-secundario); }
+.grilla-reportes { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+.grilla-reportes .tarjeta + .tarjeta { margin-top: 0; }
+.grilla-reportes table { margin-top: 0.5rem; }
+.grilla-reportes small { color: var(--pv-texto-secundario); margin-left: 0.25rem; }
+.col-participacion { width: 34%; white-space: nowrap; }
+.medidor { display: inline-block; vertical-align: middle; width: calc(100% - 3.5rem); height: 8px; border-radius: 4px; background: var(--pv-primario-suave); overflow: hidden; }
+.medidor-relleno { display: block; height: 100%; border-radius: 4px; background: var(--pv-primario); }
+.medidor-valor { display: inline-block; width: 3.2rem; text-align: right; font-variant-numeric: tabular-nums; color: var(--pv-texto-secundario); font-size: 0.85rem; }
+.cifras-cajas { grid-template-columns: auto auto auto auto auto auto auto auto; }
+@media (max-width: 700px) {
+    .grilla-reportes { grid-template-columns: 1fr; }
+    .cifras-cajas { grid-template-columns: auto auto; }
+}
