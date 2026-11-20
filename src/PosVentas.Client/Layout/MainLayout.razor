@@ -12,6 +12,10 @@
             <NavLink href="caja">Caja</NavLink>
             <NavLink href="clientes">Clientes</NavLink>
             <NavLink href="productos">Productos</NavLink>
+            @if (Sesion.EsAdministrador)
+            {
+                <NavLink href="usuarios">Usuarios</NavLink>
+            }
         </nav>
         <span class="barra-info">@Sesion.Actual!.Comercio · @Sesion.Actual.NombreCompleto (@Sesion.Actual.Rol)</span>
         <button class="btn-secundario" @onclick="CerrarSesion">Salir</button>

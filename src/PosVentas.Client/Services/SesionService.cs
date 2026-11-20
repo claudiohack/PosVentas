@@ -12,6 +12,12 @@ public sealed class SesionService
 
     public bool EstaAutenticado => Actual is not null && Actual.ExpiraUtc > DateTime.UtcNow;
 
+    // Solo controlan qué se muestra: la API vuelve a verificar el rol en cada request.
+    public bool EsAdministrador => EstaAutenticado && Actual!.Rol == Roles.Administrador;
+
+    /// <summary>Administrador o Supervisor: puede cerrar y arquear la caja.</summary>
+    public bool PuedeSupervisar => EstaAutenticado && Actual!.Rol is Roles.Administrador or Roles.Supervisor;
+
     public event Action? Cambio;
 
     public void Iniciar(AuthResponse respuesta)

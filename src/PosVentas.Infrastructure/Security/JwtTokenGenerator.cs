@@ -41,7 +41,8 @@ public sealed class JwtTokenGenerator(IOptions<JwtOptions> options) : IJwtTokenG
                 [PosVentasClaims.UsuarioId] = usuario.Id.ToString(),
                 [PosVentasClaims.TenantId] = usuario.TenantId.ToString(),
                 [PosVentasClaims.Rol] = usuario.Rol.ToString(),
-                [PosVentasClaims.Nombre] = usuario.NombreCompleto
+                [PosVentasClaims.Nombre] = usuario.NombreCompleto,
+                [PosVentasClaims.SelloSeguridad] = usuario.SecurityStamp.ToString()
             }
         };
 

@@ -66,6 +66,12 @@ else
 
                 <p class="destacado">Efectivo esperado en caja: <strong>@Pesos(resumen.EfectivoEsperado)</strong></p>
 
+                @if (!Sesion.PuedeSupervisar)
+                {
+                    <p class="aviso">El cierre y arqueo de caja lo realiza un supervisor o un administrador.</p>
+                }
+                else
+                {
                 <form class="fila-form" @onsubmit="() => CerrarAsync(sesion.Id)">
                     <label>
                         Efectivo contado
@@ -77,6 +83,7 @@ else
                     </label>
                     <button type="submit" class="btn-primario" disabled="@procesando">Cerrar caja</button>
                 </form>
+                }
             }
             else if (!caja.EstaAbierta)
             {

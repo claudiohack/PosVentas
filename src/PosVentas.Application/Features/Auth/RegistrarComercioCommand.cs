@@ -33,11 +33,7 @@ public sealed class RegistrarComercioCommandValidator : AbstractValidator<Regist
         RuleFor(x => x.NombreAdministrador).NotEmpty().MaximumLength(Usuario.LongitudMaximaNombre);
         RuleFor(x => x.Username).NotEmpty().Matches(AuthValidationRules.PatronUsername)
             .WithMessage("El usuario debe tener 3 a 50 caracteres: letras, números, punto, guion o guion bajo.");
-        RuleFor(x => x.Password).NotEmpty()
-            .MinimumLength(AuthValidationRules.PasswordLongitudMinima)
-            .MaximumLength(AuthValidationRules.PasswordLongitudMaxima)
-            .Must(p => p.Any(char.IsLetter) && p.Any(char.IsDigit))
-            .WithMessage("La contraseña debe tener al menos 10 caracteres e incluir letras y números.");
+        RuleFor(x => x.Password).PasswordSegura();
     }
 }
 

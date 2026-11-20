@@ -31,6 +31,7 @@ builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 // ---------- Errores en formato ProblemDetails ----------
 builder.Services.AddProblemDetails();
 builder.Services.AddTransient<GlobalExceptionMiddleware>();
+builder.Services.AddTransient<ValidacionSesionMiddleware>();
 
 // ---------- Autenticación JWT ----------
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
@@ -66,10 +67,14 @@ builder.Services.AddAuthorizationBuilder()
         .RequireAuthenticatedUser()
         .RequireClaim(PosVentasClaims.TenantId)
         .RequireRole(nameof(RolUsuario.Administrador)))
+    .AddPolicy(Politicas.Supervision, policy => policy
+        .RequireAuthenticatedUser()
+        .RequireClaim(PosVentasClaims.TenantId)
+        .RequireRole(nameof(RolUsuario.Administrador), nameof(RolUsuario.Supervisor)))
     .AddPolicy(Politicas.Operador, policy => policy
         .RequireAuthenticatedUser()
         .RequireClaim(PosVentasClaims.TenantId)
-        .RequireRole(nameof(RolUsuario.Administrador), nameof(RolUsuario.Cajero)));
+        .RequireRole(nameof(RolUsuario.Administrador), nameof(RolUsuario.Supervisor), nameof(RolUsuario.Cajero)));
 
 // ---------- Rate limiting en endpoints de autenticación ----------
 var authPermitLimit = builder.Configuration.GetValue("RateLimiting:AuthPorMinuto", 10);
@@ -115,6 +120,7 @@ else
 app.UseHttpsRedirection();
 app.UseCors(CorsClientPolicy);
 app.UseAuthentication();
+app.UseMiddleware<ValidacionSesionMiddleware>(); // revoca tokens de usuarios desactivados o con clave/rol cambiados
 app.UseRateLimiter();
 app.UseAuthorization();
 

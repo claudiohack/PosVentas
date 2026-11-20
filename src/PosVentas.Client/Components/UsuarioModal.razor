@@ -1,0 +1,131 @@
+@inject PosVentasApi Api
+
+@* Modal de alta / edición de usuario. Usuario = null es alta (contraseña obligatoria). *@
+
+<div class="modal-fondo" @onclick="CancelarAsync"></div>
+<div class="modal" role="dialog" aria-modal="true" aria-labelledby="titulo-usuario">
+    <h2 id="titulo-usuario">@(EsAlta ? "Nuevo usuario" : $"Editar {Usuario!.NombreUsuario}")</h2>
+
+    <EditForm Model="formulario" OnValidSubmit="GuardarAsync" FormName="usuario">
+        <DataAnnotationsValidator />
+
+        <label>
+            Nombre completo
+            <InputText @bind-Value="formulario.NombreCompleto" autocomplete="off" />
+            <ValidationMessage For="() => formulario.NombreCompleto" />
+        </label>
+
+        <label>
+            Nombre de usuario
+            <InputText @bind-Value="formulario.NombreUsuario" disabled="@(!EsAlta)" autocomplete="off" />
+            <ValidationMessage For="() => formulario.NombreUsuario" />
+        </label>
+
+        <label>
+            Email (opcional)
+            <InputText type="email" @bind-Value="formulario.Email" autocomplete="off" />
+            <ValidationMessage For="() => formulario.Email" />
+        </label>
+
+        <label>
+            Rol
+            <InputSelect @bind-Value="formulario.Rol">
+                @foreach (var rol in Enum.GetValues<RolUsuario>())
+                {
+                    <option value="@rol">@rol</option>
+                }
+            </InputSelect>
+            <small>@Roles.Descripcion(formulario.Rol)</small>
+        </label>
+
+        <label>
+            @(EsAlta ? "Contraseña" : "Nueva contraseña (dejar vacío para no cambiarla)")
+            <InputText type="password" @bind-Value="formulario.Password" autocomplete="new-password" />
+            <small>Mínimo 10 caracteres, con letras y números.</small>
+            <ValidationMessage For="() => formulario.Password" />
+        </label>
+
+        @if (!EsAlta && EsUsuarioActual)
+        {
+            <p class="aviso">Si cambiás tu propio rol o contraseña, vas a tener que volver a iniciar sesión.</p>
+        }
+
+        @if (error is not null)
+        {
+            <p class="error" role="alert">@error</p>
+        }
+
+        <div class="acciones">
+            <button type="button" class="btn-secundario" @onclick="CancelarAsync">Cancelar</button>
+            <button type="submit" class="btn-primario" disabled="@procesando">
+                @(procesando ? "Guardando…" : EsAlta ? "Crear usuario" : "Guardar cambios")
+            </button>
+        </div>
+    </EditForm>
+</div>
+
+@code {
+    /// <summary>Usuario a editar; null = alta.</summary>
+    [Parameter] public UsuarioDto? Usuario { get; set; }
+
+    /// <summary>True si el usuario editado es el que tiene la sesión abierta.</summary>
+    [Parameter] public bool EsUsuarioActual { get; set; }
+
+    /// <summary>Se invoca con el usuario guardado y si la sesión propia quedó revocada.</summary>
+    [Parameter] public EventCallback<(UsuarioDto Usuario, bool SesionPropiaRevocada)> OnGuardado { get; set; }
+
+    [Parameter] public EventCallback OnCancelar { get; set; }
+
+    private UsuarioFormulario formulario = new();
+    private string? error;
+    private bool procesando;
+
+    private bool EsAlta => Usuario is null;
+
+    protected override void OnParametersSet() =>
+        formulario = Usuario is null ? new UsuarioFormulario() : UsuarioFormulario.Desde(Usuario);
+
+    private async Task GuardarAsync()
+    {
+        error = null;
+        var cambiaPassword = !string.IsNullOrEmpty(formulario.Password);
+        if (EsAlta && !cambiaPassword)
+        {
+            error = "La contraseña es obligatoria para un usuario nuevo.";
+            return;
+        }
+
+        procesando = true;
+        try
+        {
+            UsuarioDto guardado;
+            if (EsAlta)
+            {
+                guardado = await Api.CrearUsuarioAsync(formulario);
+            }
+            else
+            {
+                guardado = await Api.ActualizarUsuarioAsync(Usuario!.Id, formulario);
+                if (cambiaPassword)
+                    await Api.CambiarPasswordAsync(Usuario.Id, formulario.Password!);
+            }
+
+            var revocada = !EsAlta && EsUsuarioActual && (cambiaPassword || guardado.Rol != Usuario!.Rol);
+            await OnGuardado.InvokeAsync((guardado, revocada));
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        catch (HttpRequestException)
+        {
+            error = "No se pudo conectar con el servidor.";
+        }
+        finally
+        {
+            procesando = false;
+        }
+    }
+
+    private Task CancelarAsync() => OnCancelar.InvokeAsync();
+}

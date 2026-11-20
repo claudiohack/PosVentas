@@ -13,6 +13,7 @@ public static class DependencyInjection
         services.AddMediatR(cfg =>
         {
             cfg.RegisterServicesFromAssembly(assembly);
+            cfg.AddOpenBehavior(typeof(AutorizacionBehavior<,>)); // primero: no validar datos de quien no tiene permiso
             cfg.AddOpenBehavior(typeof(ValidationBehavior<,>));
         });
 

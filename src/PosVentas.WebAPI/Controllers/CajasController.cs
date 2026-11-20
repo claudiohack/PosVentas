@@ -43,8 +43,13 @@ public sealed class CajasController(ISender mediator) : ControllerBase
     public async Task<ActionResult<IReadOnlyList<VentaResumenDto>>> Ventas(Guid sesionId, CancellationToken ct)
         => Ok(await mediator.Send(new ObtenerVentasDeSesionQuery(sesionId), ct));
 
-    /// <summary>Cierra el turno con el efectivo contado y calcula el arqueo (sobrante / faltante).</summary>
+    /// <summary>
+    /// Cierra el turno con el efectivo contado y calcula el arqueo (sobrante / faltante).
+    /// Solo administradores y supervisores: el cajero no cierra su propia caja.
+    /// </summary>
     [HttpPost("sesiones/{sesionId:guid}/cierre")]
+    [Authorize(Policy = Politicas.Supervision)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType<ResumenSesionDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]

@@ -11,5 +11,8 @@ public sealed class ConflictException(string message) : Exception(message);
 public sealed class CredencialesInvalidasException()
     : Exception("Comercio, usuario o contraseña incorrectos.");
 
+/// <summary>El usuario está autenticado pero su rol no permite la operación.</summary>
+public sealed class AccesoDenegadoException(string message) : Exception(message);
+
 /// <summary>Intento de leer o escribir datos fuera del comercio del usuario autenticado.</summary>
 public sealed class TenantAccessException(string message) : Exception(message);

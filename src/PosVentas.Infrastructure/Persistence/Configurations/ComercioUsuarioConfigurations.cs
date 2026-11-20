@@ -30,7 +30,9 @@ internal sealed class UsuarioConfiguration : IEntityTypeConfiguration<Usuario>
 
         builder.Property(u => u.NombreCompleto).IsRequired().HasMaxLength(Usuario.LongitudMaximaNombre);
         builder.Property(u => u.Username).IsRequired().HasMaxLength(Usuario.LongitudMaximaUsername);
+        builder.Property(u => u.Email).HasMaxLength(Usuario.LongitudMaximaEmail);
         builder.Property(u => u.PasswordHash).IsRequired().HasMaxLength(100);
+        builder.Property(u => u.SecurityStamp).IsRequired();
         builder.Property(u => u.Rol).HasConversion<string>().HasMaxLength(20);
 
         // El nombre de usuario es único dentro de cada comercio

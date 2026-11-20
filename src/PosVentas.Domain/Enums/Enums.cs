@@ -2,8 +2,14 @@ namespace PosVentas.Domain.Enums;
 
 public enum RolUsuario
 {
+    /// <summary>Gestiona el comercio: usuarios, catálogo, crédito de clientes.</summary>
     Administrador = 1,
-    Cajero = 2
+
+    /// <summary>Opera el mostrador: vende, abre caja, registra cobranzas.</summary>
+    Cajero = 2,
+
+    /// <summary>Lo que hace un cajero más el cierre / arqueo de caja.</summary>
+    Supervisor = 3
 }
 
 public enum TipoComprobante

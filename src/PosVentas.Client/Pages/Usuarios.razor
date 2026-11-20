@@ -1,0 +1,168 @@
+@page "/usuarios"
+@inject PosVentasApi Api
+@inject SesionService Sesion
+@inject NavigationManager Navegacion
+
+<PageTitle>Usuarios · PosVentas</PageTitle>
+
+<div class="encabezado">
+    <h1>Usuarios del comercio</h1>
+    @if (Sesion.EsAdministrador)
+    {
+        <button class="btn-primario ancho-auto" @onclick="() => AbrirModal(null)">Nuevo usuario</button>
+    }
+</div>
+
+@if (!Sesion.EsAdministrador)
+{
+    <section class="tarjeta">
+        <p>La gestión de usuarios está disponible solo para administradores.</p>
+    </section>
+}
+else
+{
+    @if (mensaje is not null)
+    {
+        <p class="ok" role="status">@mensaje</p>
+    }
+    @if (error is not null)
+    {
+        <p class="error" role="alert">@error</p>
+    }
+
+    <section class="tarjeta">
+        @if (usuarios is null)
+        {
+            <p>Cargando…</p>
+        }
+        else
+        {
+            <table>
+                <thead>
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Usuario</th>
+                        <th>Email</th>
+                        <th>Rol</th>
+                        <th>Estado</th>
+                        <th>Último ingreso</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var u in usuarios)
+                    {
+                        var esYo = u.Id == Sesion.Actual!.UsuarioId;
+                        <tr class="@(u.Activo ? null : "inactivo")">
+                            <td>@u.NombreCompleto @(esYo ? "(vos)" : null)</td>
+                            <td>@u.NombreUsuario</td>
+                            <td>@u.Email</td>
+                            <td><span class="badge rol-@u.Rol.ToString().ToLowerInvariant()">@u.Rol</span></td>
+                            <td><span class="badge @(u.Activo ? "activo" : "baja")">@(u.Activo ? "Activo" : "Inactivo")</span></td>
+                            <td>@(u.UltimoLoginUtc?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? "Nunca")</td>
+                            <td class="acciones-fila">
+                                <button class="btn-secundario" @onclick="() => AbrirModal(u)">Editar</button>
+                                @if (!esYo)
+                                {
+                                    <button class="btn-secundario" disabled="@procesando" @onclick="() => CambiarEstadoAsync(u)">
+                                        @(u.Activo ? "Desactivar" : "Activar")
+                                    </button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </section>
+
+    @if (mostrarModal)
+    {
+        <UsuarioModal Usuario="usuarioEditado"
+                      EsUsuarioActual="@(usuarioEditado?.Id == Sesion.Actual?.UsuarioId)"
+                      OnGuardado="AlGuardarAsync"
+                      OnCancelar="() => mostrarModal = false" />
+    }
+}
+
+@code {
+    private List<UsuarioDto>? usuarios;
+    private UsuarioDto? usuarioEditado;
+    private bool mostrarModal;
+    private string? mensaje;
+    private string? error;
+    private bool procesando;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Sesion.EstaAutenticado)
+        {
+            Navegacion.NavigateTo("/");
+            return;
+        }
+        if (Sesion.EsAdministrador)
+            await CargarAsync();
+    }
+
+    private async Task CargarAsync() =>
+        await EjecutarAsync(async () => usuarios = await Api.ObtenerUsuariosAsync());
+
+    private void AbrirModal(UsuarioDto? usuario)
+    {
+        usuarioEditado = usuario;
+        mensaje = null;
+        mostrarModal = true;
+    }
+
+    private async Task AlGuardarAsync((UsuarioDto Usuario, bool SesionPropiaRevocada) resultado)
+    {
+        mostrarModal = false;
+        if (resultado.SesionPropiaRevocada)
+        {
+            Sesion.Cerrar();
+            Navegacion.NavigateTo("/");
+            return;
+        }
+
+        mensaje = usuarioEditado is null
+            ? $"Usuario '{resultado.Usuario.NombreUsuario}' creado."
+            : $"Usuario '{resultado.Usuario.NombreUsuario}' actualizado.";
+        await CargarAsync();
+    }
+
+    private async Task CambiarEstadoAsync(UsuarioDto usuario)
+    {
+        mensaje = null;
+        await EjecutarAsync(async () =>
+        {
+            var actualizado = await Api.CambiarEstadoUsuarioAsync(usuario.Id, !usuario.Activo);
+            mensaje = actualizado.Activo
+                ? $"'{actualizado.NombreUsuario}' fue activado."
+                : $"'{actualizado.NombreUsuario}' fue desactivado; sus sesiones abiertas se cerraron.";
+            usuarios = await Api.ObtenerUsuariosAsync();
+        });
+    }
+
+    private async Task EjecutarAsync(Func<Task> accion)
+    {
+        error = null;
+        procesando = true;
+        try
+        {
+            await accion();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            if (!Sesion.EstaAutenticado) Navegacion.NavigateTo("/");
+        }
+        catch (HttpRequestException)
+        {
+            error = "No se pudo conectar con el servidor.";
+        }
+        finally
+        {
+            procesando = false;
+        }
+    }
+}

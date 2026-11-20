@@ -83,16 +83,47 @@ public sealed class PosVentasApi(HttpClient http, SesionService sesion)
         EnviarAsync<ReciboCobranzaDto>(HttpMethod.Post, $"api/clientes/{clienteId}/cobranzas",
             new { monto, medio, cajaSesionId, observaciones }, ct);
 
+    // ---------- Usuarios (solo administradores) ----------
+
+    public Task<List<UsuarioDto>> ObtenerUsuariosAsync(CancellationToken ct = default) =>
+        EnviarAsync<List<UsuarioDto>>(HttpMethod.Get, "api/usuarios", null, ct);
+
+    public Task<UsuarioDto> CrearUsuarioAsync(UsuarioFormulario f, CancellationToken ct = default) =>
+        EnviarAsync<UsuarioDto>(HttpMethod.Post, "api/usuarios",
+            new { f.NombreCompleto, f.NombreUsuario, f.Email, f.Password, f.Rol }, ct);
+
+    public Task<UsuarioDto> ActualizarUsuarioAsync(Guid id, UsuarioFormulario f, CancellationToken ct = default) =>
+        EnviarAsync<UsuarioDto>(HttpMethod.Put, $"api/usuarios/{id}", new { f.NombreCompleto, f.Email, f.Rol }, ct);
+
+    public Task CambiarPasswordAsync(Guid id, string nuevaPassword, CancellationToken ct = default) =>
+        EnviarSinRespuestaAsync(HttpMethod.Put, $"api/usuarios/{id}/password", new { nuevaPassword }, ct);
+
+    public Task<UsuarioDto> CambiarEstadoUsuarioAsync(Guid id, bool activo, CancellationToken ct = default) =>
+        EnviarAsync<UsuarioDto>(HttpMethod.Patch, $"api/usuarios/{id}/estado", new { activo }, ct);
+
     // ---------- Infraestructura ----------
 
-    private async Task<T> EnviarAsync<T>(HttpMethod metodo, string ruta, object? cuerpo, CancellationToken ct)
+    private async Task EnviarSinRespuestaAsync(HttpMethod metodo, string ruta, object cuerpo, CancellationToken ct)
     {
-        using var request = new HttpRequestMessage(metodo, ruta);
+        using var request = CrearRequest(metodo, ruta, cuerpo);
+        using var respuesta = await http.SendAsync(request, ct);
+        if (!respuesta.IsSuccessStatusCode)
+            await LeerAsync<object>(respuesta, ct); // lanza ApiException con el ProblemDetails
+    }
+
+    private HttpRequestMessage CrearRequest(HttpMethod metodo, string ruta, object? cuerpo)
+    {
+        var request = new HttpRequestMessage(metodo, ruta);
         if (sesion.Actual is { } actual)
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", actual.AccessToken);
         if (cuerpo is not null)
             request.Content = JsonContent.Create(cuerpo, cuerpo.GetType(), options: Json);
+        return request;
+    }
 
+    private async Task<T> EnviarAsync<T>(HttpMethod metodo, string ruta, object? cuerpo, CancellationToken ct)
+    {
+        using var request = CrearRequest(metodo, ruta, cuerpo);
         using var respuesta = await http.SendAsync(request, ct);
         return await LeerAsync<T>(respuesta, ct);
     }

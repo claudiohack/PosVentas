@@ -35,7 +35,12 @@ Dependencias permitidas: Domain ← Application ← Infrastructure ← WebAPI. E
 5. **El dominio protege sus invariantes**: setters privados, fábricas estáticas y métodos explícitos (`Producto.DescontarStock`, `CajaSesion.Cerrar`, `Cliente.RegistrarCargo`…). Prohibido modificar estado por reflexión.
 6. **Validación de entrada con FluentValidation** en cada comando/query. Las reglas que dependen del estado van en el dominio.
 7. **Errores como ProblemDetails** vía `GlobalExceptionMiddleware`: validación → 400, credenciales → 401, acceso entre comercios → 403, no encontrado → 404, conflicto/concurrencia → 409, regla de dominio → 422. Los 500 no exponen detalles internos.
-8. **Seguridad**: contraseñas con BCrypt; JWT HS256 con claims `uid`, `tid`, `role`; políticas `SoloAdministrador` y `Operador`; política de respaldo que exige usuario autenticado con comercio.
+8. **Seguridad**: contraseñas con BCrypt; JWT HS256 con claims `uid`, `tid`, `role`, `sst`; política de respaldo que exige usuario autenticado con comercio.
+   - Roles: `Administrador` (todo, incluida la gestión de usuarios), `Supervisor` (mostrador + cierre/arqueo de caja), `Cajero` (vende, abre caja, cobra).
+   - Políticas: `SoloAdministrador`, `Supervision` (Admin + Supervisor), `Operador` (los tres roles). Todo endpoint nuevo declara la suya.
+   - Comandos solo para administradores implementan `IRequiereAdministrador` (lo verifica `AutorizacionBehavior`, devuelve 403).
+   - `ValidacionSesionMiddleware` revoca el token si el usuario se desactivó o cambió su rol o contraseña (el `SecurityStamp` del usuario se renueva). No saltear ese middleware.
+   - Las restricciones de la UI Blazor (`SesionService.EsAdministrador` / `PuedeSupervisar`) son solo visuales: la API siempre vuelve a verificar.
 9. **Cero secretos en el repositorio.** `Jwt:SigningKey` vive en User Secrets (desarrollo) o en la variable de entorno `Jwt__SigningKey` (producción). Las cadenas de conexión productivas también van por variables de entorno.
 10. **Migraciones estrictas**: todo cambio de esquema se hace con `dotnet ef migrations add` y se versiona. Nunca editar la base a mano ni reescribir migraciones ya publicadas.
 11. **Concurrencia optimista** con `RowVersion` en entidades que se modifican en paralelo (`Producto`, `Caja`, `CajaSesion`, `Cliente`).

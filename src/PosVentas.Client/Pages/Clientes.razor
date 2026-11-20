@@ -128,7 +128,7 @@
     private string? error;
     private bool procesando;
 
-    private bool EsAdmin => Sesion.Actual?.Rol == "Administrador";
+    private bool EsAdmin => Sesion.EsAdministrador;
 
     protected override async Task OnInitializedAsync()
     {
