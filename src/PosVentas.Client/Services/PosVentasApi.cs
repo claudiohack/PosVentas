@@ -35,7 +35,69 @@ public sealed class PosVentasApi(HttpClient http, SesionService sesion)
         return await LeerAsync<AuthResponse>(respuesta, ct);
     }
 
+    public async Task<AuthResponse> RegistrarComercioAsync(RegistroComercioFormulario f, CancellationToken ct = default)
+    {
+        using var respuesta = await http.PostAsJsonAsync("api/auth/registro-invitacion", f, Json, ct);
+        return await LeerAsync<AuthResponse>(respuesta, ct);
+    }
+
+    // ---------- Invitaciones (administradores de la plataforma) ----------
+
+    public Task<List<InvitacionDto>> ObtenerInvitacionesAsync(CancellationToken ct = default) =>
+        EnviarAsync<List<InvitacionDto>>(HttpMethod.Get, "api/auth/invitaciones", null, ct);
+
+    public Task<InvitacionCreadaDto> CrearInvitacionAsync(string? emailDestinatario, string? nota, int diasVigencia, CancellationToken ct = default) =>
+        EnviarAsync<InvitacionCreadaDto>(HttpMethod.Post, "api/auth/invitaciones", new { emailDestinatario, nota, diasVigencia }, ct);
+
+    public Task<InvitacionDto> RevocarInvitacionAsync(Guid id, CancellationToken ct = default) =>
+        EnviarAsync<InvitacionDto>(HttpMethod.Delete, $"api/auth/invitaciones/{id}", null, ct);
+
+    // ---------- Categorías ----------
+
+    public Task<List<CategoriaDto>> ObtenerCategoriasAsync(bool incluirInactivas = false, CancellationToken ct = default) =>
+        EnviarAsync<List<CategoriaDto>>(HttpMethod.Get, $"api/categorias{(incluirInactivas ? "?incluirInactivas=true" : null)}", null, ct);
+
+    public async Task<Guid> CrearCategoriaAsync(CategoriaFormulario f, CancellationToken ct = default) =>
+        (await EnviarAsync<IdCreado>(HttpMethod.Post, "api/categorias", f, ct)).Id;
+
+    public Task<CategoriaDto> ActualizarCategoriaAsync(Guid id, CategoriaFormulario f, CancellationToken ct = default) =>
+        EnviarAsync<CategoriaDto>(HttpMethod.Put, $"api/categorias/{id}", f, ct);
+
+    public Task<CategoriaDto> CambiarEstadoCategoriaAsync(Guid id, bool activa, CancellationToken ct = default) =>
+        EnviarAsync<CategoriaDto>(HttpMethod.Patch, $"api/categorias/{id}/estado", new { activa }, ct);
+
+    public Task<List<CategoriaDto>> ReordenarCategoriasAsync(IReadOnlyList<Guid> ids, CancellationToken ct = default) =>
+        EnviarAsync<List<CategoriaDto>>(HttpMethod.Put, "api/categorias/orden", new { ids }, ct);
+
+    private sealed record IdCreado(Guid Id);
+
     // ---------- Productos ----------
+
+    public Task<ProductoDto> CrearProductoAsync(ProductoFormulario f, CancellationToken ct = default) =>
+        EnviarAsync<ProductoDto>(HttpMethod.Post, "api/productos", new
+        {
+            f.Sku, f.Nombre, f.CodigoBarras, f.PrecioCompra, moneda = "ARS", f.PorcentajeGanancia,
+            precioVenta = f.FijarPrecio ? f.PrecioVenta : (decimal?)null, f.PorcentajeIva, f.CategoriaId,
+            f.VenderSinStock, f.StockMinimo, f.StockInicial
+        }, ct);
+
+    public Task<ProductoDto> ActualizarProductoAsync(Guid id, ProductoFormulario f, CancellationToken ct = default) =>
+        EnviarAsync<ProductoDto>(HttpMethod.Put, $"api/productos/{id}", new
+        {
+            f.Sku, f.Nombre, f.CodigoBarras, f.CategoriaId, f.PrecioCompra, f.PorcentajeGanancia,
+            precioVenta = f.FijarPrecio ? f.PrecioVenta : (decimal?)null, f.PorcentajeIva, f.VenderSinStock, f.StockMinimo
+        }, ct);
+
+    public Task<ProductoDto> CambiarEstadoProductoAsync(Guid id, bool activo, CancellationToken ct = default) =>
+        EnviarAsync<ProductoDto>(HttpMethod.Patch, $"api/productos/{id}/estado", new { activo }, ct);
+
+    public Task<List<ProductoDto>> ObtenerProductosTodosAsync(string? buscar, bool incluirInactivos, CancellationToken ct = default)
+    {
+        var query = new List<string>();
+        if (!string.IsNullOrWhiteSpace(buscar)) query.Add($"buscar={Uri.EscapeDataString(buscar)}");
+        if (incluirInactivos) query.Add("incluirInactivos=true");
+        return EnviarAsync<List<ProductoDto>>(HttpMethod.Get, query.Count == 0 ? "api/productos" : $"api/productos?{string.Join('&', query)}", null, ct);
+    }
 
     public Task<List<ProductoDto>> ObtenerProductosAsync(string? buscar, CancellationToken ct = default)
     {

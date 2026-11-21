@@ -1,4 +1,4 @@
-using FluentValidation;
+﻿using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using PosVentas.Application.Common.Exceptions;
@@ -9,10 +9,12 @@ using PosVentas.Domain.Enums;
 namespace PosVentas.Application.Features.Auth;
 
 /// <summary>
-/// Alta (onboarding) de un comercio nuevo con su usuario administrador.
-/// Crea además los datos mínimos del tenant: cliente Consumidor Final, categoría General y Caja Principal.
+/// Alta (onboarding) de un comercio nuevo con su usuario administrador, con una invitación de un solo uso
+/// emitida por HS Tech. Crea además los datos mínimos del tenant: cliente Consumidor Final,
+/// categoría General y Caja Principal. La invitación se consume en la misma transacción.
 /// </summary>
 public sealed record RegistrarComercioCommand(
+    string TokenInvitacion,
     string NombreComercio,
     string Slug,
     string? Cuit,
@@ -24,6 +26,8 @@ public sealed class RegistrarComercioCommandValidator : AbstractValidator<Regist
 {
     public RegistrarComercioCommandValidator()
     {
+        RuleFor(x => x.TokenInvitacion).NotEmpty().MaximumLength(200)
+            .WithMessage("Falta el token de la invitación.");
         RuleFor(x => x.NombreComercio).NotEmpty().MaximumLength(Comercio.LongitudMaximaNombre);
         RuleFor(x => x.Slug).NotEmpty()
             .Matches(AuthValidationRules.PatronSlug)
@@ -45,6 +49,13 @@ public sealed class RegistrarComercioCommandHandler(
 {
     public async Task<AuthResponse> Handle(RegistrarComercioCommand request, CancellationToken cancellationToken)
     {
+        // La invitación se busca por el hash del token. Inexistente, usada, revocada o vencida: el mismo error
+        // (no se revela cuál), y se valida antes que el slug para no permitir sondear slugs sin invitación.
+        var hash = TokensInvitacion.Hash(request.TokenInvitacion);
+        var invitacion = await db.InvitacionesComercio.SingleOrDefaultAsync(i => i.TokenHash == hash, cancellationToken);
+        if (invitacion is null || !invitacion.EstaVigente)
+            throw new InvitacionInvalidaException();
+
         var slug = Comercio.NormalizarSlug(request.Slug);
         if (await db.Comercios.AnyAsync(c => c.Slug == slug, cancellationToken))
             throw new ConflictException($"El identificador de comercio '{slug}' ya está en uso.");
@@ -67,6 +78,10 @@ public sealed class RegistrarComercioCommandHandler(
         db.Cajas.Add(Caja.Crear("Caja Principal"));
 
         admin.RegistrarLogin();
+        invitacion.Consumir(comercio.Id);
+
+        // Una sola transacción: comercio, datos iniciales y la invitación consumida. Su RowVersion hace que
+        // dos altas simultáneas con el mismo token no puedan confirmarse ambas (la segunda recibe 409).
         await db.SaveChangesAsync(cancellationToken);
 
         var token = tokenGenerator.Generar(admin);

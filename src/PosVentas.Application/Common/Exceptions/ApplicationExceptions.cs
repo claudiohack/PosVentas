@@ -1,4 +1,4 @@
-namespace PosVentas.Application.Common.Exceptions;
+﻿namespace PosVentas.Application.Common.Exceptions;
 
 /// <summary>El recurso no existe o pertenece a otro comercio (no se distingue a propósito).</summary>
 public sealed class NotFoundException(string entidad, object clave)
@@ -10,6 +10,10 @@ public sealed class ConflictException(string message) : Exception(message);
 /// <summary>Usuario, contraseña o comercio inválidos. El mensaje nunca indica cuál falló.</summary>
 public sealed class CredencialesInvalidasException()
     : Exception("Comercio, usuario o contraseña incorrectos.");
+
+/// <summary>El token de invitación no existe, ya se usó, fue revocado o venció. El mensaje no distingue el motivo.</summary>
+public sealed class InvitacionInvalidaException()
+    : Exception("La invitación no es válida o ya venció. Pedile a HS Tech una nueva.");
 
 /// <summary>El usuario está autenticado pero su rol no permite la operación.</summary>
 public sealed class AccesoDenegadoException(string message) : Exception(message);

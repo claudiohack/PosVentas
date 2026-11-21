@@ -305,3 +305,10 @@ tr.fila-stock-bajo td { background: #fff7f6; }
 .lista-efectos { margin: 0.5rem 0 0.75rem; padding-left: 1.2rem; color: var(--pv-texto-secundario); }
 .modal textarea { padding: 0.45rem 0.6rem; border: 1px solid var(--pv-borde); border-radius: 6px; font: inherit; resize: vertical; }
 .sello-anulada { display: inline-block; margin: 0.25rem 0; padding: 0.1rem 0.6rem; border: 2px solid var(--pv-error); border-radius: 4px; color: var(--pv-error); font-weight: 700; letter-spacing: 0.08em; }
+
+/* ---------- ABM de catálogo e invitaciones ---------- */
+.modal.modal-ancho { max-width: 720px; }
+.modal .grilla-form label.ancho { grid-column: 1 / -1; }
+.vista-precio { padding: 0.5rem 0.75rem; border-radius: 6px; background: var(--pv-fondo); }
+td.orden { justify-content: flex-start; }
+.enlace-invitacion { flex: 1 1 320px; min-width: 0; padding: 0.4rem 0.5rem; border: 1px solid var(--pv-borde); border-radius: 6px; font: inherit; font-size: 0.85rem; }

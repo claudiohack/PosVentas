@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
@@ -15,7 +15,7 @@ public sealed class JwtTokenGenerator(IOptions<JwtOptions> options) : IJwtTokenG
 {
     private readonly JsonWebTokenHandler _handler = new();
 
-    public TokenGenerado Generar(Usuario usuario)
+    public TokenGenerado Generar(Usuario usuario, bool esAdministradorPlataforma = false)
     {
         ArgumentNullException.ThrowIfNull(usuario);
         if (usuario.TenantId == Guid.Empty)
@@ -45,6 +45,8 @@ public sealed class JwtTokenGenerator(IOptions<JwtOptions> options) : IJwtTokenG
                 [PosVentasClaims.SelloSeguridad] = usuario.SecurityStamp.ToString()
             }
         };
+        if (esAdministradorPlataforma && usuario.Rol == Domain.Enums.RolUsuario.Administrador)
+            descriptor.Claims[PosVentasClaims.AdministradorPlataforma] = "1";
 
         return new TokenGenerado(_handler.CreateToken(descriptor), expira);
     }

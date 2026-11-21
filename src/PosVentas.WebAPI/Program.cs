@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -9,7 +9,9 @@ using PosVentas.Application;
 using PosVentas.Application.Common.Interfaces;
 using PosVentas.Application.Common.Security;
 using PosVentas.Domain.Enums;
+using Microsoft.AspNetCore.HttpOverrides;
 using PosVentas.Infrastructure;
+using PosVentas.Infrastructure.Persistence;
 using PosVentas.Infrastructure.Security;
 using PosVentas.WebAPI;
 using PosVentas.WebAPI.Middlewares;
@@ -73,6 +75,11 @@ builder.Services.AddAuthorizationBuilder()
         .RequireAuthenticatedUser()
         .RequireClaim(PosVentasClaims.TenantId)
         .RequireRole(nameof(RolUsuario.Administrador), nameof(RolUsuario.Supervisor)))
+    .AddPolicy(Politicas.AdministradorGlobal, policy => policy
+        .RequireAuthenticatedUser()
+        .RequireClaim(PosVentasClaims.TenantId)
+        .RequireRole(nameof(RolUsuario.Administrador))
+        .RequireClaim(PosVentasClaims.AdministradorPlataforma, "1"))
     .AddPolicy(Politicas.Operador, policy => policy
         .RequireAuthenticatedUser()
         .RequireClaim(PosVentasClaims.TenantId)
@@ -105,7 +112,29 @@ builder.Services.AddControllers()
     .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddOpenApi();
 
+// ---------- Detrás de un reverse proxy (Nginx en Docker / DigitalOcean) ----------
+// Con Proxy:ConfiarEnEncabezados=true se toman X-Forwarded-For / -Proto del proxy: la IP real del cliente
+// (rate limiting, logs) y el esquema https original. Solo activarlo cuando la API NO está expuesta directo.
+var detrasDeProxy = builder.Configuration.GetValue("Proxy:ConfiarEnEncabezados", false);
+if (detrasDeProxy)
+{
+    builder.Services.Configure<ForwardedHeadersOptions>(o =>
+    {
+        o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+        o.ForwardLimit = 1;
+        o.KnownIPNetworks.Clear(); // la red interna de Docker: el proxy es el único que llega a la API
+        o.KnownProxies.Clear();
+    });
+}
+
 var app = builder.Build();
+
+// Contenedores: migraciones y comercio operador de la plataforma al arrancar (idempotente).
+if (app.Configuration.GetValue("BaseDatos:InicializarAlArrancar", false))
+    await InicializadorBaseDatos.InicializarAsync(app.Services, aplicarMigraciones: true);
+
+if (detrasDeProxy)
+    app.UseForwardedHeaders();
 
 app.UseMiddleware<GlobalExceptionMiddleware>();
 app.UseStatusCodePages();
@@ -119,7 +148,9 @@ else
     app.UseHsts();
 }
 
-app.UseHttpsRedirection();
+// En Docker el TLS lo termina el proxy: la API escucha http interno y no redirige.
+if (app.Configuration.GetValue("Https:Redireccionar", true))
+    app.UseHttpsRedirection();
 app.UseCors(CorsClientPolicy);
 app.UseAuthentication();
 app.UseMiddleware<ValidacionSesionMiddleware>(); // revoca tokens de usuarios desactivados o con clave/rol cambiados

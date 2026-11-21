@@ -1,0 +1,189 @@
+@page "/categorias"
+@inject PosVentasApi Api
+@inject SesionService Sesion
+@inject NavigationManager Navegacion
+
+<PageTitle>Categorías · PosVentas</PageTitle>
+
+<div class="encabezado">
+    <h1>Categorías</h1>
+    @if (Sesion.EsAdministrador)
+    {
+        <button class="btn-primario ancho-auto" @onclick="() => AbrirModal(null)">Nueva categoría</button>
+    }
+</div>
+
+@if (!Sesion.EsAdministrador)
+{
+    <section class="tarjeta"><p>La gestión de categorías está disponible solo para administradores.</p></section>
+}
+else
+{
+    @if (mensaje is not null)
+    {
+        <p class="ok" role="status">@mensaje</p>
+    }
+    @if (error is not null)
+    {
+        <p class="error" role="alert">@error</p>
+    }
+
+    <section class="tarjeta">
+        <label class="check"><input type="checkbox" @bind="incluirInactivas" @bind:after="CargarAsync" /> Incluir dadas de baja</label>
+
+        @if (categorias is null)
+        {
+            <p>Cargando…</p>
+        }
+        else
+        {
+            <table>
+                <thead><tr><th>Orden</th><th>Nombre</th><th>Descripción</th><th>Estado</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var (c, i) in categorias.Select((c, i) => (c, i)))
+                    {
+                        <tr class="@(c.EstaActivo ? null : "inactivo")">
+                            <td class="acciones-fila orden">
+                                <button class="btn-secundario" disabled="@(procesando || i == 0)" @onclick="() => MoverAsync(i, -1)" aria-label="Subir @c.Nombre">▲</button>
+                                <button class="btn-secundario" disabled="@(procesando || i == categorias.Count - 1)" @onclick="() => MoverAsync(i, 1)" aria-label="Bajar @c.Nombre">▼</button>
+                            </td>
+                            <td>@c.Nombre</td>
+                            <td>@c.Descripcion</td>
+                            <td><span class="badge @(c.EstaActivo ? "activo" : "baja")">@(c.EstaActivo ? "Activa" : "Inactiva")</span></td>
+                            <td class="acciones-fila">
+                                <button class="btn-secundario" @onclick="() => AbrirModal(c)">Editar</button>
+                                <button class="btn-secundario" disabled="@procesando" @onclick="() => CambiarEstadoAsync(c)">@(c.EstaActivo ? "Dar de baja" : "Reactivar")</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            <p class="ayuda">Las flechas definen el orden en que se muestran las categorías. Una categoría con productos activos no se puede dar de baja.</p>
+        }
+    </section>
+
+    @if (mostrarModal)
+    {
+        <div class="modal-fondo" @onclick="() => mostrarModal = false"></div>
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="titulo-categoria">
+            <h2 id="titulo-categoria">@(editada is null ? "Nueva categoría" : $"Editar {editada.Nombre}")</h2>
+            <EditForm Model="formulario" OnValidSubmit="GuardarAsync" FormName="categoria">
+                <DataAnnotationsValidator />
+                <label>Nombre <InputText @bind-Value="formulario.Nombre" /><ValidationMessage For="() => formulario.Nombre" /></label>
+                <label>Descripción <InputText @bind-Value="formulario.Descripcion" /></label>
+                @if (errorModal is not null)
+                {
+                    <p class="error" role="alert">@errorModal</p>
+                }
+                <div class="acciones">
+                    <button type="button" class="btn-secundario" @onclick="() => mostrarModal = false">Cancelar</button>
+                    <button type="submit" class="btn-primario" disabled="@procesando">@(editada is null ? "Crear" : "Guardar")</button>
+                </div>
+            </EditForm>
+        </div>
+    }
+}
+
+@code {
+    private List<CategoriaDto>? categorias;
+    private CategoriaDto? editada;
+    private CategoriaFormulario formulario = new();
+    private bool incluirInactivas;
+    private bool mostrarModal;
+    private string? mensaje;
+    private string? error;
+    private string? errorModal;
+    private bool procesando;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Sesion.EstaAutenticado)
+        {
+            Navegacion.NavigateTo("/");
+            return;
+        }
+        if (Sesion.EsAdministrador)
+            await CargarAsync();
+    }
+
+    private async Task CargarAsync() =>
+        await EjecutarAsync(async () => categorias = await Api.ObtenerCategoriasAsync(incluirInactivas));
+
+    private void AbrirModal(CategoriaDto? categoria)
+    {
+        editada = categoria;
+        errorModal = null;
+        mensaje = null;
+        formulario = categoria is null
+            ? new CategoriaFormulario { OrdenDisplay = ((categorias?.Count ?? 0) + 1) * 10 }
+            : new CategoriaFormulario { Nombre = categoria.Nombre, Descripcion = categoria.Descripcion, OrdenDisplay = categoria.OrdenDisplay };
+        mostrarModal = true;
+    }
+
+    private async Task GuardarAsync()
+    {
+        errorModal = null;
+        procesando = true;
+        try
+        {
+            if (editada is null)
+                await Api.CrearCategoriaAsync(formulario);
+            else
+                await Api.ActualizarCategoriaAsync(editada.Id, formulario);
+            mensaje = $"Categoría '{formulario.Nombre}' guardada.";
+            mostrarModal = false;
+        }
+        catch (ApiException ex)
+        {
+            errorModal = ex.Message;
+        }
+        finally
+        {
+            procesando = false;
+        }
+        if (!mostrarModal)
+            await CargarAsync();
+    }
+
+    private async Task MoverAsync(int indice, int direccion)
+    {
+        var ids = categorias!.Select(c => c.Id).ToList();
+        (ids[indice], ids[indice + direccion]) = (ids[indice + direccion], ids[indice]);
+        await EjecutarAsync(async () => await Api.ReordenarCategoriasAsync(ids));
+        await CargarAsync();
+    }
+
+    private async Task CambiarEstadoAsync(CategoriaDto categoria)
+    {
+        mensaje = null;
+        await EjecutarAsync(async () =>
+        {
+            var actualizada = await Api.CambiarEstadoCategoriaAsync(categoria.Id, !categoria.EstaActivo);
+            mensaje = actualizada.EstaActivo ? $"'{actualizada.Nombre}' reactivada." : $"'{actualizada.Nombre}' dada de baja.";
+        });
+        await CargarAsync();
+    }
+
+    private async Task EjecutarAsync(Func<Task> accion)
+    {
+        error = null;
+        procesando = true;
+        try
+        {
+            await accion();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            if (!Sesion.EstaAutenticado) Navegacion.NavigateTo("/");
+        }
+        catch (HttpRequestException)
+        {
+            error = "No se pudo conectar con el servidor.";
+        }
+        finally
+        {
+            procesando = false;
+        }
+    }
+}

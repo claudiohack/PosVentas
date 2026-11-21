@@ -1,4 +1,4 @@
-using FluentValidation;
+﻿using FluentValidation;
 
 namespace PosVentas.Application.Features.Auth;
 
@@ -9,7 +9,8 @@ public sealed record AuthResponse(
     string NombreCompleto,
     string Rol,
     Guid ComercioId,
-    string Comercio);
+    string Comercio,
+    bool EsAdministradorPlataforma = false);
 
 internal static class AuthValidationRules
 {

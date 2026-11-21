@@ -1,0 +1,122 @@
+@inject PosVentasApi Api
+
+@* Alta / edición de producto. Producto = null es alta (con stock inicial). *@
+
+<div class="modal-fondo" @onclick="CancelarAsync"></div>
+<div class="modal modal-ancho" role="dialog" aria-modal="true" aria-labelledby="titulo-producto">
+    <h2 id="titulo-producto">@(Producto is null ? "Nuevo producto" : $"Editar {Producto.Nombre}")</h2>
+
+    <EditForm Model="f" OnValidSubmit="GuardarAsync" FormName="producto">
+        <DataAnnotationsValidator />
+        <div class="grilla-form">
+            <label>SKU <InputText @bind-Value="f.Sku" /><ValidationMessage For="() => f.Sku" /></label>
+            <label>Código de barras <InputText @bind-Value="f.CodigoBarras" placeholder="Escaneá o escribí" /><ValidationMessage For="() => f.CodigoBarras" /></label>
+            <label class="ancho">Nombre <InputText @bind-Value="f.Nombre" /><ValidationMessage For="() => f.Nombre" /></label>
+            <label>
+                Categoría
+                <InputSelect @bind-Value="f.CategoriaId">
+                    @foreach (var c in Categorias)
+                    {
+                        <option value="@c.Id">@c.Nombre</option>
+                    }
+                </InputSelect>
+            </label>
+            <label>
+                IVA
+                <InputSelect @bind-Value="f.PorcentajeIva">
+                    @foreach (var a in ProductoFormulario.AlicuotasIva)
+                    {
+                        <option value="@a">@a.ToString("0.#")%</option>
+                    }
+                </InputSelect>
+            </label>
+            <label>Costo (sin IVA) <InputNumber @bind-Value="f.PrecioCompra" min="0" step="0.01" /><ValidationMessage For="() => f.PrecioCompra" /></label>
+            <label class="check"><InputCheckbox @bind-Value="f.FijarPrecio" /> Fijar el precio de venta (el margen se calcula)</label>
+            @if (f.FijarPrecio)
+            {
+                <label>Precio de venta (sin IVA) <InputNumber @bind-Value="f.PrecioVenta" min="0" step="0.01" /></label>
+            }
+            else
+            {
+                <label>Margen % <InputNumber @bind-Value="f.PorcentajeGanancia" min="0" step="0.01" /><ValidationMessage For="() => f.PorcentajeGanancia" /></label>
+            }
+            <label>Stock mínimo <InputNumber @bind-Value="f.StockMinimo" min="0" step="0.001" /></label>
+            @if (Producto is null)
+            {
+                <label>Stock inicial <InputNumber @bind-Value="f.StockInicial" min="0" step="0.001" /></label>
+            }
+            <label class="check"><InputCheckbox @bind-Value="f.VenderSinStock" /> Permitir vender sin stock</label>
+        </div>
+
+        <p class="vista-precio">
+            Precio de venta: <strong>@Pesos(f.PrecioNeto)</strong> + IVA = <strong>@Pesos(f.PrecioFinal)</strong>
+            @if (f.MargenResultante is { } margen)
+            {
+                <span> · margen @margen.ToString("0.##")%</span>
+            }
+        </p>
+
+        @if (error is not null)
+        {
+            <p class="error" role="alert">@error</p>
+        }
+
+        <div class="acciones">
+            <button type="button" class="btn-secundario" @onclick="CancelarAsync">Cancelar</button>
+            <button type="submit" class="btn-primario" disabled="@procesando">
+                @(procesando ? "Guardando…" : Producto is null ? "Crear producto" : "Guardar cambios")
+            </button>
+        </div>
+    </EditForm>
+</div>
+
+@code {
+    [Parameter] public ProductoDto? Producto { get; set; }
+    [Parameter, EditorRequired] public IReadOnlyList<CategoriaDto> Categorias { get; set; } = [];
+    [Parameter] public EventCallback<ProductoDto> OnGuardado { get; set; }
+    [Parameter] public EventCallback OnCancelar { get; set; }
+
+    private ProductoFormulario f = new();
+    private string? error;
+    private bool procesando;
+
+    protected override void OnParametersSet()
+    {
+        f = Producto is null ? new ProductoFormulario() : ProductoFormulario.Desde(Producto);
+        if (f.CategoriaId == Guid.Empty && Categorias.Count > 0)
+            f.CategoriaId = Categorias[0].Id;
+    }
+
+    private async Task GuardarAsync()
+    {
+        error = null;
+        if (f.FijarPrecio && f.PrecioVenta < f.PrecioCompra)
+        {
+            error = "El precio de venta no puede ser menor al costo.";
+            return;
+        }
+
+        procesando = true;
+        try
+        {
+            var guardado = Producto is null ? await Api.CrearProductoAsync(f) : await Api.ActualizarProductoAsync(Producto.Id, f);
+            await OnGuardado.InvokeAsync(guardado);
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        catch (HttpRequestException)
+        {
+            error = "No se pudo conectar con el servidor.";
+        }
+        finally
+        {
+            procesando = false;
+        }
+    }
+
+    private Task CancelarAsync() => OnCancelar.InvokeAsync();
+
+    private static string Pesos(decimal valor) => valor.ToString("$ #,##0.00");
+}

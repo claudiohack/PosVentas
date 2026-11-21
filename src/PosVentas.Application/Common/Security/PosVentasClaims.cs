@@ -1,4 +1,4 @@
-namespace PosVentas.Application.Common.Security;
+﻿namespace PosVentas.Application.Common.Security;
 
 /// <summary>
 /// Nombres de los claims del JWT de PosVentas (compartidos entre emisión y lectura).
@@ -12,6 +12,9 @@ public static class PosVentasClaims
 
     /// <summary>Sello de seguridad del usuario: si cambió en la base, el token queda revocado.</summary>
     public const string SelloSeguridad = "sst";
+
+    /// <summary>"1" solo en tokens de administradores del comercio operador de la plataforma (HS Tech).</summary>
+    public const string AdministradorPlataforma = "plat";
 }
 
 /// <summary>
@@ -27,7 +30,13 @@ public static class Politicas
 
     /// <summary>Todos los roles operativos: administrador, supervisor y cajero (mostrador).</summary>
     public const string Operador = nameof(Operador);
+
+    /// <summary>Administradores de la plataforma (HS Tech): emiten invitaciones para dar de alta comercios.</summary>
+    public const string AdministradorGlobal = nameof(AdministradorGlobal);
 }
+
+/// <summary>Marca un comando que solo puede ejecutar un administrador de la plataforma (verificado por AutorizacionBehavior).</summary>
+public interface IRequiereAdministradorPlataforma;
 
 /// <summary>
 /// Marca un comando o consulta que solo puede ejecutar un Administrador.

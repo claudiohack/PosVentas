@@ -1,0 +1,71 @@
+@page "/registro"
+@inject PosVentasApi Api
+@inject SesionService Sesion
+@inject NavigationManager Navegacion
+
+<PageTitle>Registrar comercio · PosVentas</PageTitle>
+
+<section class="tarjeta login">
+    <h1>Registrá tu comercio</h1>
+    <p class="ayuda">El alta es por invitación de HS Tech. El código vale una sola vez.</p>
+
+    <EditForm Model="f" OnValidSubmit="RegistrarAsync" FormName="registro">
+        <DataAnnotationsValidator />
+        <label>Código de invitación <InputText @bind-Value="f.TokenInvitacion" autocomplete="off" /><ValidationMessage For="() => f.TokenInvitacion" /></label>
+        <label>Nombre del comercio <InputText @bind-Value="f.NombreComercio" /><ValidationMessage For="() => f.NombreComercio" /></label>
+        <label>
+            Identificador (para ingresar)
+            <InputText @bind-Value="f.Slug" placeholder="almacen-don-jose" />
+            <ValidationMessage For="() => f.Slug" />
+        </label>
+        <label>CUIT (opcional) <InputText @bind-Value="f.Cuit" /><ValidationMessage For="() => f.Cuit" /></label>
+        <label>Tu nombre <InputText @bind-Value="f.NombreAdministrador" /><ValidationMessage For="() => f.NombreAdministrador" /></label>
+        <label>Usuario <InputText @bind-Value="f.Username" autocomplete="username" /><ValidationMessage For="() => f.Username" /></label>
+        <label>Contraseña <InputText type="password" @bind-Value="f.Password" autocomplete="new-password" /><ValidationMessage For="() => f.Password" /></label>
+
+        @if (error is not null)
+        {
+            <p class="error" role="alert">@error</p>
+        }
+
+        <button type="submit" class="btn-primario" disabled="@enviando">@(enviando ? "Registrando…" : "Crear comercio")</button>
+    </EditForm>
+    <p class="ayuda"><a href="/">Volver a ingresar</a></p>
+</section>
+
+@code {
+    [SupplyParameterFromQuery(Name = "token")] public string? Token { get; set; }
+
+    private readonly RegistroComercioFormulario f = new();
+    private string? error;
+    private bool enviando;
+
+    protected override void OnInitialized()
+    {
+        if (!string.IsNullOrWhiteSpace(Token))
+            f.TokenInvitacion = Token;
+    }
+
+    private async Task RegistrarAsync()
+    {
+        error = null;
+        enviando = true;
+        try
+        {
+            Sesion.Iniciar(await Api.RegistrarComercioAsync(f));
+            Navegacion.NavigateTo("/productos");
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        catch (HttpRequestException)
+        {
+            error = "No se pudo conectar con el servidor.";
+        }
+        finally
+        {
+            enviando = false;
+        }
+    }
+}

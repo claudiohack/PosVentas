@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using PosVentas.Domain.Entities;
 
@@ -26,6 +26,31 @@ internal sealed class ComercioConfiguration : IEntityTypeConfiguration<Comercio>
         builder.Ignore(c => c.FacturacionConfigurada);
 
         builder.HasIndex(c => c.Slug).IsUnique();
+
+        // Un único comercio operador de la plataforma
+        builder.HasIndex(c => c.EsPlataforma).IsUnique().HasFilter("[EsPlataforma] = 1")
+            .HasDatabaseName("UX_Comercios_Plataforma");
+    }
+}
+
+internal sealed class InvitacionComercioConfiguration : IEntityTypeConfiguration<InvitacionComercio>
+{
+    public void Configure(EntityTypeBuilder<InvitacionComercio> builder)
+    {
+        builder.ToTable("InvitacionesComercio");
+        builder.HasKey(i => i.Id);
+        builder.Property(i => i.Id).ValueGeneratedNever();
+
+        builder.Property(i => i.TokenHash).IsRequired().HasMaxLength(InvitacionComercio.LongitudHash).IsFixedLength();
+        builder.Property(i => i.EmailDestinatario).HasMaxLength(InvitacionComercio.LongitudMaximaEmail);
+        builder.Property(i => i.Nota).HasMaxLength(InvitacionComercio.LongitudMaximaNota);
+        builder.Property(i => i.RowVersion).IsRowVersion();
+        builder.Ignore(i => i.EstaVigente);
+
+        builder.HasOne<Usuario>().WithMany().HasForeignKey(i => i.CreadaPorUsuarioId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<Comercio>().WithMany().HasForeignKey(i => i.ComercioCreadoId).OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(i => i.TokenHash).IsUnique();
     }
 }
 

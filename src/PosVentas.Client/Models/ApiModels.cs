@@ -24,7 +24,8 @@ public sealed record AuthResponse(
     string NombreCompleto,
     string Rol,
     Guid ComercioId,
-    string Comercio);
+    string Comercio,
+    bool EsAdministradorPlataforma = false);
 
 public sealed record ProductoDto(
     Guid Id,
@@ -41,7 +42,8 @@ public sealed record ProductoDto(
     decimal StockMinimo,
     bool StockBajo,
     bool VenderSinStock,
-    bool EstaActivo);
+    bool EstaActivo,
+    string? CodigoBarras = null);
 
 public sealed record ProblemaApi(
     string? Title, string? Detail, int? Status, Dictionary<string, string[]>? Errors,

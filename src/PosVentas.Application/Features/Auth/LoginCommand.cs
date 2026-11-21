@@ -1,4 +1,4 @@
-using FluentValidation;
+﻿using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using PosVentas.Application.Common.Exceptions;
@@ -54,8 +54,9 @@ public sealed class LoginCommandHandler(
         usuario.RegistrarLogin();
         await db.SaveChangesAsync(cancellationToken);
 
-        var token = tokenGenerator.Generar(usuario);
+        var esAdminPlataforma = comercio.EsPlataforma && usuario.Rol == Domain.Enums.RolUsuario.Administrador;
+        var token = tokenGenerator.Generar(usuario, esAdminPlataforma);
         return new AuthResponse(token.AccessToken, token.ExpiraUtc, usuario.Id, usuario.NombreCompleto,
-            usuario.Rol.ToString(), comercio.Id, comercio.Nombre);
+            usuario.Rol.ToString(), comercio.Id, comercio.Nombre, esAdminPlataforma);
     }
 }

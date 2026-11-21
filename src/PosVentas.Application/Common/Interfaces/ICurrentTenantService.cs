@@ -1,4 +1,4 @@
-namespace PosVentas.Application.Common.Interfaces;
+﻿namespace PosVentas.Application.Common.Interfaces;
 
 /// <summary>
 /// Comercio (tenant) del request actual. Se obtiene del claim <c>tid</c> del JWT.
@@ -22,4 +22,7 @@ public interface ICurrentUserService
 {
     Guid? UsuarioId { get; }
     string? Rol { get; }
+
+    /// <summary>True si el token es de un administrador del comercio operador de la plataforma.</summary>
+    bool EsAdministradorPlataforma { get; }
 }

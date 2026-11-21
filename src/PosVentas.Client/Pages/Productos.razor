@@ -1,4 +1,4 @@
-@page "/productos"
+﻿@page "/productos"
 @inject PosVentasApi Api
 @inject SesionService Sesion
 @inject NavigationManager Navegacion
@@ -21,10 +21,15 @@
     <div class="encabezado">
         <h1>Productos</h1>
         <form class="buscador" @onsubmit="CargarAsync">
-            <input type="search" @bind="buscar" placeholder="Buscar por nombre" aria-label="Buscar productos" disabled="@soloStockBajo" />
+            <input type="search" @bind="buscar" placeholder="Nombre, SKU o código de barras" aria-label="Buscar productos" disabled="@soloStockBajo" />
             <button type="submit" class="btn-secundario" disabled="@soloStockBajo">Buscar</button>
         </form>
         <label class="check"><input type="checkbox" @bind="soloStockBajo" @bind:after="CargarAsync" /> Solo stock bajo</label>
+        @if (Sesion.EsAdministrador)
+        {
+            <label class="check"><input type="checkbox" @bind="incluirInactivos" @bind:after="CargarAsync" /> Incluir dados de baja</label>
+            <button class="btn-primario ancho-auto" @onclick="() => AbrirModal(null)">Nuevo producto</button>
+        }
     </div>
 
     @if (mensaje is not null)
@@ -57,13 +62,17 @@
                     <th class="num">IVA %</th>
                     <th class="num">Stock</th>
                     <th class="num">Mínimo</th>
+                    @if (Sesion.EsAdministrador)
+                    {
+                        <th></th>
+                    }
                 </tr>
             </thead>
             <tbody>
                 @foreach (var p in productos)
                 {
-                    <tr class="@(p.StockBajo ? "fila-stock-bajo" : null)">
-                        <td>@p.Sku</td>
+                    <tr class="@(p.StockBajo ? "fila-stock-bajo" : null) @(p.EstaActivo ? null : "inactivo")">
+                        <td>@p.Sku @if (p.CodigoBarras is not null) { <br /><small>@p.CodigoBarras</small> }</td>
                         <td>
                             @p.Nombre
                             @if (p.StockBajo)
@@ -93,6 +102,13 @@
                                 @p.StockMinimo.ToString("0.###")
                             }
                         </td>
+                        @if (Sesion.EsAdministrador)
+                        {
+                            <td class="acciones-fila">
+                                <button class="btn-secundario" @onclick="() => AbrirModal(p)">Editar</button>
+                                <button class="btn-secundario" disabled="@procesando" @onclick="() => CambiarEstadoAsync(p)">@(p.EstaActivo ? "Dar de baja" : "Reactivar")</button>
+                            </td>
+                        }
                     </tr>
                 }
             </tbody>
@@ -100,8 +116,56 @@
     }
 </section>
 
+@if (mostrarModal)
+{
+    <ProductoModal Producto="editado" Categorias="categorias" OnGuardado="AlGuardarAsync" OnCancelar="() => mostrarModal = false" />
+}
+
 @code {
     private List<ProductoDto>? productos;
+    private List<CategoriaDto> categorias = [];
+    private ProductoDto? editado;
+    private bool mostrarModal;
+    private bool incluirInactivos;
+
+    private async Task AbrirModal(ProductoDto? producto)
+    {
+        mensaje = null;
+        error = null;
+        try
+        {
+            categorias = await Api.ObtenerCategoriasAsync();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            return;
+        }
+        if (categorias.Count == 0)
+        {
+            error = "Primero creá una categoría en Categorías.";
+            return;
+        }
+        editado = producto;
+        mostrarModal = true;
+    }
+
+    private async Task AlGuardarAsync(ProductoDto guardado)
+    {
+        mostrarModal = false;
+        mensaje = editado is null ? $"Producto '{guardado.Nombre}' creado." : $"Producto '{guardado.Nombre}' actualizado.";
+        await CargarAsync();
+    }
+
+    private async Task CambiarEstadoAsync(ProductoDto producto)
+    {
+        await EjecutarAsync(async () =>
+        {
+            var actualizado = await Api.CambiarEstadoProductoAsync(producto.Id, !producto.EstaActivo);
+            mensaje = actualizado.EstaActivo ? $"'{actualizado.Nombre}' reactivado." : $"'{actualizado.Nombre}' dado de baja.";
+        });
+        await CargarAsync();
+    }
     private string? buscar;
     private bool soloStockBajo;
     private int cantidadStockBajo;
@@ -128,7 +192,7 @@
         {
             var bajos = await Api.ObtenerProductosStockBajoAsync();
             cantidadStockBajo = bajos.Count;
-            productos = soloStockBajo ? bajos : await Api.ObtenerProductosAsync(buscar);
+            productos = soloStockBajo ? bajos : await Api.ObtenerProductosTodosAsync(buscar, incluirInactivos);
         });
     }
 

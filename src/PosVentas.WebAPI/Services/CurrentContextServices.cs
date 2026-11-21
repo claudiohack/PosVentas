@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using PosVentas.Application.Common.Exceptions;
 using PosVentas.Application.Common.Interfaces;
 using PosVentas.Application.Common.Security;
@@ -47,6 +47,9 @@ public sealed class CurrentUserService(IHttpContextAccessor httpContextAccessor)
         Guid.TryParse(Usuario?.FindFirstValue(PosVentasClaims.UsuarioId), out var id) ? id : null;
 
     public string? Rol => Usuario?.FindFirstValue(PosVentasClaims.Rol);
+
+    public bool EsAdministradorPlataforma =>
+        Usuario?.FindFirstValue(PosVentasClaims.AdministradorPlataforma) == "1" && Rol == "Administrador";
 
     private ClaimsPrincipal? Usuario =>
         httpContextAccessor.HttpContext?.User is { Identity.IsAuthenticated: true } user ? user : null;

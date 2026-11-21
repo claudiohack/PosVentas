@@ -67,6 +67,29 @@ public sealed class ProductosController(ISender mediator) : ControllerBase
         return Ok(new StockResponse(id, stock));
     }
 
+    /// <summary>Edita datos, código de barras, categoría, costo y precio (por margen o precio de venta fijo).</summary>
+    [HttpPut("{id:guid}")]
+    [Authorize(Policy = Politicas.SoloAdministrador)]
+    [ProducesResponseType<ProductoDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ProductoDto>> Actualizar(Guid id, ActualizarProductoRequest r, CancellationToken ct)
+        => Ok(await mediator.Send(new ActualizarProductoCommand(id, r.Sku, r.Nombre, r.CodigoBarras, r.CategoriaId, r.PrecioCompra,
+            r.PorcentajeGanancia, r.PrecioVenta, r.PorcentajeIva, r.VenderSinStock, r.StockMinimo), ct));
+
+    /// <summary>Activa o da de baja (lógica) el producto. Uno dado de baja no se vende ni se compra.</summary>
+    [HttpPatch("{id:guid}/estado")]
+    [Authorize(Policy = Politicas.SoloAdministrador)]
+    [ProducesResponseType<ProductoDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ProductoDto>> CambiarEstado(Guid id, EstadoProductoRequest r, CancellationToken ct)
+        => Ok(await mediator.Send(new CambiarEstadoProductoCommand(id, r.Activo), ct));
+
+    public sealed record ActualizarProductoRequest(
+        string Sku, string Nombre, string? CodigoBarras, Guid CategoriaId, decimal PrecioCompra, decimal PorcentajeGanancia,
+        decimal? PrecioVenta, decimal PorcentajeIva, bool VenderSinStock, decimal StockMinimo);
+    public sealed record EstadoProductoRequest(bool Activo);
     public sealed record IngresarStockRequest(decimal Cantidad);
     public sealed record StockMinimoRequest(decimal StockMinimo);
     public sealed record StockResponse(Guid ProductoId, decimal StockActual);

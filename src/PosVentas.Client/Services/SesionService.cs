@@ -1,4 +1,4 @@
-using PosVentas.Client.Models;
+﻿using PosVentas.Client.Models;
 
 namespace PosVentas.Client.Services;
 
@@ -14,6 +14,9 @@ public sealed class SesionService
 
     // Solo controlan qué se muestra: la API vuelve a verificar el rol en cada request.
     public bool EsAdministrador => EstaAutenticado && Actual!.Rol == Roles.Administrador;
+
+    /// <summary>Administrador del comercio operador (HS Tech): emite invitaciones para comercios nuevos.</summary>
+    public bool EsAdministradorPlataforma => EstaAutenticado && Actual!.EsAdministradorPlataforma;
 
     /// <summary>Administrador o Supervisor: puede cerrar y arquear la caja.</summary>
     public bool PuedeSupervisar => EstaAutenticado && Actual!.Rol is Roles.Administrador or Roles.Supervisor;

@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using PosVentas.Application.Common.Exceptions;
@@ -33,6 +33,7 @@ public sealed class ApplicationDbContext(
     public DbSet<CompraDetalle> CompraDetalles => Set<CompraDetalle>();
     public DbSet<ComprobanteFiscal> ComprobantesFiscales => Set<ComprobanteFiscal>();
     public DbSet<AnulacionVenta> AnulacionesVenta => Set<AnulacionVenta>();
+    public DbSet<InvitacionComercio> InvitacionesComercio => Set<InvitacionComercio>();
 
     /// <summary>
     /// Tenant del request. EF Core lo evalúa en cada consulta (no queda fijo en el modelo cacheado).

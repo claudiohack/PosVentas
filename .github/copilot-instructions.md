@@ -71,6 +71,10 @@ dotnet ef database update --project src/PosVentas.Infrastructure --startup-proje
 - Una compra al contado (efectivo / transferencia) con caja abierta genera un `MovimientoCaja` tipo `PagoProveedor` con monto **negativo**; el arqueo lo descuenta solo. No se puede pagar en efectivo más de lo que hay en la caja.
 - El mismo comprobante de un proveedor no se carga dos veces (409). El CUIT del proveedor es único por comercio.
 - Stock bajo = producto activo con `StockActual <= StockMinimo`.
+- Alta de comercios SOLO por invitación: `POST /api/auth/invitaciones` (política `AdministradorGlobal` = administrador del comercio con `EsPlataforma`, claim `plat=1`) y `POST /api/auth/registro-invitacion`. El token se entrega una vez; solo se persiste su hash SHA-256. El alta abierta `POST /api/auth/registro` está deshabilitada.
+- El comercio operador (HS Tech) lo crea `InicializadorBaseDatos` desde `Plataforma:*` cuando `BaseDatos:InicializarAlArrancar=true` (Docker y Development); los tests lo llaman después de migrar.
+- Productos: SKU y código de barras únicos por comercio; la búsqueda acepta nombre parcial o SKU / código exactos (scanner). Precio por margen o precio de venta fijo (`FijarPrecioVenta` recalcula el margen). IVA solo en alícuotas de ARCA.
+- Categorías: no se dan de baja con productos activos; el orden se fija con `PUT /api/categorias/orden`.
 - Anulaciones (`POST /api/ventas/{id}/anular`, política `Supervision`): anulación total vía `AnulacionVenta.Registrar` en un solo `SaveChanges`.
   - Revierte: stock con `Producto.ReintegrarStock`, egresos `DevolucionAnulacion` (monto negativo, efectivo neto del vuelto) en la caja abierta, y `Cliente.RevertirCargo` (el saldo puede quedar a favor del cliente).
   - Una venta se anula una sola vez: índice único por `VentaId` (409). No se puede devolver más efectivo del que hay en la caja (422).

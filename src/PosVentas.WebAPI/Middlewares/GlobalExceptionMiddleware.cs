@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 using PosVentas.Application.Common.Exceptions;
@@ -33,6 +33,7 @@ public sealed class GlobalExceptionMiddleware(ILogger<GlobalExceptionMiddleware>
                 ex.Errors.GroupBy(e => e.PropertyName)
                     .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).Distinct().ToArray())),
             CredencialesInvalidasException ex => Crear(StatusCodes.Status401Unauthorized, "No autenticado.", ex.Message),
+            InvitacionInvalidaException ex => Crear(StatusCodes.Status400BadRequest, "Invitación inválida.", ex.Message),
             AfipRechazoException ex => CrearRechazoAfip(ex),
             AfipNoDisponibleException ex => CrearAfipNoDisponible(ex),
             AccesoDenegadoException ex => Crear(StatusCodes.Status403Forbidden, "Acceso denegado.", ex.Message),

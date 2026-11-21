@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using PosVentas.Application.Common.Exceptions;
 using PosVentas.Application.Common.Interfaces;
 using PosVentas.Domain.Entities;
+using PosVentas.Domain.ValueObjects;
 
 namespace PosVentas.Application.Features.Productos;
 
@@ -35,8 +36,14 @@ public sealed class ObtenerProductosQueryHandler(IApplicationDbContext db)
 
         if (!string.IsNullOrWhiteSpace(request.Buscar))
         {
+            // Nombre parcial, o SKU / código de barras exactos (lo que manda un lector de códigos).
             var termino = request.Buscar.Trim();
-            query = query.Where(p => p.Nombre.Contains(termino));
+            var codigo = termino.ToUpperInvariant();
+            Sku? sku = null;
+            try { sku = Sku.Crear(termino); } catch (Domain.Common.DomainException) { /* no es un SKU válido */ }
+            query = sku is null
+                ? query.Where(p => p.Nombre.Contains(termino) || p.CodigoBarras == codigo)
+                : query.Where(p => p.Nombre.Contains(termino) || p.CodigoBarras == codigo || p.Sku == sku);
         }
 
         var productos = await query
@@ -85,5 +92,6 @@ internal static class ProductoMapper
         p.StockMinimo,
         p.TieneStockBajo,
         p.VenderSinStock,
-        p.EstaActivo);
+        p.EstaActivo,
+        p.CodigoBarras);
 }

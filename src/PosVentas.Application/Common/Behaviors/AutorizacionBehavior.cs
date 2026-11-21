@@ -1,4 +1,4 @@
-using MediatR;
+﻿using MediatR;
 using PosVentas.Application.Common.Exceptions;
 using PosVentas.Application.Common.Interfaces;
 using PosVentas.Application.Common.Security;
@@ -18,6 +18,8 @@ public sealed class AutorizacionBehavior<TRequest, TResponse>(ICurrentUserServic
     {
         if (request is IRequiereAdministrador && usuarioActual.Rol != nameof(RolUsuario.Administrador))
             throw new AccesoDenegadoException("La operación requiere el rol Administrador.");
+        if (request is IRequiereAdministradorPlataforma && !usuarioActual.EsAdministradorPlataforma)
+            throw new AccesoDenegadoException("La operación es exclusiva de los administradores de la plataforma.");
 
         return next();
     }

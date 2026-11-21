@@ -23,6 +23,11 @@ public sealed class PosVentasApiFactory : WebApplicationFactory<Program>, IAsync
     /// <summary>Clave de firma aleatoria, exclusiva de esta corrida de tests.</summary>
     public string ClaveFirmaJwt { get; } = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
 
+    /// <summary>Administrador del comercio operador de la plataforma (HS Tech), creado por el inicializador.</summary>
+    public const string SlugPlataforma = "hs-tech";
+    public const string UsuarioPlataforma = "hs-admin";
+    public string PasswordPlataforma { get; } = $"Plataforma-{Convert.ToHexString(RandomNumberGenerator.GetBytes(8))}";
+
     public string ConnectionString
     {
         get
@@ -38,6 +43,9 @@ public sealed class PosVentasApiFactory : WebApplicationFactory<Program>, IAsync
         builder.UseSetting("ConnectionStrings:PosVentas", ConnectionString);
         builder.UseSetting("Jwt:SigningKey", ClaveFirmaJwt);
         builder.UseSetting("RateLimiting:AuthPorMinuto", "100000");
+        builder.UseSetting("Plataforma:Slug", SlugPlataforma);
+        builder.UseSetting("Plataforma:AdminUsuario", UsuarioPlataforma);
+        builder.UseSetting("Plataforma:AdminPassword", PasswordPlataforma);
 
         builder.ConfigureTestServices(services =>
         {
@@ -62,6 +70,7 @@ public sealed class PosVentasApiFactory : WebApplicationFactory<Program>, IAsync
             throw new InvalidOperationException("Los tests no tomaron la base de pruebas; se aborta para no tocar otra base.");
 
         await db.Database.MigrateAsync();
+        await InicializadorBaseDatos.InicializarAsync(Services, aplicarMigraciones: false);
     }
 
     async Task IAsyncLifetime.DisposeAsync()

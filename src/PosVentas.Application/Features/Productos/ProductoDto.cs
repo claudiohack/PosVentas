@@ -15,4 +15,5 @@ public sealed record ProductoDto(
     decimal StockMinimo,
     bool StockBajo,
     bool VenderSinStock,
-    bool EstaActivo);
+    bool EstaActivo,
+    string? CodigoBarras = null);

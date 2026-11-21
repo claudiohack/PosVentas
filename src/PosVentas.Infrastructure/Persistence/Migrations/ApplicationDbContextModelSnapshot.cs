@@ -365,6 +365,9 @@ namespace PosVentas.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<bool>("EsPlataforma")
+                        .HasColumnType("bit");
+
                     b.Property<bool>("EstaActivo")
                         .HasColumnType("bit");
 
@@ -401,6 +404,11 @@ namespace PosVentas.Infrastructure.Persistence.Migrations
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("EsPlataforma")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Comercios_Plataforma")
+                        .HasFilter("[EsPlataforma] = 1");
 
                     b.HasIndex("Slug")
                         .IsUnique();
@@ -613,6 +621,64 @@ namespace PosVentas.Infrastructure.Persistence.Migrations
                     b.ToTable("ComprobantesFiscales", (string)null);
                 });
 
+            modelBuilder.Entity("PosVentas.Domain.Entities.InvitacionComercio", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("ComercioCreadoId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CreadaPorUsuarioId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("EmailDestinatario")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<DateTime>("FechaCreacionUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("FechaModificacionUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Nota")
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
+                    b.Property<DateTime?>("RevocadaUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nchar(64)")
+                        .IsFixedLength();
+
+                    b.Property<DateTime?>("UsadaUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("VenceUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ComercioCreadoId");
+
+                    b.HasIndex("CreadaPorUsuarioId");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.ToTable("InvitacionesComercio", (string)null);
+                });
+
             modelBuilder.Entity("PosVentas.Domain.Entities.MovimientoCaja", b =>
                 {
                     b.Property<Guid>("Id")
@@ -746,6 +812,10 @@ namespace PosVentas.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("CategoriaId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("CodigoBarras")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
                     b.Property<bool>("EstaActivo")
                         .HasColumnType("bit");
 
@@ -830,6 +900,10 @@ namespace PosVentas.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CategoriaId");
+
+                    b.HasIndex("TenantId", "CodigoBarras")
+                        .IsUnique()
+                        .HasFilter("[CodigoBarras] IS NOT NULL");
 
                     b.HasIndex("TenantId", "Nombre");
 
@@ -1334,6 +1408,20 @@ namespace PosVentas.Infrastructure.Persistence.Migrations
                     b.HasOne("PosVentas.Domain.Entities.Venta", null)
                         .WithMany()
                         .HasForeignKey("VentaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PosVentas.Domain.Entities.InvitacionComercio", b =>
+                {
+                    b.HasOne("PosVentas.Domain.Entities.Comercio", null)
+                        .WithMany()
+                        .HasForeignKey("ComercioCreadoId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PosVentas.Domain.Entities.Usuario", null)
+                        .WithMany()
+                        .HasForeignKey("CreadaPorUsuarioId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

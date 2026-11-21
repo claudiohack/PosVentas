@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using PosVentas.Domain.Entities;
 
 namespace PosVentas.Application.Common.Interfaces;
@@ -27,6 +27,7 @@ public interface IApplicationDbContext
     DbSet<CompraDetalle> CompraDetalles { get; }
     DbSet<ComprobanteFiscal> ComprobantesFiscales { get; }
     DbSet<AnulacionVenta> AnulacionesVenta { get; }
+    DbSet<InvitacionComercio> InvitacionesComercio { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
