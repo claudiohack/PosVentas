@@ -3,49 +3,109 @@
 @inject SesionService Sesion
 @inject NavigationManager Navegacion
 
-<header class="barra">
-    <strong>PosVentas</strong>
-    @if (Sesion.EstaAutenticado)
-    {
-        <nav class="menu">
-            <NavLink href="pos">Vender</NavLink>
-            <NavLink href="caja">Caja</NavLink>
-            <NavLink href="ventas">Ventas</NavLink>
-            <NavLink href="clientes">Clientes</NavLink>
-            <NavLink href="productos">Productos</NavLink>
-            @if (Sesion.PuedeSupervisar)
-            {
-                <NavLink href="dashboard">Dashboard</NavLink>
-                <NavLink href="compras">Compras</NavLink>
-                <NavLink href="proveedores">Proveedores</NavLink>
-            }
-            @if (Sesion.EsAdministrador)
-            {
-                <NavLink href="categorias">Categorías</NavLink>
-                <NavLink href="usuarios">Usuarios</NavLink>
-                <NavLink href="configuracion-fiscal">Facturación</NavLink>
-                @if (Sesion.EsAdministradorPlataforma)
-                {
-                    <NavLink href="invitaciones">Invitaciones</NavLink>
-                }
-            }
-        </nav>
-        <span class="barra-info">@Sesion.Actual!.Comercio · @Sesion.Actual.NombreCompleto (@Sesion.Actual.Rol)</span>
-        <button class="btn-secundario" @onclick="CerrarSesion">Salir</button>
-    }
-</header>
+@if (Sesion.EstaAutenticado)
+{
+    <div class="app @(menuAbierto ? "menu-abierto" : null)">
+        <aside class="lateral" id="menu-lateral" aria-label="Menú principal">
+            <div class="marca">
+                <span class="marca-logo" aria-hidden="true">PV</span>
+                <span class="marca-texto">PosVentas<small>HS Tech</small></span>
+                <button class="btn-icono lateral-cerrar" @onclick="CerrarMenu" aria-label="Cerrar menú"><Icono Nombre="cerrar" /></button>
+            </div>
 
-<main class="contenido">
-    @Body
-</main>
+            <nav class="menu" @onclick="CerrarMenu">
+                <span class="menu-grupo">Mostrador</span>
+                <NavLink href="pos"><Icono Nombre="vender" /><span>Vender</span></NavLink>
+                <NavLink href="caja"><Icono Nombre="caja" /><span>Caja</span></NavLink>
+                <NavLink href="ventas"><Icono Nombre="ventas" /><span>Ventas</span></NavLink>
+                <NavLink href="clientes"><Icono Nombre="clientes" /><span>Clientes</span></NavLink>
+
+                <span class="menu-grupo">Inventario</span>
+                <NavLink href="productos"><Icono Nombre="productos" /><span>Productos</span></NavLink>
+                @if (Sesion.EsAdministrador)
+                {
+                    <NavLink href="categorias"><Icono Nombre="categorias" /><span>Categorías</span></NavLink>
+                }
+                @if (Sesion.PuedeSupervisar)
+                {
+                    <NavLink href="compras"><Icono Nombre="compras" /><span>Compras</span></NavLink>
+                    <NavLink href="proveedores"><Icono Nombre="proveedores" /><span>Proveedores</span></NavLink>
+
+                    <span class="menu-grupo">Gestión</span>
+                    <NavLink href="dashboard"><Icono Nombre="dashboard" /><span>Dashboard</span></NavLink>
+                }
+                @if (Sesion.EsAdministrador)
+                {
+                    <NavLink href="usuarios"><Icono Nombre="usuarios" /><span>Usuarios</span></NavLink>
+                    <NavLink href="configuracion-fiscal"><Icono Nombre="facturacion" /><span>Facturación</span></NavLink>
+                    @if (Sesion.EsAdministradorPlataforma)
+                    {
+                        <span class="menu-grupo">Plataforma</span>
+                        <NavLink href="invitaciones"><Icono Nombre="invitaciones" /><span>Invitaciones</span></NavLink>
+                    }
+                }
+            </nav>
+
+            <div class="lateral-pie">
+                <span class="avatar" aria-hidden="true">@Iniciales</span>
+                <span class="usuario">
+                    <strong>@Sesion.Actual!.NombreCompleto</strong>
+                    <small>@Sesion.Actual.Rol · @Sesion.Actual.Comercio</small>
+                </span>
+                <button class="btn-icono" @onclick="CerrarSesion" title="Salir" aria-label="Cerrar sesión"><Icono Nombre="salir" /></button>
+            </div>
+        </aside>
+
+        <div class="lateral-fondo" @onclick="CerrarMenu"></div>
+
+        <div class="principal">
+            <header class="barra">
+                <button class="btn-icono btn-menu" @onclick="AlternarMenu" aria-label="Abrir menú"
+                        aria-controls="menu-lateral" aria-expanded="@(menuAbierto ? "true" : "false")"><Icono Nombre="menu" /></button>
+                <span class="barra-comercio">@Sesion.Actual.Comercio</span>
+                <span class="barra-info">@Sesion.Actual.NombreCompleto <span class="badge">@Sesion.Actual.Rol</span></span>
+            </header>
+            <main class="contenido">
+                @Body
+            </main>
+        </div>
+    </div>
+}
+else
+{
+    <div class="publico">
+        <div class="publico-marca">
+            <span class="marca-logo" aria-hidden="true">PV</span>
+            <span class="marca-texto">PosVentas<small>Punto de venta para tu comercio</small></span>
+        </div>
+        @Body
+        <p class="publico-pie">© HS Tech</p>
+    </div>
+}
 
 @code {
+    private bool menuAbierto;
+
+    private string Iniciales
+    {
+        get
+        {
+            var partes = (Sesion.Actual?.NombreCompleto ?? "?").Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            return string.Concat(partes.Take(2).Select(p => char.ToUpperInvariant(p[0])));
+        }
+    }
+
     protected override void OnInitialized() => Sesion.Cambio += AlCambiar;
 
     private void AlCambiar() => InvokeAsync(StateHasChanged);
 
+    private void AlternarMenu() => menuAbierto = !menuAbierto;
+
+    private void CerrarMenu() => menuAbierto = false;
+
     private void CerrarSesion()
     {
+        menuAbierto = false;
         Sesion.Cerrar();
         Navegacion.NavigateTo("/");
     }

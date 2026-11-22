@@ -1,0 +1,77 @@
+@implements IDisposable
+
+@* Búsqueda a medida que se escribe: espera una pausa breve antes de consultar la API.
+   Enter (o un lector de código de barras) busca al instante. *@
+<form class="buscador" @onsubmit="BuscarAhoraAsync">
+    <input @ref="campo" type="search" value="@Valor" @oninput="AlEscribirAsync" placeholder="@Placeholder" aria-label="@Etiqueta"
+           disabled="@Deshabilitado" autocomplete="off" />
+    <button type="submit" class="btn-buscar" disabled="@Deshabilitado">Buscar</button>
+</form>
+
+@code {
+    [Parameter] public string? Valor { get; set; }
+    [Parameter] public EventCallback<string?> ValorChanged { get; set; }
+    [Parameter, EditorRequired] public EventCallback OnBuscar { get; set; }
+    [Parameter] public string? Placeholder { get; set; }
+    [Parameter] public string? Etiqueta { get; set; }
+    [Parameter] public bool Deshabilitado { get; set; }
+    [Parameter] public int DemoraMs { get; set; } = 300;
+
+    private ElementReference campo;
+    private CancellationTokenSource? espera;
+
+    /// <summary>Deja el cursor en el campo, listo para la próxima búsqueda o lectura de código.</summary>
+    public ValueTask EnfocarAsync() => campo.FocusAsync();
+
+    /// <summary>Cancela una búsqueda pendiente (por ejemplo, al limpiar el texto desde la página).</summary>
+    public void CancelarPendiente() => espera?.Cancel();
+    // Una búsqueda por vez: así la última que se escribió es la última que se muestra.
+    private readonly SemaphoreSlim turno = new(1, 1);
+
+    private async Task AlEscribirAsync(ChangeEventArgs e)
+    {
+        Valor = e.Value?.ToString();
+        await ValorChanged.InvokeAsync(Valor);
+
+        espera?.Cancel();
+        espera?.Dispose();
+        espera = new CancellationTokenSource();
+        var token = espera.Token;
+        try
+        {
+            await Task.Delay(DemoraMs, token);
+        }
+        catch (TaskCanceledException)
+        {
+            return; // el usuario siguió escribiendo
+        }
+        await BuscarAsync(token);
+    }
+
+    private async Task BuscarAhoraAsync()
+    {
+        espera?.Cancel();
+        await BuscarAsync(CancellationToken.None);
+    }
+
+    private async Task BuscarAsync(CancellationToken token)
+    {
+        await turno.WaitAsync();
+        try
+        {
+            if (!token.IsCancellationRequested)
+                await OnBuscar.InvokeAsync();
+        }
+        finally
+        {
+            turno.Release();
+        }
+    }
+
+    public void Dispose()
+    {
+        espera?.Cancel();
+        espera?.Dispose();
+        turno.Dispose();
+    }
+}

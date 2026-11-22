@@ -30,10 +30,7 @@ else
 
     <section class="tarjeta">
         <div class="encabezado">
-            <form class="buscador" @onsubmit="CargarAsync">
-                <input type="search" @bind="buscar" placeholder="Buscar por razón social o CUIT" aria-label="Buscar proveedores" />
-                <button type="submit" class="btn-secundario">Buscar</button>
-            </form>
+            <CampoBusqueda @bind-Valor="buscar" OnBuscar="CargarAsync" Placeholder="Buscar por razón social o CUIT" Etiqueta="Buscar proveedores" />
             <label class="check"><input type="checkbox" @bind="incluirInactivos" @bind:after="CargarAsync" /> Incluir dados de baja</label>
         </div>
 

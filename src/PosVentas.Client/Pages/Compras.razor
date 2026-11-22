@@ -34,10 +34,7 @@ else
         <section class="tarjeta">
             <h2>Productos</h2>
             <div class="encabezado">
-                <form class="buscador" @onsubmit="BuscarAsync">
-                    <input type="search" @bind="buscar" placeholder="Buscar producto por nombre" aria-label="Buscar producto" />
-                    <button type="submit" class="btn-secundario">Buscar</button>
-                </form>
+                <CampoBusqueda @ref="campoBusqueda" @bind-Valor="buscar" OnBuscar="BuscarAsync" Placeholder="Nombre, SKU o código de barras" Etiqueta="Buscar producto" />
                 @if (stockBajo.Count > 0)
                 {
                     <button class="btn-secundario" @onclick="AgregarStockBajo">Agregar los @stockBajo.Count con stock bajo</button>
@@ -58,7 +55,7 @@ else
                                 }
                             </span>
                             <span class="num">costo @Pesos(p.PrecioCompra)</span>
-                            <button class="btn-secundario" @onclick="() => Agregar(p)">Agregar</button>
+                            <button class="btn-agregar" @onclick="() => Agregar(p)">+ Agregar</button>
                         </li>
                     }
                 </ul>
@@ -254,10 +251,19 @@ else
         compras = (await Api.ObtenerComprasAsync()).Take(20).ToList();
     }
 
-    private async Task BuscarAsync() =>
+    private async Task BuscarAsync()
+    {
+        if (string.IsNullOrWhiteSpace(buscar))
+        {
+            resultados = [];
+            return;
+        }
         await EjecutarAsync(async () => resultados = (await Api.ObtenerProductosAsync(buscar)).Take(15).ToList());
+    }
 
-    private void Agregar(ProductoDto producto)
+    private CampoBusqueda? campoBusqueda;
+
+    private async Task Agregar(ProductoDto producto)
     {
         var existente = renglones.FirstOrDefault(r => r.Producto.Id == producto.Id);
         if (existente is not null)
@@ -265,6 +271,13 @@ else
         else
             renglones.Add(new RenglonCompra(producto));
         ultima = null;
+
+        // Búsqueda limpia y cursor en el campo para el próximo artículo.
+        campoBusqueda?.CancelarPendiente();
+        buscar = null;
+        resultados = [];
+        if (campoBusqueda is not null)
+            await campoBusqueda.EnfocarAsync();
     }
 
     /// <summary>Agrega lo que falta para llegar al stock mínimo (al menos 1) de cada producto en alerta.</summary>

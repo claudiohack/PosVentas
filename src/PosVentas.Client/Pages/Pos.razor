@@ -71,10 +71,7 @@ else
                 <p class="caja-activa">Caja: <strong>@sesionesAbiertas[0].Caja</strong></p>
             }
 
-            <form class="buscador" @onsubmit="BuscarAsync">
-                <input type="search" @bind="buscar" placeholder="Buscar producto por nombre" aria-label="Buscar producto" />
-                <button type="submit" class="btn-secundario">Buscar</button>
-            </form>
+            <CampoBusqueda @ref="campoBusqueda" @bind-Valor="buscar" OnBuscar="BuscarAsync" Placeholder="Nombre, SKU o código de barras" Etiqueta="Buscar producto" />
 
             @if (resultados.Count > 0)
             {
@@ -90,7 +87,7 @@ else
                                 }
                             </span>
                             <span class="num">@Pesos(p.PrecioVenta) + IVA @p.PorcentajeIva.ToString("0.##")%</span>
-                            <button class="btn-secundario" @onclick="() => Agregar(p)">Agregar</button>
+                            <button class="btn-agregar" @onclick="() => Agregar(p)">+ Agregar</button>
                         </li>
                     }
                 </ul>
@@ -109,7 +106,7 @@ else
                     {
                         <tr>
                             <td>@r.Producto.Nombre</td>
-                            <td class="num"><input class="cantidad" type="number" min="0.001" step="0.001" @bind="r.Cantidad" aria-label="Cantidad de @r.Producto.Nombre" /></td>
+                            <td class="num"><input class="cantidad" type="number" min="0.001" step="0.001" @bind="r.Cantidad" @bind:event="oninput" aria-label="Cantidad de @r.Producto.Nombre" /></td>
                             <td class="num">@Pesos(r.Producto.PrecioVenta)</td>
                             <td class="num">@Pesos(r.Iva)</td>
                             <td class="num">@Pesos(r.Total)</td>
@@ -175,7 +172,7 @@ else
                             <option value="@medio">@Etiquetas.Medio(medio)</option>
                         }
                     </select>
-                    <input type="number" min="0" step="0.01" @bind="pago.Monto" aria-label="Monto" />
+                    <input type="number" min="0" step="0.01" @bind="pago.Monto" @bind:event="oninput" aria-label="Monto" />
                     <button class="btn-secundario" @onclick="() => pagos.Remove(pago)" aria-label="Quitar pago">✕</button>
                 </div>
             }
@@ -184,16 +181,17 @@ else
                 <button class="btn-secundario" @onclick="CobrarExacto" disabled="@(Total == 0)">Exacto</button>
             </div>
 
-            <p>Pagado: @Pesos(Pagado)
+            <div class="resumen-cobro" aria-live="polite">
+                <span>Pagado <strong>@Pesos(Pagado)</strong></span>
                 @if (Pagado > Total && Total > 0)
                 {
-                    <span class="vuelto"> · Vuelto: @Pesos(Pagado - Total)</span>
+                    <span class="saldo-cobro vuelto">Vuelto <strong>@Pesos(Pagado - Total)</strong></span>
                 }
                 else if (Pagado < Total)
                 {
-                    <span class="faltante"> · Falta: @Pesos(Total - Pagado)</span>
+                    <span class="saldo-cobro faltante">Falta <strong>@Pesos(Total - Pagado)</strong></span>
                 }
-            </p>
+            </div>
 
             <button class="btn-primario" @onclick="CobrarAsync" disabled="@(!PuedeCobrar || procesando)">
                 @(procesando ? "Registrando…" : $"Cobrar {Pesos(Total)}")
@@ -255,10 +253,17 @@ else
 
     private async Task BuscarAsync()
     {
+        if (string.IsNullOrWhiteSpace(buscar))
+        {
+            resultados = [];
+            return;
+        }
         await EjecutarAsync(async () => resultados = (await Api.ObtenerProductosAsync(buscar)).Take(10).ToList());
     }
 
-    private void Agregar(ProductoDto producto)
+    private CampoBusqueda? campoBusqueda;
+
+    private async Task Agregar(ProductoDto producto)
     {
         var existente = carrito.FirstOrDefault(r => r.Producto.Id == producto.Id);
         if (existente is not null)
@@ -266,6 +271,13 @@ else
         else
             carrito.Add(new RenglonCarrito(producto));
         ultimaVenta = null;
+
+        // Búsqueda limpia y cursor en el campo para el próximo artículo.
+        campoBusqueda?.CancelarPendiente();
+        buscar = null;
+        resultados = [];
+        if (campoBusqueda is not null)
+            await campoBusqueda.EnfocarAsync();
     }
 
     private void Quitar(RenglonCarrito renglon) => carrito.Remove(renglon);

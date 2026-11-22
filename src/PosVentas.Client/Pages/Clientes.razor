@@ -57,10 +57,7 @@
 
 <section class="tarjeta">
     <div class="encabezado">
-        <form class="buscador" @onsubmit="CargarAsync">
-            <input type="search" @bind="buscar" placeholder="Buscar por nombre o documento" aria-label="Buscar clientes" />
-            <button type="submit" class="btn-secundario">Buscar</button>
-        </form>
+        <CampoBusqueda @bind-Valor="buscar" OnBuscar="CargarAsync" Placeholder="Buscar por nombre o documento" Etiqueta="Buscar clientes" />
         <label class="check"><input type="checkbox" @bind="soloCuentaCorriente" @bind:after="CargarAsync" /> Solo con cuenta corriente</label>
     </div>
 

@@ -20,10 +20,7 @@
 <section class="tarjeta">
     <div class="encabezado">
         <h1>Productos</h1>
-        <form class="buscador" @onsubmit="CargarAsync">
-            <input type="search" @bind="buscar" placeholder="Nombre, SKU o código de barras" aria-label="Buscar productos" disabled="@soloStockBajo" />
-            <button type="submit" class="btn-secundario" disabled="@soloStockBajo">Buscar</button>
-        </form>
+        <CampoBusqueda @bind-Valor="buscar" OnBuscar="CargarAsync" Placeholder="Nombre, SKU o código de barras" Etiqueta="Buscar productos" Deshabilitado="soloStockBajo" />
         <label class="check"><input type="checkbox" @bind="soloStockBajo" @bind:after="CargarAsync" /> Solo stock bajo</label>
         @if (Sesion.EsAdministrador)
         {
