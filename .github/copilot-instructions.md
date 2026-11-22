@@ -74,6 +74,11 @@ dotnet ef database update --project src/PosVentas.Infrastructure --startup-proje
 - Alta de comercios SOLO por invitación: `POST /api/auth/invitaciones` (política `AdministradorGlobal` = administrador del comercio con `EsPlataforma`, claim `plat=1`) y `POST /api/auth/registro-invitacion`. El token se entrega una vez; solo se persiste su hash SHA-256. El alta abierta `POST /api/auth/registro` está deshabilitada.
 - El comercio operador (HS Tech) lo crea `InicializadorBaseDatos` desde `Plataforma:*` cuando `BaseDatos:InicializarAlArrancar=true` (Docker y Development); los tests lo llaman después de migrar.
 - Productos: SKU y código de barras únicos por comercio; la búsqueda acepta nombre parcial o SKU / código exactos (scanner). Precio por margen o precio de venta fijo (`FijarPrecioVenta` recalcula el margen). IVA solo en alícuotas de ARCA.
+- Planilla de productos (Excel .xlsx vía `IPlanillaProductos`, implementada con Open XML SDK en `Infrastructure/Planillas`):
+  - `GET /api/productos/exportar` (política `Supervision`): catálogo completo, incluidos los dados de baja; sirve de plantilla.
+  - `POST /api/productos/importar?simular=` (`SoloAdministrador` + `IRequiereAdministrador`): por SKU, crea o actualiza; celda vacía = no cambiar; categoría inexistente se crea.
+  - Todo o nada en un solo `SaveChanges`: con cualquier error de fila no se guarda nada. `simular=true` es la vista previa.
+  - El stock de los existentes no se toca (solo compras y ventas); en los nuevos la columna Stock es el stock inicial. Máximo 5 MB y 5.000 filas.
 - Categorías: no se dan de baja con productos activos; el orden se fija con `PUT /api/categorias/orden`.
 - Anulaciones (`POST /api/ventas/{id}/anular`, política `Supervision`): anulación total vía `AnulacionVenta.Registrar` en un solo `SaveChanges`.
   - Revierte: stock con `Producto.ReintegrarStock`, egresos `DevolucionAnulacion` (monto negativo, efectivo neto del vuelto) en la caja abierta, y `Cliente.RevertirCargo` (el saldo puede quedar a favor del cliente).

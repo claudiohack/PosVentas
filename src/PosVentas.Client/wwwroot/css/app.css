@@ -164,16 +164,20 @@ input[type=number] { font-variant-numeric: tabular-nums; }
 
 .principal { margin-left: var(--pv-ancho-lateral); min-width: 0; }
 
+/* Barra superior: degradé azul acero que se separa del área de trabajo clara */
 .barra {
     position: sticky; top: 0; z-index: 700;
     display: flex; align-items: center; gap: 0.75rem;
     height: 58px; padding: 0 1.5rem;
-    background: rgba(255, 255, 255, 0.88);
-    backdrop-filter: saturate(180%) blur(8px);
-    border-bottom: 1px solid var(--pv-borde);
+    background: linear-gradient(90deg, #dce6fa 0%, #e8eefb 55%, #eef2fb 100%);
+    border-bottom: 1px solid #c9d6f2;
+    box-shadow: 0 2px 8px rgba(23, 32, 51, 0.06);
 }
-.barra-comercio { font-weight: 650; }
-.barra-info { margin-left: auto; display: flex; align-items: center; gap: 0.5rem; font-size: 0.88rem; color: var(--pv-texto-secundario); }
+.barra-comercio { font-weight: 700; color: #1a2f66; }
+.barra-info { margin-left: auto; display: flex; align-items: center; gap: 0.5rem; font-size: 0.88rem; color: #3b4d78; }
+.barra-info .badge { background: rgba(255, 255, 255, 0.75); border-color: #bccbee; color: #1a3f9c; }
+.barra .btn-menu { color: #1a2f66; }
+.barra .btn-menu:hover { background: rgba(255, 255, 255, 0.6); }
 .barra .btn-menu { display: none; }
 
 .contenido { padding: 1.5rem; max-width: 1280px; margin: 0 auto; }
@@ -383,6 +387,16 @@ label.check, .modal label.check, .grilla-form label.check {
 .resultados li:last-child { border-bottom: none; }
 .resultados li > span:first-child { flex: 1 1 200px; font-weight: 500; }
 .resultados li small { font-weight: 400; }
+/* Carrito: degradé verde agua para diferenciarlo de los resultados de búsqueda (azulados) */
+table.carrito {
+    background: linear-gradient(180deg, #e3f6f2 0%, #f2fbf9 100%);
+    border: 1px solid #bfe6dd;
+    border-radius: var(--pv-radio-chico);
+}
+table.carrito th { background: rgba(178, 228, 216, 0.45); color: #1f5f55; border-bottom-color: #bfe6dd; }
+table.carrito td { border-bottom-color: #d3eee8; }
+table.carrito tbody tr:hover td { background: rgba(255, 255, 255, 0.5); }
+table.carrito input.cantidad { background: #ffffff; }
 .cantidad { width: 6.5rem; text-align: right; }
 input.cantidad { min-height: 34px; padding: 0.3rem 0.5rem; }
 .cobro h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--pv-texto-secundario); margin: 1rem 0 0.5rem; }
@@ -406,6 +420,40 @@ input.cantidad { min-height: 34px; padding: 0.3rem 0.5rem; }
 .alerta-stock + .tarjeta { margin-top: 0; }
 .minimo-form { display: inline-flex; gap: 0.35rem; justify-content: flex-end; }
 .vista-precio { padding: 0.65rem 0.85rem; border-radius: var(--pv-radio-chico); background: var(--pv-primario-suave); color: var(--pv-primario-texto); }
+.acciones-encabezado { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.btn-excel {
+    display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+    min-height: 40px; padding: 0.5rem 0.9rem;
+    font: inherit; font-weight: 600; font-size: 0.9rem; white-space: nowrap; cursor: pointer;
+    border-radius: var(--pv-radio-chico); border: 1px solid #a7d7b8; background: #eaf7ef; color: #17693a;
+    transition: background 0.15s, border-color 0.15s;
+}
+.btn-excel .icono { width: 18px; height: 18px; }
+.btn-excel:hover:not(:disabled) { background: #d8f0e1; border-color: #84c79c; }
+.btn-excel:disabled { opacity: 0.6; cursor: wait; }
+.btn-excel:focus-visible { outline: none; box-shadow: var(--pv-foco); }
+
+/* Importación desde Excel */
+.ayuda-importacion { margin: 0 0 1rem; padding-left: 1.1rem; color: var(--pv-texto-secundario); font-size: 0.88rem; }
+.ayuda-importacion li + li { margin-top: 0.25rem; }
+.selector-archivo {
+    position: relative; display: flex !important; align-items: center; gap: 0.75rem;
+    padding: 1.1rem 1rem; border: 2px dashed #b8c6e6; border-radius: var(--pv-radio); background: #f5f8fe;
+    cursor: pointer; transition: border-color 0.15s, background 0.15s;
+}
+.selector-archivo:hover { border-color: var(--pv-primario); background: #eef3fd; }
+.selector-archivo.con-archivo { border-style: solid; border-color: #a7d7b8; background: #f0f9f3; }
+.selector-archivo input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.selector-archivo-texto { display: flex; flex-direction: column; }
+.selector-archivo-texto small { font-weight: 400; }
+.resumen-importacion { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1rem 0 0.75rem; }
+.resumen-importacion span { padding: 0.35rem 0.75rem; border-radius: 999px; background: var(--pv-superficie-2); border: 1px solid var(--pv-borde); font-size: 0.88rem; }
+.resumen-importacion .nuevo { background: var(--pv-exito-suave); border-color: #bfe1c9; color: var(--pv-exito); }
+.resumen-importacion .actualizado { background: var(--pv-primario-suave); border-color: #c8d6f7; color: var(--pv-primario-texto); }
+.errores-importacion { max-height: 240px; overflow: auto; border: 1px solid #f6c9c4; border-radius: var(--pv-radio-chico); }
+.errores-importacion table { margin-top: 0; font-size: 0.85rem; }
+.errores-importacion td { white-space: normal; }
+
 .enlace-invitacion { flex: 1 1 320px; min-width: 0; font-size: 0.85rem; font-family: ui-monospace, "Cascadia Code", Consolas, monospace; }
 
 /* ---------- Facturación electrónica ---------- */

@@ -1,0 +1,165 @@
+@inject PosVentasApi Api
+
+@* Importación desde Excel en dos pasos: vista previa (simular) y confirmación. *@
+
+<div class="modal-fondo" @onclick="CancelarAsync"></div>
+<div class="modal modal-ancho" role="dialog" aria-modal="true" aria-labelledby="titulo-importar">
+    <h2 id="titulo-importar">Importar productos desde Excel</h2>
+
+    <ul class="ayuda-importacion">
+        <li>Usá como base la planilla de <strong>Exportar Excel</strong>: cada fila se identifica por el <strong>SKU</strong>.</li>
+        <li>Si el SKU ya existe, el producto se actualiza; si no, se crea. Una celda vacía deja el valor actual.</li>
+        <li>El stock de los productos existentes no cambia; en los nuevos, la columna Stock es el stock inicial.</li>
+        <li>Primero vas a ver una vista previa. Si alguna fila tiene errores no se importa nada.</li>
+    </ul>
+
+    <label class="selector-archivo @(nombreArchivo is null ? null : "con-archivo")">
+        <InputFile OnChange="ElegirAsync" accept=".xlsx" disabled="@procesando" />
+        <span class="selector-archivo-texto">
+            <strong>@(nombreArchivo ?? "Elegí una planilla .xlsx")</strong>
+            <small>@(nombreArchivo is null ? "Hasta 5 MB y 5.000 filas" : "Tocá para elegir otra")</small>
+        </span>
+    </label>
+
+    @if (procesando)
+    {
+        <p class="ayuda" role="status">@(previa is null ? "Analizando la planilla…" : "Importando…")</p>
+    }
+
+    @if (error is not null)
+    {
+        <p class="error" role="alert">@error</p>
+    }
+
+    @if (previa is not null)
+    {
+        <div class="resumen-importacion" role="status">
+            <span><strong>@previa.FilasLeidas</strong> filas</span>
+            <span class="nuevo"><strong>@previa.Nuevos</strong> nuevos</span>
+            <span class="actualizado"><strong>@previa.Actualizados</strong> a actualizar</span>
+            <span><strong>@previa.SinCambios</strong> sin cambios</span>
+        </div>
+        @if (previa.CategoriasNuevas.Count > 0)
+        {
+            <p class="ayuda">Se van a crear las categorías: <strong>@string.Join(", ", previa.CategoriasNuevas)</strong>.</p>
+        }
+
+        @if (previa.Errores.Count > 0)
+        {
+            <p class="error" role="alert">Hay @previa.Errores.Count @(previa.Errores.Count == 1 ? "fila con error" : "filas con errores"). Corregí la planilla y volvé a elegirla: no se importó nada.</p>
+            <div class="errores-importacion">
+                <table>
+                    <thead><tr><th class="num">Fila</th><th>Error</th></tr></thead>
+                    <tbody>
+                        @foreach (var e in previa.Errores)
+                        {
+                            <tr><td class="num">@e.Fila</td><td>@e.Mensaje</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else if (previa.Nuevos + previa.Actualizados == 0)
+        {
+            <p class="ayuda">La planilla no tiene cambios respecto del catálogo actual.</p>
+        }
+        else
+        {
+            <p class="ok" role="status">La planilla está correcta. Confirmá para guardar los cambios.</p>
+        }
+    }
+
+    <div class="acciones">
+        <button type="button" class="btn-secundario" @onclick="CancelarAsync" disabled="@procesando">Cancelar</button>
+        <button type="button" class="btn-primario" @onclick="ImportarAsync" disabled="@(!PuedeImportar || procesando)">
+            @(previa is { Nuevos: var n, Actualizados: var a } && n + a > 0 ? $"Importar {n + a} producto{(n + a == 1 ? "" : "s")}" : "Importar")
+        </button>
+    </div>
+</div>
+
+@code {
+    private const long TamanioMaximo = 5 * 1024 * 1024;
+
+    [Parameter, EditorRequired] public EventCallback<ResultadoImportacionDto> OnImportado { get; set; }
+    [Parameter, EditorRequired] public EventCallback OnCancelar { get; set; }
+
+    private byte[]? contenido;
+    private string? nombreArchivo;
+    private ResultadoImportacionDto? previa;
+    private string? error;
+    private bool procesando;
+
+    private bool PuedeImportar => contenido is not null && previa is { Errores.Count: 0 } p && p.Nuevos + p.Actualizados > 0;
+
+    private async Task ElegirAsync(InputFileChangeEventArgs e)
+    {
+        error = null;
+        previa = null;
+        contenido = null;
+        nombreArchivo = e.File.Name;
+
+        if (!e.File.Name.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+        {
+            error = "Elegí un archivo .xlsx. Si tenés un .xls o .csv, abrilo en Excel y guardalo como \"Libro de Excel (.xlsx)\".";
+            return;
+        }
+        if (e.File.Size > TamanioMaximo)
+        {
+            error = "La planilla no puede superar los 5 MB.";
+            return;
+        }
+
+        procesando = true;
+        try
+        {
+            using var ms = new MemoryStream();
+            await using (var stream = e.File.OpenReadStream(TamanioMaximo))
+                await stream.CopyToAsync(ms);
+            contenido = ms.ToArray();
+            previa = await Api.ImportarProductosAsync(contenido, e.File.Name, simular: true);
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        catch (HttpRequestException)
+        {
+            error = "No se pudo conectar con el servidor.";
+        }
+        finally
+        {
+            procesando = false;
+        }
+    }
+
+    private async Task ImportarAsync()
+    {
+        if (contenido is null || nombreArchivo is null) return;
+        error = null;
+        procesando = true;
+        try
+        {
+            var resultado = await Api.ImportarProductosAsync(contenido, nombreArchivo, simular: false);
+            if (resultado.Aplicado)
+            {
+                await OnImportado.InvokeAsync(resultado);
+                return;
+            }
+            previa = resultado; // cambió algo entre la vista previa y la confirmación: mostrar los errores
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        catch (HttpRequestException)
+        {
+            error = "No se pudo conectar con el servidor.";
+        }
+        finally
+        {
+            procesando = false;
+        }
+    }
+
+    private Task CancelarAsync() => procesando ? Task.CompletedTask : OnCancelar.InvokeAsync();
+}

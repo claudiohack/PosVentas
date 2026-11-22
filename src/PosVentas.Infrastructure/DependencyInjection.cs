@@ -63,6 +63,9 @@ public static class DependencyInjection
         services.AddScoped<IAfipService, Afip.AfipService>();
         services.AddSingleton<IGeneradorQr, Afip.GeneradorQr>();
 
+        // --- Planillas Excel (importación / exportación de productos) ---
+        services.AddSingleton<Application.Features.Productos.IPlanillaProductos, Planillas.PlanillaProductosExcel>();
+
         return services;
     }
 }

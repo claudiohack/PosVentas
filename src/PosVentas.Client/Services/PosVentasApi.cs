@@ -107,6 +107,27 @@ public sealed class PosVentasApi(HttpClient http, SesionService sesion)
         return EnviarAsync<List<ProductoDto>>(HttpMethod.Get, ruta, null, ct);
     }
 
+    /// <summary>Catálogo completo en .xlsx (sirve también de plantilla para importar).</summary>
+    public async Task<byte[]> ExportarProductosAsync(CancellationToken ct = default)
+    {
+        using var request = CrearRequest(HttpMethod.Get, "api/productos/exportar", null);
+        using var respuesta = await http.SendAsync(request, ct);
+        if (!respuesta.IsSuccessStatusCode)
+            await LeerAsync<object>(respuesta, ct); // lanza ApiException con el ProblemDetails
+        return await respuesta.Content.ReadAsByteArrayAsync(ct);
+    }
+
+    /// <param name="simular">true = vista previa sin guardar.</param>
+    public async Task<ResultadoImportacionDto> ImportarProductosAsync(byte[] contenido, string nombreArchivo, bool simular, CancellationToken ct = default)
+    {
+        using var request = CrearRequest(HttpMethod.Post, $"api/productos/importar?simular={(simular ? "true" : "false")}", null);
+        var archivo = new ByteArrayContent(contenido);
+        archivo.Headers.ContentType = new MediaTypeHeaderValue("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        request.Content = new MultipartFormDataContent { { archivo, "archivo", nombreArchivo } };
+        using var respuesta = await http.SendAsync(request, ct);
+        return await LeerAsync<ResultadoImportacionDto>(respuesta, ct);
+    }
+
     public Task<List<ProductoDto>> ObtenerProductosStockBajoAsync(CancellationToken ct = default) =>
         EnviarAsync<List<ProductoDto>>(HttpMethod.Get, "api/productos/stock-bajo", null, ct);
 

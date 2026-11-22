@@ -15,6 +15,9 @@ public sealed class CredencialesInvalidasException()
 public sealed class InvitacionInvalidaException()
     : Exception("La invitación no es válida o ya venció. Pedile a HS Tech una nueva.");
 
+/// <summary>El archivo subido no es una planilla legible o no tiene el formato esperado.</summary>
+public sealed class PlanillaInvalidaException(string message) : Exception(message);
+
 /// <summary>El usuario está autenticado pero su rol no permite la operación.</summary>
 public sealed class AccesoDenegadoException(string message) : Exception(message);
 

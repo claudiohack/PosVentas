@@ -86,6 +86,41 @@ public sealed class ProductosController(ISender mediator) : ControllerBase
     public async Task<ActionResult<ProductoDto>> CambiarEstado(Guid id, EstadoProductoRequest r, CancellationToken ct)
         => Ok(await mediator.Send(new CambiarEstadoProductoCommand(id, r.Activo), ct));
 
+    /// <summary>Descarga el catálogo completo (incluye dados de baja) en Excel. Sirve también de plantilla para importar.</summary>
+    [HttpGet("exportar")]
+    [Authorize(Policy = Politicas.Supervision)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> Exportar(CancellationToken ct)
+    {
+        var archivo = await mediator.Send(new ExportarProductosQuery(), ct);
+        return File(archivo.Contenido, archivo.TipoContenido, $"productos-{DateTime.Now:yyyy-MM-dd}.xlsx");
+    }
+
+    /// <summary>
+    /// Alta y actualización masiva desde Excel, por SKU. Con <c>simular=true</c> devuelve la vista previa sin guardar.
+    /// Es todo o nada: si alguna fila tiene errores no se guarda ninguna (<c>aplicado=false</c> y la lista de errores).
+    /// </summary>
+    [HttpPost("importar")]
+    [Authorize(Policy = Politicas.SoloAdministrador)]
+    [RequestSizeLimit(ImportarProductosCommandValidator.TamanioMaximo + 64 * 1024)]
+    [RequestFormLimits(MultipartBodyLengthLimit = ImportarProductosCommandValidator.TamanioMaximo + 64 * 1024)]
+    [ProducesResponseType<ResultadoImportacionDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ResultadoImportacionDto>> Importar(IFormFile? archivo, [FromQuery] bool simular, CancellationToken ct)
+    {
+        if (archivo is null || archivo.Length == 0)
+            return Problem(statusCode: StatusCodes.Status400BadRequest, title: "Planilla inválida.", detail: "Elegí una planilla .xlsx.");
+        if (!archivo.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+            return Problem(statusCode: StatusCodes.Status400BadRequest, title: "Planilla inválida.",
+                detail: "Solo se aceptan planillas .xlsx (Excel 2007 o posterior). Si tenés un .xls o .csv, abrilo en Excel y guardalo como .xlsx.");
+        if (archivo.Length > ImportarProductosCommandValidator.TamanioMaximo)
+            return Problem(statusCode: StatusCodes.Status400BadRequest, title: "Planilla inválida.", detail: "La planilla no puede superar los 5 MB.");
+
+        using var ms = new MemoryStream((int)archivo.Length);
+        await archivo.CopyToAsync(ms, ct);
+        return Ok(await mediator.Send(new ImportarProductosCommand(ms.ToArray(), simular), ct));
+    }
+
     public sealed record ActualizarProductoRequest(
         string Sku, string Nombre, string? CodigoBarras, Guid CategoriaId, decimal PrecioCompra, decimal PorcentajeGanancia,
         decimal? PrecioVenta, decimal PorcentajeIva, bool VenderSinStock, decimal StockMinimo);

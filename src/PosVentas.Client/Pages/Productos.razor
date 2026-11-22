@@ -2,6 +2,7 @@
 @inject PosVentasApi Api
 @inject SesionService Sesion
 @inject NavigationManager Navegacion
+@inject IJSRuntime JS
 
 <PageTitle>Productos · PosVentas</PageTitle>
 
@@ -25,8 +26,22 @@
         @if (Sesion.EsAdministrador)
         {
             <label class="check"><input type="checkbox" @bind="incluirInactivos" @bind:after="CargarAsync" /> Incluir dados de baja</label>
-            <button class="btn-primario ancho-auto" @onclick="() => AbrirModal(null)">Nuevo producto</button>
         }
+        <div class="acciones-encabezado">
+            @if (Sesion.PuedeSupervisar)
+            {
+                <button class="btn-excel" @onclick="ExportarAsync" disabled="@exportando" title="Descargar el catálogo en Excel">
+                    <Icono Nombre="descargar" /> @(exportando ? "Generando…" : "Exportar Excel")
+                </button>
+            }
+            @if (Sesion.EsAdministrador)
+            {
+                <button class="btn-excel" @onclick="AbrirImportacion" title="Crear o actualizar productos desde una planilla">
+                    <Icono Nombre="subir" /> Importar Excel
+                </button>
+                <button class="btn-primario ancho-auto" @onclick="() => AbrirModal(null)">Nuevo producto</button>
+            }
+        </div>
     </div>
 
     @if (mensaje is not null)
@@ -118,7 +133,43 @@
     <ProductoModal Producto="editado" Categorias="categorias" OnGuardado="AlGuardarAsync" OnCancelar="() => mostrarModal = false" />
 }
 
+@if (mostrarImportacion)
+{
+    <ImportarProductosModal OnImportado="AlImportarAsync" OnCancelar="() => mostrarImportacion = false" />
+}
+
 @code {
+    private bool mostrarImportacion;
+    private bool exportando;
+
+    private void AbrirImportacion()
+    {
+        mensaje = null;
+        error = null;
+        mostrarImportacion = true;
+    }
+
+    private async Task AlImportarAsync(ResultadoImportacionDto r)
+    {
+        mostrarImportacion = false;
+        mensaje = $"Importación lista: {r.Nuevos} {(r.Nuevos == 1 ? "producto nuevo" : "productos nuevos")} y {r.Actualizados} {(r.Actualizados == 1 ? "actualizado" : "actualizados")}"
+            + (r.CategoriasNuevas.Count > 0 ? $". Categorías creadas: {string.Join(", ", r.CategoriasNuevas)}." : ".");
+        await CargarAsync();
+    }
+
+    private async Task ExportarAsync()
+    {
+        mensaje = null;
+        exportando = true;
+        await EjecutarAsync(async () =>
+        {
+            var contenido = await Api.ExportarProductosAsync();
+            await JS.InvokeVoidAsync("posVentas.descargarArchivo", $"productos-{DateTime.Now:yyyy-MM-dd}.xlsx",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", contenido);
+        });
+        exportando = false;
+    }
+
     private List<ProductoDto>? productos;
     private List<CategoriaDto> categorias = [];
     private ProductoDto? editado;

@@ -4,6 +4,13 @@ namespace PosVentas.Client.Models;
 
 public sealed record CategoriaDto(Guid Id, string Nombre, string? Descripcion, int OrdenDisplay, bool EstaActivo);
 
+/// <summary>Resultado (o vista previa, si Aplicado = false y no hay errores) de una importación de productos desde Excel.</summary>
+public sealed record ResultadoImportacionDto(
+    bool Aplicado, int FilasLeidas, int Nuevos, int Actualizados, int SinCambios,
+    List<string> CategoriasNuevas, List<ErrorFilaImportacionDto> Errores);
+
+public sealed record ErrorFilaImportacionDto(int Fila, string Mensaje);
+
 public sealed class CategoriaFormulario
 {
     [Required(ErrorMessage = "Ingresá el nombre.")]

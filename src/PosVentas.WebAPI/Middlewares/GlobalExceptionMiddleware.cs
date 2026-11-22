@@ -34,6 +34,7 @@ public sealed class GlobalExceptionMiddleware(ILogger<GlobalExceptionMiddleware>
                     .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).Distinct().ToArray())),
             CredencialesInvalidasException ex => Crear(StatusCodes.Status401Unauthorized, "No autenticado.", ex.Message),
             InvitacionInvalidaException ex => Crear(StatusCodes.Status400BadRequest, "Invitación inválida.", ex.Message),
+            PlanillaInvalidaException ex => Crear(StatusCodes.Status400BadRequest, "Planilla inválida.", ex.Message),
             AfipRechazoException ex => CrearRechazoAfip(ex),
             AfipNoDisponibleException ex => CrearAfipNoDisponible(ex),
             AccesoDenegadoException ex => Crear(StatusCodes.Status403Forbidden, "Acceso denegado.", ex.Message),
