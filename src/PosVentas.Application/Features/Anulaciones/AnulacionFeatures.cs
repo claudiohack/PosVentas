@@ -1,6 +1,7 @@
 using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using PosVentas.Application.Common.Auditoria;
 using PosVentas.Application.Common.Exceptions;
 using PosVentas.Application.Common.Interfaces;
 using PosVentas.Application.Common.Security;
@@ -53,7 +54,8 @@ public sealed class AnularVentaCommandHandler(
     IApplicationDbContext db,
     ICurrentUserService usuarioActual,
     ICurrentTenantService tenant,
-    EmisorComprobantesFiscales emisor) : IRequestHandler<AnularVentaCommand, AnulacionDto>
+    EmisorComprobantesFiscales emisor,
+    RegistradorAuditoria auditoria) : IRequestHandler<AnularVentaCommand, AnulacionDto>
 {
     public async Task<AnulacionDto> Handle(AnularVentaCommand request, CancellationToken ct)
     {
@@ -82,6 +84,13 @@ public sealed class AnularVentaCommandHandler(
         db.MovimientosCaja.AddRange(resultado.EgresosCaja);
         if (resultado.AjusteCuentaCorriente is not null)
             db.MovimientosCuentaCorriente.Add(resultado.AjusteCuentaCorriente);
+
+        var a = resultado.Anulacion;
+        var comprobante = venta.EsFiscal ? $" (comprobante {venta.PuntoVenta:00000}-{venta.NumeroComprobante:00000000})" : string.Empty;
+        auditoria.Registrar(AccionesAuditoria.VentaAnulada, nameof(Venta), venta.Id,
+            $"Venta de {RegistradorAuditoria.Importe(venta.TotalGeneral)}{comprobante} anulada. Motivo: {a.Motivo}. " +
+            $"Devuelto en caja: {RegistradorAuditoria.Importe(a.MontoDevueltoEnCaja)}; " +
+            $"acreditado en cuenta corriente: {RegistradorAuditoria.Importe(a.MontoAcreditadoCuentaCorriente)}.");
 
         // Una sola transacción: venta anulada, stock, egresos y totales del turno, cuenta corriente y la anulación.
         // El índice único por VentaId y las RowVersion (Producto, Cliente, CajaSesion) convierten una anulación

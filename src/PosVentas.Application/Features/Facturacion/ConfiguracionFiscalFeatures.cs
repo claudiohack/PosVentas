@@ -1,6 +1,7 @@
 ﻿using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using PosVentas.Application.Common.Auditoria;
 using PosVentas.Application.Common.Interfaces;
 using PosVentas.Application.Common.Security;
 using PosVentas.Domain.Common;
@@ -75,7 +76,7 @@ public sealed class ActualizarDatosFiscalesCommandValidator : AbstractValidator<
     }
 }
 
-public sealed class ActualizarDatosFiscalesCommandHandler(IApplicationDbContext db, ICurrentTenantService tenant)
+public sealed class ActualizarDatosFiscalesCommandHandler(IApplicationDbContext db, ICurrentTenantService tenant, RegistradorAuditoria auditoria)
     : IRequestHandler<ActualizarDatosFiscalesCommand, ConfiguracionFiscalDto>
 {
     public async Task<ConfiguracionFiscalDto> Handle(ActualizarDatosFiscalesCommand r, CancellationToken ct)
@@ -83,6 +84,10 @@ public sealed class ActualizarDatosFiscalesCommandHandler(IApplicationDbContext 
         var comercio = await ComercioActual.ObtenerAsync(db, tenant, ct);
         comercio.ConfigurarDatosFiscales(r.Cuit, r.CondicionIva, r.PuntoVenta, r.DomicilioFiscal, r.IngresosBrutos,
             r.InicioActividades, r.Produccion);
+        auditoria.Registrar(AccionesAuditoria.FacturacionDatosModificados, nameof(Comercio), comercio.Id,
+            $"Datos fiscales: CUIT {CuitArgentino.Formatear(comercio.Cuit!)}, " +
+            $"{(comercio.CondicionIva == CondicionIva.ResponsableInscripto ? "Responsable Inscripto" : "Monotributista")}, " +
+            $"punto de venta {comercio.PuntoVentaAfip}, ambiente {(comercio.AfipProduccion ? "producción" : "homologación")}.");
         await db.SaveChangesAsync(ct);
         return ConfiguracionFiscalDto.Desde(comercio);
     }
@@ -122,7 +127,7 @@ public sealed class CargarCertificadoAfipCommandValidator : AbstractValidator<Ca
 }
 
 public sealed class CargarCertificadoAfipCommandHandler(
-    IApplicationDbContext db, ICurrentTenantService tenant, ICertificadoAfipProtector protector)
+    IApplicationDbContext db, ICurrentTenantService tenant, ICertificadoAfipProtector protector, RegistradorAuditoria auditoria)
     : IRequestHandler<CargarCertificadoAfipCommand, ConfiguracionFiscalDto>
 {
     public async Task<ConfiguracionFiscalDto> Handle(CargarCertificadoAfipCommand r, CancellationToken ct)
@@ -154,6 +159,9 @@ public sealed class CargarCertificadoAfipCommandHandler(
                 $"El certificado pertenece al CUIT {CuitArgentino.Formatear(cuitCert)}, no al del comercio ({CuitArgentino.Formatear(cuitComercio)}).");
 
         comercio.ConfigurarCertificadoAfip(certificado.Protegido, certificado.Sujeto, certificado.VenceUtc);
+        // Nunca el contenido del certificado ni la clave: solo a quién pertenece y cuándo vence.
+        auditoria.Registrar(AccionesAuditoria.FacturacionCertificadoCargado, nameof(Comercio), comercio.Id,
+            $"Certificado de ARCA cargado: {certificado.Sujeto}; vence el {certificado.VenceUtc:dd/MM/yyyy}.");
         await db.SaveChangesAsync(ct);
         return ConfiguracionFiscalDto.Desde(comercio);
     }
