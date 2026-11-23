@@ -1254,6 +1254,10 @@ namespace PosVentas.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("ComercioId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("DebitoAutomatico")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
                     b.Property<bool>("EnPrueba")
                         .HasColumnType("bit");
 
@@ -1265,6 +1269,11 @@ namespace PosVentas.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid>("PlanId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("PreaprobacionMercadoPagoId")
+                        .HasMaxLength(100)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(100)");
 
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
@@ -1281,6 +1290,10 @@ namespace PosVentas.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.HasIndex("PlanId");
+
+                    b.HasIndex("PreaprobacionMercadoPagoId")
+                        .IsUnique()
+                        .HasFilter("[PreaprobacionMercadoPagoId] IS NOT NULL");
 
                     b.ToTable("Suscripciones", (string)null);
                 });

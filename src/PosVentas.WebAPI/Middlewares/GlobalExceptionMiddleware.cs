@@ -40,6 +40,7 @@ public sealed class GlobalExceptionMiddleware(ILogger<GlobalExceptionMiddleware>
             AccesoDenegadoException ex => Crear(StatusCodes.Status403Forbidden, "Acceso denegado.", ex.Message),
             LimitePlanException ex => Crear(StatusCodes.Status403Forbidden, "Límite del plan.", ex.Message),
             SuscripcionVencidaException ex => Crear(StatusCodes.Status402PaymentRequired, "Suscripción vencida.", ex.Message),
+            MercadoPagoNoDisponibleException ex => Crear(StatusCodes.Status503ServiceUnavailable, "Mercado Pago no disponible.", ex.Message),
             TenantAccessException => Crear(StatusCodes.Status403Forbidden, "Acceso denegado.",
                 "La operación no está permitida para este comercio."),
             NotFoundException ex => Crear(StatusCodes.Status404NotFound, "Recurso no encontrado.", ex.Message),

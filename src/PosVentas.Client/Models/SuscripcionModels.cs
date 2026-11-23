@@ -10,6 +10,13 @@ public enum EstadoSuscripcion
     SoloLectura = 4
 }
 
+public enum EstadoDebitoAutomatico
+{
+    Activo = 1,
+    Pausado = 2,
+    Cancelado = 3
+}
+
 public enum OrigenPagoSuscripcion
 {
     Manual = 1,
@@ -53,7 +60,11 @@ public sealed record MiSuscripcionDto(
     int ProductosActivos,
     List<PlanDto> PlanesDisponibles,
     List<PagoSuscripcionDto> Pagos,
-    List<ModuloPlanDto> Modulos);
+    List<ModuloPlanDto> Modulos,
+    bool MercadoPagoHabilitado,
+    EstadoDebitoAutomatico? DebitoAutomatico);
+
+public sealed record InicioPagoDto(string UrlPago);
 
 public sealed record ComercioSuscripcionDto(
     Guid ComercioId,
@@ -68,7 +79,8 @@ public sealed record ComercioSuscripcionDto(
     bool EnPrueba,
     DateTime VenceUtc,
     int DiasRestantes,
-    DateTime? UltimoPagoUtc);
+    DateTime? UltimoPagoUtc,
+    EstadoDebitoAutomatico? DebitoAutomatico);
 
 /// <summary>Formulario de alta / edición de un plan (administración de la plataforma).</summary>
 public sealed class PlanFormulario

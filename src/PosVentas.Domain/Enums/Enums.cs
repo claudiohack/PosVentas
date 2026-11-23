@@ -122,6 +122,14 @@ public enum EstadoSuscripcion
     SoloLectura = 4
 }
 
+/// <summary>Estado del débito automático de Mercado Pago de una suscripción.</summary>
+public enum EstadoDebitoAutomatico
+{
+    Activo = 1,
+    Pausado = 2,
+    Cancelado = 3
+}
+
 public enum OrigenPagoSuscripcion
 {
     /// <summary>Registrado a mano por un administrador de la plataforma (transferencia, efectivo, cortesía).</summary>

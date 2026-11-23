@@ -57,6 +57,16 @@ public sealed class PosVentasApi(HttpClient http, SesionService sesion)
     public Task<MiSuscripcionDto> ObtenerMiSuscripcionAsync(CancellationToken ct = default) =>
         EnviarAsync<MiSuscripcionDto>(HttpMethod.Get, "api/suscripcion", null, ct);
 
+    public Task<InicioPagoDto> IniciarPagoMercadoPagoAsync(Guid planId, string emailPagador, CancellationToken ct = default) =>
+        EnviarAsync<InicioPagoDto>(HttpMethod.Post, "api/suscripcion/mercadopago", new { planId, emailPagador }, ct);
+
+    public async Task CancelarDebitoAutomaticoAsync(CancellationToken ct = default)
+    {
+        using var respuesta = await http.DeleteAsync("api/suscripcion/mercadopago", ct);
+        if (!respuesta.IsSuccessStatusCode)
+            await LeerAsync<object>(respuesta, ct); // lanza ApiException con el ProblemDetails
+    }
+
     // ---------- Plataforma: planes y comercios ----------
 
     public Task<List<ModuloPlanDto>> ObtenerModulosPlanAsync(CancellationToken ct = default) =>

@@ -42,6 +42,9 @@ public sealed class AfipNoDisponibleException(string message, Exception? inner =
     public Guid? VentaId { get; init; }
 }
 
+/// <summary>No se pudo comunicar con Mercado Pago (red, timeout, servicio caído o token inválido). Es reintentable (503).</summary>
+public sealed class MercadoPagoNoDisponibleException(string message, Exception? inner = null) : Exception(message, inner);
+
 /// <summary>El plan del comercio no incluye el módulo o se alcanzó uno de sus límites (403).</summary>
 public sealed class LimitePlanException(string message) : Exception(message);
 
