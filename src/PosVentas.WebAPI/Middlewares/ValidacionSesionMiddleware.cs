@@ -1,9 +1,12 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using PosVentas.Application.Common.Exceptions;
 using PosVentas.Application.Common.Interfaces;
 using PosVentas.Application.Common.Security;
+using PosVentas.Application.Common.Suscripciones;
 using PosVentas.Domain.Seguridad;
+using PosVentas.WebAPI.Security;
 using PosVentas.WebAPI.Services;
 
 namespace PosVentas.WebAPI.Middlewares;
@@ -22,22 +25,31 @@ public sealed class ValidacionSesionMiddleware(ILogger<ValidacionSesionMiddlewar
         // Sin autenticar, o sin comercio (la política de autorización responde 403): no hay sesión que validar.
         if (principal.Identity?.IsAuthenticated == true && principal.FindFirstValue(PosVentasClaims.TenantId) is not null)
         {
-            if (!await SesionVigenteAsync(context, principal))
+            var suscripcion = await SesionVigenteAsync(context, principal);
+            if (suscripcion is null)
             {
                 logger.LogInformation("Token revocado o de usuario inactivo en {Metodo} {Ruta}", context.Request.Method, context.Request.Path);
                 await RechazarAsync(context);
                 return;
             }
+
+            // Suscripción vencida y sin gracia: se puede consultar y exportar, pero nada que modifique datos.
+            if (!suscripcion.PermiteEscribir && !EsLectura(context.Request.Method)
+                && context.GetEndpoint()?.Metadata.GetMetadata<PermitidoConSuscripcionVencidaAttribute>() is null)
+                throw new SuscripcionVencidaException();
         }
 
         await next(context);
     }
 
-    private static async Task<bool> SesionVigenteAsync(HttpContext context, ClaimsPrincipal principal)
+    private static bool EsLectura(string metodo) => HttpMethods.IsGet(metodo) || HttpMethods.IsHead(metodo) || HttpMethods.IsOptions(metodo);
+
+    /// <summary>Devuelve la suscripción del comercio si la sesión es válida; null si el token quedó revocado.</summary>
+    private static async Task<SuscripcionVigente?> SesionVigenteAsync(HttpContext context, ClaimsPrincipal principal)
     {
         if (!Guid.TryParse(principal.FindFirstValue(PosVentasClaims.UsuarioId), out var usuarioId)
             || !Guid.TryParse(principal.FindFirstValue(PosVentasClaims.SelloSeguridad), out var sello))
-            return false;
+            return null;
 
         // Una sola consulta: estado del usuario + rol + permisos vigentes (filtrada por el tenant del token).
         var db = context.RequestServices.GetRequiredService<IApplicationDbContext>();
@@ -55,11 +67,15 @@ public sealed class ValidacionSesionMiddleware(ILogger<ValidacionSesionMiddlewar
             .SingleOrDefaultAsync(context.RequestAborted);
 
         if (usuario is null || !usuario.EstaActivo || !usuario.RolActivo || usuario.SecurityStamp != sello)
-            return false;
+            return null;
 
-        // Los permisos quedan disponibles para la autorización de este request (un cambio en el rol rige ya).
-        context.RequestServices.GetRequiredService<SesionActual>().Cargar(usuario.RolId, usuario.EsAdministrador, usuario.Permisos);
-        return true;
+        // Permisos efectivos de este request: los del rol menos los de módulos que el plan no incluye
+        // (un cambio en el rol o en el plan rige ya, sin volver a ingresar).
+        var suscripcion = await context.RequestServices.GetRequiredService<SuscripcionActual>().ObtenerAsync(context.RequestAborted);
+        var delRol = usuario.EsAdministrador ? Permisos.Todos : usuario.Permisos;
+        context.RequestServices.GetRequiredService<SesionActual>()
+            .Cargar(usuario.RolId, usuario.EsAdministrador, suscripcion.FiltrarPermisos(delRol));
+        return suscripcion;
     }
 
     private static async Task RechazarAsync(HttpContext context)

@@ -5,6 +5,7 @@ using PosVentas.Application.Common.Auditoria;
 using PosVentas.Application.Common.Exceptions;
 using PosVentas.Application.Common.Interfaces;
 using PosVentas.Application.Common.Security;
+using PosVentas.Application.Common.Suscripciones;
 using PosVentas.Application.Features.Auth;
 using PosVentas.Application.Features.Roles;
 using PosVentas.Domain.Common;
@@ -111,13 +112,15 @@ public sealed class CrearUsuarioCommandValidator : AbstractValidator<CrearUsuari
 }
 
 public sealed class CrearUsuarioCommandHandler(
-    IApplicationDbContext db, IPasswordHasher passwordHasher, ICurrentUserService usuarioActual, RegistradorAuditoria auditoria)
+    IApplicationDbContext db, IPasswordHasher passwordHasher, ICurrentUserService usuarioActual, RegistradorAuditoria auditoria,
+    SuscripcionActual suscripcion)
     : IRequestHandler<CrearUsuarioCommand, UsuarioDto>
 {
     public async Task<UsuarioDto> Handle(CrearUsuarioCommand request, CancellationToken ct)
     {
         var rol = await GestionUsuarios.ObtenerRolAsignableAsync(db, request.RolId, ct);
         ReglasRoles.ExigirPuedeAdministrar(usuarioActual, rol, "asignar el rol");
+        await ReglasPlan.ExigirCupoUsuariosAsync(db, suscripcion, ct);
 
         var username = Usuario.NormalizarUsername(request.NombreUsuario);
         if (await db.Usuarios.AnyAsync(u => u.Username == username, ct))
@@ -218,7 +221,8 @@ public sealed class CambiarPasswordCommandHandler(
 [RequierePermiso(Permisos.UsuariosGestionar)]
 public sealed record CambiarEstadoUsuarioCommand(Guid Id, bool Activo) : IRequest<UsuarioDto>;
 
-public sealed class CambiarEstadoUsuarioCommandHandler(IApplicationDbContext db, ICurrentUserService usuarioActual, RegistradorAuditoria auditoria)
+public sealed class CambiarEstadoUsuarioCommandHandler(
+    IApplicationDbContext db, ICurrentUserService usuarioActual, RegistradorAuditoria auditoria, SuscripcionActual suscripcion)
     : IRequestHandler<CambiarEstadoUsuarioCommand, UsuarioDto>
 {
     public async Task<UsuarioDto> Handle(CambiarEstadoUsuarioCommand request, CancellationToken ct)
@@ -231,6 +235,8 @@ public sealed class CambiarEstadoUsuarioCommandHandler(IApplicationDbContext db,
         {
             if (!rol.EstaActivo)
                 throw new DomainException($"El rol '{rol.Nombre}' fue eliminado: asignale otro rol al usuario antes de activarlo.");
+            if (!usuario.EstaActivo)
+                await ReglasPlan.ExigirCupoUsuariosAsync(db, suscripcion, ct);
             if (!usuario.EstaActivo)
                 auditoria.Registrar(AccionesAuditoria.UsuarioActivado, nameof(Usuario), usuario.Id, $"Usuario '{usuario.Username}' activado.");
             usuario.Activar();

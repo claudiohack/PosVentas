@@ -3,6 +3,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using PosVentas.Application.Common.Exceptions;
 using PosVentas.Application.Common.Interfaces;
+using PosVentas.Application.Common.Suscripciones;
 using PosVentas.Domain.Entities;
 
 namespace PosVentas.Application.Features.Auth;
@@ -27,7 +28,8 @@ public sealed class LoginCommandHandler(
     IApplicationDbContext db,
     ICurrentTenantService tenant,
     IPasswordHasher passwordHasher,
-    IJwtTokenGenerator tokenGenerator) : IRequestHandler<LoginCommand, AuthResponse>
+    IJwtTokenGenerator tokenGenerator,
+    SuscripcionActual suscripcion) : IRequestHandler<LoginCommand, AuthResponse>
 {
     public async Task<AuthResponse> Handle(LoginCommand request, CancellationToken cancellationToken)
     {
@@ -57,6 +59,7 @@ public sealed class LoginCommandHandler(
 
         var esAdminPlataforma = comercio.EsPlataforma && rol.EsAdministrador;
         var token = tokenGenerator.Generar(usuario, rol, esAdminPlataforma);
-        return AuthResponse.Crear(token, usuario, rol, comercio, esAdminPlataforma);
+        // Con la suscripción vencida igual se ingresa (solo lectura): el middleware bloquea las escrituras.
+        return AuthResponse.Crear(token, usuario, rol, comercio, esAdminPlataforma, await suscripcion.ObtenerAsync(cancellationToken));
     }
 }

@@ -48,7 +48,7 @@
                     </legend>
                     @foreach (var p in grupo.Permisos)
                     {
-                        var otorgable = Sesion.Tiene(p.Codigo);
+                        var otorgable = Otorgable(p.Codigo);
                         <label class="permiso @(otorgable ? null : "no-otorgable")" title="@(otorgable ? p.Descripcion : "Tu rol no tiene este permiso: no podés otorgarlo.")">
                             <input type="checkbox" checked="@f.Permisos.Contains(p.Codigo)" disabled="@(!otorgable)"
                                    @onchange="e => Alternar(p.Codigo, (bool)e.Value!)" />
@@ -93,6 +93,10 @@
 
     private int TotalPermisos => Catalogo.Sum(g => g.Permisos.Count);
 
+    // Sin escalada de privilegios: se otorga lo que uno tiene. El Administrador configura todo, incluso permisos
+    // de módulos que el plan no trae (rigen recién si el comercio pasa a un plan que los incluya).
+    private bool Otorgable(string codigo) => Sesion.EsAdministrador || Sesion.Tiene(codigo);
+
     protected override void OnParametersSet() => f = Rol is null ? new RolFormulario() : RolFormulario.Desde(Rol);
 
     private void Alternar(string codigo, bool marcar)
@@ -100,17 +104,17 @@
         if (marcar) f.Permisos.Add(codigo); else f.Permisos.Remove(codigo);
     }
 
-    private bool PuedeOtorgarGrupo(GrupoPermisosDto grupo) => grupo.Permisos.All(p => Sesion.Tiene(p.Codigo));
+    private bool PuedeOtorgarGrupo(GrupoPermisosDto grupo) => grupo.Permisos.All(p => Otorgable(p.Codigo));
 
     private void AlternarGrupo(GrupoPermisosDto grupo, bool marcar)
     {
-        foreach (var p in grupo.Permisos.Where(p => Sesion.Tiene(p.Codigo)))
+        foreach (var p in grupo.Permisos.Where(p => Otorgable(p.Codigo)))
             Alternar(p.Codigo, marcar);
     }
 
     private void MarcarTodos()
     {
-        foreach (var p in Catalogo.SelectMany(g => g.Permisos).Where(p => Sesion.Tiene(p.Codigo)))
+        foreach (var p in Catalogo.SelectMany(g => g.Permisos).Where(p => Otorgable(p.Codigo)))
             f.Permisos.Add(p.Codigo);
     }
 

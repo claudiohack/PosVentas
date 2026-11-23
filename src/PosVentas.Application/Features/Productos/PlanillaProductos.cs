@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using PosVentas.Application.Common.Auditoria;
 using PosVentas.Application.Common.Exceptions;
 using PosVentas.Application.Common.Interfaces;
+using PosVentas.Application.Common.Suscripciones;
 using PosVentas.Application.Common.Security;
 using PosVentas.Domain.Common;
 using PosVentas.Domain.Entities;
@@ -96,7 +97,8 @@ public sealed class ImportarProductosCommandValidator : AbstractValidator<Import
     }
 }
 
-public sealed class ImportarProductosCommandHandler(IApplicationDbContext db, IPlanillaProductos planilla, RegistradorAuditoria auditoria)
+public sealed class ImportarProductosCommandHandler(
+    IApplicationDbContext db, IPlanillaProductos planilla, RegistradorAuditoria auditoria, SuscripcionActual suscripcion)
     : IRequestHandler<ImportarProductosCommand, ResultadoImportacionDto>
 {
     public const int FilasMaximas = 5_000;
@@ -122,6 +124,10 @@ public sealed class ImportarProductosCommandHandler(IApplicationDbContext db, IP
             if (error is not null)
                 errores.Add(new ErrorFilaImportacion(fila.Fila, error));
         }
+
+        // Límite del plan sobre el resultado (altas y reactivaciones): también en la vista previa, para avisar antes.
+        if (errores.Count == 0)
+            await ReglasPlan.ExigirCupoProductosAsync(suscripcion, db.Productos.Local.Count(p => p.EstaActivo), ct);
 
         var aplicado = errores.Count == 0 && !request.Simular;
         if (aplicado)

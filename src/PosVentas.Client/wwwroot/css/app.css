@@ -670,3 +670,42 @@ p.permisos-resumen { padding-left: 0; }
 .loading-progress-text:after { content: var(--blazor-load-percentage-text, "Cargando"); }
 
 code { color: #b4235f; font-size: 0.9em; }
+
+/* ---------- Suscripción ---------- */
+.aviso-suscripcion { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 1rem; padding: 0.55rem 1.5rem; font-size: 0.9rem; border-bottom: 1px solid var(--pv-borde); }
+.aviso-suscripcion a { font-weight: 600; color: inherit; text-underline-offset: 3px; }
+.aviso-suscripcion.susc-prueba { background: var(--pv-primario-suave); color: var(--pv-primario-texto); }
+.aviso-suscripcion.susc-gracia { background: var(--pv-alerta-suave); color: #5c3b00; }
+.aviso-suscripcion.susc-bloqueada { background: var(--pv-error-suave); color: var(--pv-error); font-weight: 600; }
+
+.badge.susc-prueba { background: var(--pv-primario-suave); color: var(--pv-primario-texto); border-color: #c8d6f7; }
+.badge.susc-activa { background: var(--pv-exito-suave); color: var(--pv-exito); border-color: #bfe1c9; }
+.badge.susc-gracia { background: var(--pv-alerta-suave); color: var(--pv-alerta); border-color: #f0d9a8; }
+.badge.susc-bloqueada { background: var(--pv-error-suave); color: var(--pv-error); border-color: #f6c9c4; }
+
+.resumen-suscripcion { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 1.25rem; }
+.resumen-suscripcion > div { display: flex; flex-direction: column; gap: 0.3rem; }
+.resumen-suscripcion .etiqueta { font-size: 0.8rem; font-weight: 600; color: var(--pv-texto-secundario); text-transform: uppercase; letter-spacing: 0.04em; }
+.resumen-suscripcion .dato-grande { font-size: 1.4rem; }
+.resumen-suscripcion small { font-weight: 400; color: var(--pv-texto-secundario); }
+.resumen-suscripcion .badge { align-self: flex-start; }
+
+.barra-uso { height: 6px; border-radius: 999px; background: var(--pv-borde); overflow: hidden; }
+.barra-uso span { display: block; height: 100%; background: var(--pv-primario); border-radius: inherit; }
+.barra-uso.casi span { background: #d97706; }
+.barra-uso.lleno span { background: var(--pv-error); }
+
+.tabla-scroll { overflow-x: auto; }
+.comparativa-planes th[scope], .comparativa-planes tbody th { text-align: left; font-weight: 500; color: var(--pv-texto-secundario); }
+.comparativa-planes td { text-align: center; }
+.comparativa-planes .plan-actual { background: var(--pv-primario-suave); }
+.comparativa-planes thead .badge { margin-left: 0.35rem; }
+
+.kpi-filtro { font: inherit; text-align: left; cursor: pointer; border-left: 1px solid var(--pv-borde); border-right: 1px solid var(--pv-borde); border-bottom: 1px solid var(--pv-borde); }
+.kpi-filtro.seleccionado { box-shadow: var(--pv-foco); }
+.kpi-filtro:focus-visible { outline: none; box-shadow: var(--pv-foco); }
+.fila-checks { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; margin: 1rem 0 0.5rem; }
+
+@media (max-width: 640px) {
+    .aviso-suscripcion { padding: 0.55rem 1rem; }
+}

@@ -1,0 +1,177 @@
+@page "/suscripcion"
+@inject PosVentasApi Api
+@inject SesionService Sesion
+@inject NavigationManager Navegacion
+
+<PageTitle>Mi suscripción · PosVentas</PageTitle>
+
+<h1>Mi suscripción</h1>
+
+@if (error is not null)
+{
+    <p class="error" role="alert">@error</p>
+}
+
+@if (datos is null)
+{
+    @if (error is null)
+    {
+        <section class="tarjeta"><p>Cargando…</p></section>
+    }
+}
+else
+{
+    var r = datos.Resumen;
+    <section class="tarjeta resumen-suscripcion">
+        <div>
+            <span class="etiqueta">Plan</span>
+            <strong class="dato-grande">@datos.Plan.Nombre</strong>
+            <span class="ayuda">@TextosSuscripcion.Pesos(datos.Plan.PrecioMensual) por mes</span>
+        </div>
+        <div>
+            <span class="etiqueta">Estado</span>
+            <span class="badge @TextosSuscripcion.Clase(r.Estado)">@TextosSuscripcion.Estado(r.Estado)</span>
+            <span class="ayuda">@Vencimiento(r)</span>
+        </div>
+        <div>
+            <span class="etiqueta">Usuarios activos</span>
+            <strong>@datos.UsuariosActivos <small>de @TextosSuscripcion.Limite(datos.Plan.MaxUsuarios)</small></strong>
+            <Uso Actual="datos.UsuariosActivos" Maximo="datos.Plan.MaxUsuarios" />
+        </div>
+        <div>
+            <span class="etiqueta">Productos activos</span>
+            <strong>@datos.ProductosActivos.ToString("N0") <small>de @TextosSuscripcion.Limite(datos.Plan.MaxProductos)</small></strong>
+            <Uso Actual="datos.ProductosActivos" Maximo="datos.Plan.MaxProductos" />
+        </div>
+    </section>
+
+    <section class="tarjeta">
+        <h2>Planes</h2>
+        <p class="ayuda">
+            Para cambiar de plan o abonar tu suscripción contactá a HS Tech. Muy pronto vas a poder pagar con Mercado Pago desde acá.
+        </p>
+        <div class="tabla-scroll">
+            <table class="comparativa-planes">
+                <thead>
+                    <tr>
+                        <th></th>
+                        @foreach (var p in datos.PlanesDisponibles)
+                        {
+                            <th class="@(p.Id == datos.Plan.Id ? "plan-actual" : null)">
+                                @p.Nombre
+                                @if (p.Id == datos.Plan.Id)
+                                {
+                                    <span class="badge activo">Tu plan</span>
+                                }
+                            </th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <th>Precio mensual</th>
+                        @foreach (var p in datos.PlanesDisponibles)
+                        {
+                            <td class="@(p.Id == datos.Plan.Id ? "plan-actual" : null)"><strong>@TextosSuscripcion.Pesos(p.PrecioMensual)</strong></td>
+                        }
+                    </tr>
+                    <tr>
+                        <th>Usuarios</th>
+                        @foreach (var p in datos.PlanesDisponibles)
+                        {
+                            <td class="@(p.Id == datos.Plan.Id ? "plan-actual" : null)">@TextosSuscripcion.Limite(p.MaxUsuarios)</td>
+                        }
+                    </tr>
+                    <tr>
+                        <th>Productos</th>
+                        @foreach (var p in datos.PlanesDisponibles)
+                        {
+                            <td class="@(p.Id == datos.Plan.Id ? "plan-actual" : null)">@TextosSuscripcion.Limite(p.MaxProductos)</td>
+                        }
+                    </tr>
+                    <tr>
+                        <th>Ventas, caja, clientes y cuenta corriente</th>
+                        @foreach (var p in datos.PlanesDisponibles)
+                        {
+                            <td class="@(p.Id == datos.Plan.Id ? "plan-actual" : null)">✓</td>
+                        }
+                    </tr>
+                    @foreach (var m in datos.Modulos)
+                    {
+                        <tr>
+                            <th title="@m.Descripcion">@m.Nombre</th>
+                            @foreach (var p in datos.PlanesDisponibles)
+                            {
+                                <td class="@(p.Id == datos.Plan.Id ? "plan-actual" : null)">@(p.Modulos.Contains(m.Codigo) ? "✓" : "—")</td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="tarjeta">
+        <h2>Pagos</h2>
+        @if (datos.Pagos.Count == 0)
+        {
+            <p>Todavía no hay pagos registrados.</p>
+        }
+        else
+        {
+            <table>
+                <thead><tr><th>Fecha</th><th>Plan</th><th>Meses</th><th class="num">Monto</th><th>Cubre hasta</th><th>Medio</th></tr></thead>
+                <tbody>
+                    @foreach (var p in datos.Pagos)
+                    {
+                        <tr>
+                            <td>@p.FechaUtc.ToLocalTime().ToString("dd/MM/yyyy")</td>
+                            <td>@p.Plan</td>
+                            <td>@p.Meses</td>
+                            <td class="num">@TextosSuscripcion.Pesos(p.Monto)</td>
+                            <td>@p.PeriodoHastaUtc.ToLocalTime().ToString("dd/MM/yyyy")</td>
+                            <td>@(p.Origen == OrigenPagoSuscripcion.MercadoPago ? "Mercado Pago" : "Registrado por HS Tech")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </section>
+}
+
+@code {
+    private MiSuscripcionDto? datos;
+    private string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Sesion.EstaAutenticado)
+        {
+            Navegacion.NavigateTo("/");
+            return;
+        }
+        try
+        {
+            datos = await Api.ObtenerMiSuscripcionAsync();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            if (!Sesion.EstaAutenticado) Navegacion.NavigateTo("/");
+        }
+        catch (HttpRequestException)
+        {
+            error = "No se pudo conectar con el servidor.";
+        }
+    }
+
+    private static string Vencimiento(SuscripcionResumenDto r) => r.Estado switch
+    {
+        EstadoSuscripcion.Prueba => $"La prueba termina el {Fecha(r.VenceUtc)} ({TextosSuscripcion.Dias(r.DiasRestantes)}).",
+        EstadoSuscripcion.Activa => $"Pagada hasta el {Fecha(r.VenceUtc)}.",
+        EstadoSuscripcion.EnGracia => $"Venció el {Fecha(r.VenceUtc)}. Pasa a solo lectura el {Fecha(r.FinGraciaUtc)}.",
+        _ => $"Venció el {Fecha(r.VenceUtc)}. Regularizá el pago para volver a operar."
+    };
+
+    private static string Fecha(DateTime? utc) => utc?.ToLocalTime().ToString("dd/MM/yyyy") ?? "—";
+}

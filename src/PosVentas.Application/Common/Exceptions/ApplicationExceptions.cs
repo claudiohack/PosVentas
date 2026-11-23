@@ -42,5 +42,12 @@ public sealed class AfipNoDisponibleException(string message, Exception? inner =
     public Guid? VentaId { get; init; }
 }
 
+/// <summary>El plan del comercio no incluye el módulo o se alcanzó uno de sus límites (403).</summary>
+public sealed class LimitePlanException(string message) : Exception(message);
+
+/// <summary>La suscripción del comercio venció y pasó los días de gracia: solo consulta (402).</summary>
+public sealed class SuscripcionVencidaException()
+    : Exception("Tu suscripción está vencida: podés consultar y exportar tus datos, pero no registrar operaciones. Regularizá el pago para seguir operando.");
+
 /// <summary>Intento de leer o escribir datos fuera del comercio del usuario autenticado.</summary>
 public sealed class TenantAccessException(string message) : Exception(message);

@@ -31,5 +31,10 @@ public interface IApplicationDbContext
     DbSet<AnulacionVenta> AnulacionesVenta { get; }
     DbSet<InvitacionComercio> InvitacionesComercio { get; }
 
+    // Globales (sin filtro de tenant): los administra la plataforma. Consultarlos siempre por ComercioId.
+    DbSet<Plan> Planes { get; }
+    DbSet<Suscripcion> Suscripciones { get; }
+    DbSet<PagoSuscripcion> PagosSuscripcion { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

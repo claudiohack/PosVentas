@@ -1,0 +1,115 @@
+@page "/plataforma/planes"
+@inject PosVentasApi Api
+@inject SesionService Sesion
+@inject NavigationManager Navegacion
+
+<PageTitle>Planes · PosVentas</PageTitle>
+
+<div class="encabezado">
+    <h1>Planes</h1>
+    @if (Sesion.EsAdministradorPlataforma && modulos is not null)
+    {
+        <button class="btn-primario" @onclick="() => { editando = null; modalAbierto = true; }">Nuevo plan</button>
+    }
+</div>
+
+@if (!Sesion.EsAdministradorPlataforma)
+{
+    <section class="tarjeta"><p>Esta sección es exclusiva de los administradores de HS Tech.</p></section>
+}
+else
+{
+    @if (error is not null)
+    {
+        <p class="error" role="alert">@error</p>
+    }
+
+    <section class="tarjeta">
+        @if (planes is null)
+        {
+            <p>Cargando…</p>
+        }
+        else
+        {
+            <table>
+                <thead><tr><th>Plan</th><th class="num">Precio mensual</th><th>Usuarios</th><th>Productos</th><th>Módulos</th><th>Estado</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var p in planes)
+                    {
+                        <tr class="@(p.EstaActivo ? null : "inactivo")">
+                            <td>
+                                <strong>@p.Nombre</strong> <small class="ayuda">@p.Codigo</small>
+                                @if (p.EsPredeterminado)
+                                {
+                                    <span class="badge susc-prueba" title="Los comercios nuevos arrancan su prueba gratuita con este plan">Prueba gratuita</span>
+                                }
+                            </td>
+                            <td class="num">@TextosSuscripcion.Pesos(p.PrecioMensual)</td>
+                            <td>@TextosSuscripcion.Limite(p.MaxUsuarios)</td>
+                            <td>@TextosSuscripcion.Limite(p.MaxProductos)</td>
+                            <td>@(p.Modulos.Count == 0 ? "Solo lo básico" : string.Join(", ", p.Modulos.Select(NombreModulo)))</td>
+                            <td><span class="badge @(p.EstaActivo ? "activo" : "baja")">@(p.EstaActivo ? "Se ofrece" : "No se ofrece")</span></td>
+                            <td class="acciones-fila">
+                                <button class="btn-secundario" @onclick="() => { editando = p; modalAbierto = true; }">Editar</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            <p class="ayuda">Un plan que no se ofrece sigue vigente para los comercios que ya lo tienen. Los precios son finales, en pesos.</p>
+        }
+    </section>
+}
+
+@if (modalAbierto && modulos is not null)
+{
+    <PlanModal Plan="editando" Modulos="modulos" OnGuardado="AlGuardarAsync" OnCancelar="() => modalAbierto = false" />
+}
+
+@code {
+    private List<PlanDto>? planes;
+    private List<ModuloPlanDto>? modulos;
+    private PlanDto? editando;
+    private bool modalAbierto;
+    private string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Sesion.EstaAutenticado)
+        {
+            Navegacion.NavigateTo("/");
+            return;
+        }
+        if (!Sesion.EsAdministradorPlataforma)
+            return;
+        try
+        {
+            modulos = await Api.ObtenerModulosPlanAsync();
+            planes = await Api.ObtenerPlanesAsync();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            if (!Sesion.EstaAutenticado) Navegacion.NavigateTo("/");
+        }
+        catch (HttpRequestException)
+        {
+            error = "No se pudo conectar con el servidor.";
+        }
+    }
+
+    private string NombreModulo(string codigo) => modulos?.FirstOrDefault(m => m.Codigo == codigo)?.Nombre ?? codigo;
+
+    private async Task AlGuardarAsync(PlanDto _)
+    {
+        modalAbierto = false;
+        try
+        {
+            planes = await Api.ObtenerPlanesAsync(); // marcar un predeterminado cambia también el anterior
+        }
+        catch (Exception ex) when (ex is ApiException or HttpRequestException)
+        {
+            error = ex.Message;
+        }
+    }
+}

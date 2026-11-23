@@ -38,6 +38,8 @@ public sealed class GlobalExceptionMiddleware(ILogger<GlobalExceptionMiddleware>
             AfipRechazoException ex => CrearRechazoAfip(ex),
             AfipNoDisponibleException ex => CrearAfipNoDisponible(ex),
             AccesoDenegadoException ex => Crear(StatusCodes.Status403Forbidden, "Acceso denegado.", ex.Message),
+            LimitePlanException ex => Crear(StatusCodes.Status403Forbidden, "Límite del plan.", ex.Message),
+            SuscripcionVencidaException ex => Crear(StatusCodes.Status402PaymentRequired, "Suscripción vencida.", ex.Message),
             TenantAccessException => Crear(StatusCodes.Status403Forbidden, "Acceso denegado.",
                 "La operación no está permitida para este comercio."),
             NotFoundException ex => Crear(StatusCodes.Status404NotFound, "Recurso no encontrado.", ex.Message),

@@ -3,10 +3,12 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using PosVentas.Application.Common.Exceptions;
 using PosVentas.Application.Common.Interfaces;
+using PosVentas.Application.Common.Suscripciones;
 using PosVentas.Application.Features.Cajas;
 using PosVentas.Application.Features.Facturacion;
 using PosVentas.Domain.Entities;
 using PosVentas.Domain.Enums;
+using PosVentas.Domain.Suscripciones;
 
 namespace PosVentas.Application.Features.Ventas;
 
@@ -70,7 +72,8 @@ public sealed class RegistrarVentaCommandHandler(
     IApplicationDbContext db,
     ICurrentUserService usuarioActual,
     ICurrentTenantService tenant,
-    EmisorComprobantesFiscales emisor)
+    EmisorComprobantesFiscales emisor,
+    SuscripcionActual suscripcion)
     : IRequestHandler<RegistrarVentaCommand, VentaDto>
 {
     public async Task<VentaDto> Handle(RegistrarVentaCommand request, CancellationToken cancellationToken)
@@ -115,6 +118,7 @@ public sealed class RegistrarVentaCommandHandler(
         Comercio? comercio = null;
         if (request.RequiereFactura)
         {
+            await ReglasPlan.ExigirModuloAsync(suscripcion, ModulosPlan.Facturacion, "la facturación electrónica", cancellationToken);
             comercio = await db.Comercios.SingleAsync(c => c.Id == tenant.TenantId, cancellationToken);
             emisor.ValidarDatosFiscales(comercio, cliente, venta.TipoComprobante, venta.TotalGeneral);
         }

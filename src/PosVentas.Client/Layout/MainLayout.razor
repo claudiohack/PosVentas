@@ -82,9 +82,15 @@
                 {
                     <NavLink href="configuracion-fiscal"><Icono Nombre="facturacion" /><span>Facturación</span></NavLink>
                 }
+                @if (Sesion.EsAdministrador && Sesion.Suscripcion is { SinRestricciones: false })
+                {
+                    <NavLink href="suscripcion"><Icono Nombre="suscripcion" /><span>Mi suscripción</span></NavLink>
+                }
                 @if (Sesion.EsAdministradorPlataforma)
                 {
                     <span class="menu-grupo">Plataforma</span>
+                    <NavLink href="plataforma/comercios"><Icono Nombre="comercios" /><span>Comercios</span></NavLink>
+                    <NavLink href="plataforma/planes"><Icono Nombre="planes" /><span>Planes</span></NavLink>
                     <NavLink href="invitaciones"><Icono Nombre="invitaciones" /><span>Invitaciones</span></NavLink>
                 }
             </nav>
@@ -108,6 +114,16 @@
                 <span class="barra-comercio">@Sesion.Actual.Comercio</span>
                 <span class="barra-info">@Sesion.Actual.NombreCompleto <span class="badge">@Sesion.Actual.Rol</span></span>
             </header>
+            @if (Aviso is { } aviso)
+            {
+                <div class="aviso-suscripcion @aviso.Clase" role="@(aviso.Urgente ? "alert" : "status")">
+                    <span>@aviso.Texto</span>
+                    @if (Sesion.EsAdministrador)
+                    {
+                        <a href="suscripcion">Ver mi suscripción</a>
+                    }
+                </div>
+            }
             <main class="contenido">
                 @Body
             </main>
@@ -128,6 +144,23 @@ else
 
 @code {
     private bool menuAbierto;
+
+    private sealed record AvisoSuscripcion(string Texto, string Clase, bool Urgente);
+
+    /// <summary>Aviso de la barra superior según el estado de la suscripción (nada si está activa y al día).</summary>
+    private AvisoSuscripcion? Aviso => Sesion.Suscripcion switch
+    {
+        null or { SinRestricciones: true } => null,
+        { Estado: EstadoSuscripcion.Prueba, DiasRestantes: var d } =>
+            new($"Prueba gratuita del plan {Sesion.Suscripcion.Plan}: te quedan {TextosSuscripcion.Dias(d)}.", d <= 7 ? "susc-gracia" : "susc-prueba", false),
+        { Estado: EstadoSuscripcion.Activa, DiasRestantes: <= 5 and var d } =>
+            new($"Tu suscripción se renueva en {TextosSuscripcion.Dias(d)}.", "susc-prueba", false),
+        { Estado: EstadoSuscripcion.EnGracia, DiasRestantes: var d } =>
+            new($"Tu suscripción venció. Tenés {TextosSuscripcion.Dias(d)} para regularizar el pago antes de pasar a solo lectura.", "susc-gracia", true),
+        { Estado: EstadoSuscripcion.SoloLectura } =>
+            new("Suscripción vencida: podés consultar y exportar tus datos, pero no vender ni registrar operaciones hasta regularizar el pago.", "susc-bloqueada", true),
+        _ => null
+    };
 
     private string Iniciales
     {

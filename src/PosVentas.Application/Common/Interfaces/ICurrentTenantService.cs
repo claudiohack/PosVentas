@@ -27,10 +27,13 @@ public interface ICurrentUserService
     /// <summary>Rol vigente del usuario (null si el request es anónimo).</summary>
     Guid? RolId { get; }
 
-    /// <summary>El rol del usuario es el Administrador del comercio (todos los permisos).</summary>
+    /// <summary>El rol del usuario es el Administrador del comercio (todo el catálogo, dentro de lo que incluye el plan).</summary>
     bool EsAdministrador { get; }
 
-    /// <summary>Permisos efectivos del usuario (el Administrador tiene todo el catálogo).</summary>
+    /// <summary>
+    /// Permisos efectivos del usuario: los del rol (el Administrador, todo el catálogo) menos los de módulos
+    /// que el plan del comercio no incluye.
+    /// </summary>
     IReadOnlySet<string> Permisos { get; }
 
     bool TienePermiso(string permiso);

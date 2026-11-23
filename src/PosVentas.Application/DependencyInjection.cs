@@ -1,5 +1,6 @@
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using PosVentas.Application.Common.Behaviors;
 
 namespace PosVentas.Application;
@@ -22,6 +23,8 @@ public static class DependencyInjection
         services.AddOptions<Features.Facturacion.FacturacionOptions>();
         services.AddScoped<Features.Facturacion.EmisorComprobantesFiscales>();
         services.AddScoped<Common.Auditoria.RegistradorAuditoria>();
+        services.AddScoped<Common.Suscripciones.SuscripcionActual>();
+        services.TryAddSingleton<Common.Interfaces.IReloj, Common.Interfaces.RelojSistema>(); // los tests lo adelantan
 
         return services;
     }

@@ -28,6 +28,9 @@ public sealed class PosVentasApiFactory : WebApplicationFactory<Program>, IAsync
     public const string UsuarioPlataforma = "hs-admin";
     public string PasswordPlataforma { get; } = $"Plataforma-{Convert.ToHexString(RandomNumberGenerator.GetBytes(8))}";
 
+    /// <summary>Reloj de la lógica de suscripciones (adelantable).</summary>
+    public RelojDePrueba Reloj { get; } = new();
+
     public string ConnectionString
     {
         get
@@ -56,6 +59,10 @@ public sealed class PosVentasApiFactory : WebApplicationFactory<Program>, IAsync
 
             // Claves de Data Protection en memoria: no se escribe nada en el perfil del usuario.
             services.AddSingleton<IDataProtectionProvider, EphemeralDataProtectionProvider>();
+
+            // Reloj de las suscripciones, adelantable para probar vencimientos.
+            services.RemoveAll<IReloj>();
+            services.AddSingleton<IReloj>(Reloj);
         });
     }
 

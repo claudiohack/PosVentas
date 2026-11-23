@@ -1,0 +1,261 @@
+@page "/plataforma/comercios"
+@inject PosVentasApi Api
+@inject SesionService Sesion
+@inject NavigationManager Navegacion
+
+<PageTitle>Comercios · PosVentas</PageTitle>
+
+<h1>Comercios y suscripciones</h1>
+
+@if (!Sesion.EsAdministradorPlataforma)
+{
+    <section class="tarjeta"><p>Esta sección es exclusiva de los administradores de HS Tech.</p></section>
+}
+else
+{
+    @if (error is not null)
+    {
+        <p class="error" role="alert">@error</p>
+    }
+    @if (mensaje is not null)
+    {
+        <p class="venta-ok" role="status">@mensaje</p>
+    }
+
+    @if (comercios is not null)
+    {
+        <section class="kpis">
+            @foreach (var estado in Enum.GetValues<EstadoSuscripcion>())
+            {
+                var cantidad = comercios.Count(c => c.Estado == estado);
+                <button class="kpi kpi-filtro @(filtro == estado ? "seleccionado" : null)" @onclick="() => filtro = filtro == estado ? null : estado"
+                        aria-pressed="@(filtro == estado ? "true" : "false")">
+                    <span class="kpi-etiqueta">@TextosSuscripcion.Estado(estado)</span>
+                    <span class="kpi-valor">@cantidad</span>
+                </button>
+            }
+        </section>
+    }
+
+    <section class="tarjeta">
+        @if (comercios is null || planes is null)
+        {
+            <p>Cargando…</p>
+        }
+        else if (Filtrados.Count == 0)
+        {
+            <p>No hay comercios @(filtro is null ? "registrados" : $"en estado «{TextosSuscripcion.Estado(filtro.Value)}»").</p>
+        }
+        else
+        {
+            <div class="tabla-scroll">
+                <table>
+                    <thead><tr><th>Comercio</th><th>Plan</th><th>Estado</th><th>Vence</th><th>Último pago</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var c in Filtrados)
+                        {
+                            <tr>
+                                <td><strong>@c.Nombre</strong><br /><small class="ayuda">@c.Slug · alta @c.FechaAltaUtc.ToLocalTime().ToString("dd/MM/yyyy")</small></td>
+                                <td>
+                                    <select value="@c.PlanId" disabled="@procesando" aria-label="Plan de @c.Nombre"
+                                            @onchange="e => CambiarPlanAsync(c, Guid.Parse((string)e.Value!))">
+                                        @foreach (var p in planes.Where(p => p.EstaActivo || p.Id == c.PlanId))
+                                        {
+                                            <option value="@p.Id">@p.Nombre (@TextosSuscripcion.Pesos(p.PrecioMensual))</option>
+                                        }
+                                    </select>
+                                </td>
+                                <td><span class="badge @TextosSuscripcion.Clase(c.Estado)">@TextosSuscripcion.Estado(c.Estado)</span></td>
+                                <td>@c.VenceUtc.ToLocalTime().ToString("dd/MM/yyyy") <small class="ayuda">(@DiasTexto(c))</small></td>
+                                <td>@(c.UltimoPagoUtc?.ToLocalTime().ToString("dd/MM/yyyy") ?? "—")</td>
+                                <td class="acciones-fila">
+                                    <button class="btn-primario" disabled="@procesando" @onclick="() => AbrirPagoAsync(c)">Registrar pago</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+}
+
+@if (pagando is not null)
+{
+    var plan = planes?.FirstOrDefault(p => p.Id == pagando.PlanId);
+    <div class="modal-fondo" @onclick="CerrarPago"></div>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="titulo-pago">
+        <h2 id="titulo-pago">Registrar pago · @pagando.Nombre</h2>
+        <p class="ayuda">
+            Plan @pagando.Plan. Si la suscripción está al día, los meses se suman al vencimiento actual
+            (@pagando.VenceUtc.ToLocalTime().ToString("dd/MM/yyyy")); si ya venció, corren desde hoy.
+        </p>
+        <form @onsubmit="RegistrarPagoAsync">
+            <div class="grilla-form">
+                <label>Meses <input type="number" min="1" max="24" @bind="meses" @bind:after="() => monto = (plan?.PrecioMensual ?? 0) * meses" /></label>
+                <label>Monto cobrado ($) <input type="number" min="0" step="0.01" @bind="monto" /></label>
+                <label class="ancho">Nota (opcional) <input type="text" maxlength="250" @bind="nota" placeholder="Ej.: Transferencia del 23/11" /></label>
+            </div>
+
+            @if (pagos is { Count: > 0 })
+            {
+                <h3>Pagos anteriores</h3>
+                <table>
+                    <thead><tr><th>Fecha</th><th>Meses</th><th class="num">Monto</th><th>Hasta</th><th>Nota</th></tr></thead>
+                    <tbody>
+                        @foreach (var p in pagos.Take(5))
+                        {
+                            <tr>
+                                <td>@p.FechaUtc.ToLocalTime().ToString("dd/MM/yyyy")</td>
+                                <td>@p.Meses</td>
+                                <td class="num">@TextosSuscripcion.Pesos(p.Monto)</td>
+                                <td>@p.PeriodoHastaUtc.ToLocalTime().ToString("dd/MM/yyyy")</td>
+                                <td>@(p.Origen == OrigenPagoSuscripcion.MercadoPago ? "Mercado Pago" : p.Nota)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+
+            @if (errorPago is not null)
+            {
+                <p class="error" role="alert">@errorPago</p>
+            }
+            <div class="acciones">
+                <button type="button" class="btn-secundario" @onclick="CerrarPago">Cancelar</button>
+                <button type="submit" class="btn-primario" disabled="@(procesando || meses < 1)">@(procesando ? "Registrando…" : "Registrar pago")</button>
+            </div>
+        </form>
+    </div>
+}
+
+@code {
+    private List<ComercioSuscripcionDto>? comercios;
+    private List<PlanDto>? planes;
+    private EstadoSuscripcion? filtro;
+    private string? error;
+    private string? mensaje;
+    private bool procesando;
+
+    private ComercioSuscripcionDto? pagando;
+    private List<PagoSuscripcionDto>? pagos;
+    private int meses = 1;
+    private decimal monto;
+    private string? nota;
+    private string? errorPago;
+
+    private List<ComercioSuscripcionDto> Filtrados =>
+        comercios?.Where(c => filtro is null || c.Estado == filtro).ToList() ?? [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Sesion.EstaAutenticado)
+        {
+            Navegacion.NavigateTo("/");
+            return;
+        }
+        if (Sesion.EsAdministradorPlataforma)
+            await EjecutarAsync(async () =>
+            {
+                planes = await Api.ObtenerPlanesAsync();
+                comercios = await Api.ObtenerComerciosPlataformaAsync();
+            });
+    }
+
+    private static string DiasTexto(ComercioSuscripcionDto c) => c.Estado switch
+    {
+        EstadoSuscripcion.Prueba or EstadoSuscripcion.Activa => $"faltan {TextosSuscripcion.Dias(c.DiasRestantes)}",
+        EstadoSuscripcion.EnGracia => $"{TextosSuscripcion.Dias(c.DiasRestantes)} de gracia",
+        _ => "vencida"
+    };
+
+    private async Task CambiarPlanAsync(ComercioSuscripcionDto comercio, Guid planId)
+    {
+        if (planId == comercio.PlanId)
+            return;
+        await EjecutarAsync(async () =>
+        {
+            Reemplazar(await Api.CambiarPlanComercioAsync(comercio.ComercioId, planId));
+            mensaje = $"{comercio.Nombre} pasó al plan {planes!.First(p => p.Id == planId).Nombre}. Rige desde su próximo request.";
+        });
+    }
+
+    private async Task AbrirPagoAsync(ComercioSuscripcionDto comercio)
+    {
+        pagando = comercio;
+        meses = 1;
+        monto = planes?.FirstOrDefault(p => p.Id == comercio.PlanId)?.PrecioMensual ?? 0;
+        nota = null;
+        errorPago = null;
+        pagos = null;
+        try
+        {
+            pagos = await Api.ObtenerPagosComercioAsync(comercio.ComercioId);
+        }
+        catch (Exception ex) when (ex is ApiException or HttpRequestException)
+        {
+            errorPago = ex.Message;
+        }
+    }
+
+    private void CerrarPago()
+    {
+        if (!procesando) pagando = null;
+    }
+
+    private async Task RegistrarPagoAsync()
+    {
+        if (pagando is null) return;
+        errorPago = null;
+        procesando = true;
+        try
+        {
+            var actualizado = await Api.RegistrarPagoManualAsync(pagando.ComercioId, meses, monto, nota);
+            Reemplazar(actualizado);
+            mensaje = $"Pago registrado: {pagando.Nombre} queda al día hasta el {actualizado.VenceUtc.ToLocalTime():dd/MM/yyyy}.";
+            pagando = null;
+        }
+        catch (ApiException ex)
+        {
+            errorPago = ex.Message;
+        }
+        catch (HttpRequestException)
+        {
+            errorPago = "No se pudo conectar con el servidor.";
+        }
+        finally
+        {
+            procesando = false;
+        }
+    }
+
+    private void Reemplazar(ComercioSuscripcionDto fila)
+    {
+        if (comercios is null) return;
+        var i = comercios.FindIndex(c => c.ComercioId == fila.ComercioId);
+        if (i >= 0) comercios[i] = fila;
+    }
+
+    private async Task EjecutarAsync(Func<Task> accion)
+    {
+        error = mensaje = null;
+        procesando = true;
+        try
+        {
+            await accion();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            if (!Sesion.EstaAutenticado) Navegacion.NavigateTo("/");
+        }
+        catch (HttpRequestException)
+        {
+            error = "No se pudo conectar con el servidor.";
+        }
+        finally
+        {
+            procesando = false;
+        }
+    }
+}
