@@ -45,11 +45,62 @@ else
         </div>
     </section>
 
+    @if (volvioDeMercadoPago)
+    {
+        <p class="aviso" role="status">
+            Si autorizaste el pago en Mercado Pago, en unos instantes se confirma acá (Mercado Pago nos avisa solo).
+            <button class="btn-link" @onclick="RecargarAsync">Actualizar</button>
+        </p>
+    }
+
+    @if (datos.DebitoAutomatico is { } debito)
+    {
+        <section class="tarjeta fila-debito">
+            <div>
+                <strong>Débito automático con Mercado Pago:</strong>
+                <span class="badge @(debito == EstadoDebitoAutomatico.Activo ? "activo" : debito == EstadoDebitoAutomatico.Pausado ? "susc-gracia" : "baja")">
+                    @(debito switch { EstadoDebitoAutomatico.Activo => "Activo", EstadoDebitoAutomatico.Pausado => "Pausado", _ => "Cancelado" })
+                </span>
+                <p class="ayuda">
+                    @(debito == EstadoDebitoAutomatico.Activo
+                        ? $"Mercado Pago te cobra {TextosSuscripcion.Pesos(datos.Plan.PrecioMensual)} por mes y la suscripción se renueva sola."
+                        : "No hay cobros automáticos: el servicio sigue hasta el vencimiento ya pagado. Podés volver a suscribirte cuando quieras.")
+                </p>
+            </div>
+            @if (debito != EstadoDebitoAutomatico.Cancelado && Sesion.EsAdministrador)
+            {
+                @if (confirmandoCancelacion)
+                {
+                    <span class="acciones">
+                        <button class="btn-secundario" disabled="@procesando" @onclick="() => confirmandoCancelacion = false">No</button>
+                        <button class="btn-peligro" disabled="@procesando" @onclick="CancelarDebitoAsync">Sí, cancelar el débito</button>
+                    </span>
+                }
+                else
+                {
+                    <button class="btn-secundario" @onclick="() => confirmandoCancelacion = true">Cancelar débito automático</button>
+                }
+            }
+        </section>
+    }
+
     <section class="tarjeta">
         <h2>Planes</h2>
-        <p class="ayuda">
-            Para cambiar de plan o abonar tu suscripción contactá a HS Tech. Muy pronto vas a poder pagar con Mercado Pago desde acá.
-        </p>
+        @if (datos.MercadoPagoHabilitado && Sesion.EsAdministrador)
+        {
+            <p class="ayuda">
+                Elegí un plan y suscribite con Mercado Pago: autorizás tu tarjeta una vez y se cobra solo cada mes.
+                Si ya tenés un débito, el nuevo reemplaza al anterior.
+            </p>
+            <label class="campo-email-mp">
+                Email de tu cuenta de Mercado Pago
+                <input type="email" @bind="emailPagador" @bind:event="oninput" placeholder="tu-email@ejemplo.com" maxlength="150" />
+            </label>
+        }
+        else
+        {
+            <p class="ayuda">Para cambiar de plan o abonar tu suscripción contactá a HS Tech.</p>
+        }
         <div class="tabla-scroll">
             <table class="comparativa-planes">
                 <thead>
@@ -106,6 +157,29 @@ else
                             }
                         </tr>
                     }
+                    @if (datos.MercadoPagoHabilitado && Sesion.EsAdministrador)
+                    {
+                        <tr>
+                            <th></th>
+                            @foreach (var p in datos.PlanesDisponibles)
+                            {
+                                var esElDebitoActual = p.Id == datos.Plan.Id && datos.DebitoAutomatico == EstadoDebitoAutomatico.Activo;
+                                <td class="@(p.Id == datos.Plan.Id ? "plan-actual" : null)">
+                                    @if (esElDebitoActual)
+                                    {
+                                        <span class="ayuda">Suscripto</span>
+                                    }
+                                    else if (p.PrecioMensual > 0)
+                                    {
+                                        <button class="btn-primario" disabled="@(procesando || !EmailValido)" @onclick="() => PagarAsync(p)"
+                                                title="@(EmailValido ? null : "Ingresá el email de tu cuenta de Mercado Pago")">
+                                            @(procesando && planPagando == p.Id ? "Redirigiendo…" : "Suscribirme")
+                                        </button>
+                                    }
+                                </td>
+                            }
+                        </tr>
+                    }
                 </tbody>
             </table>
         </div>
@@ -142,6 +216,13 @@ else
 @code {
     private MiSuscripcionDto? datos;
     private string? error;
+    private string emailPagador = string.Empty;
+    private bool procesando;
+    private bool confirmandoCancelacion;
+    private bool volvioDeMercadoPago;
+    private Guid? planPagando;
+
+    private bool EmailValido => System.Text.RegularExpressions.Regex.IsMatch(emailPagador.Trim(), @"^[^@\s]+@[^@\s]+\.[^@\s]+$");
 
     protected override async Task OnInitializedAsync()
     {
@@ -150,6 +231,59 @@ else
             Navegacion.NavigateTo("/");
             return;
         }
+        // Mercado Pago vuelve a esta página con ?preapproval_id=... después de autorizar
+        volvioDeMercadoPago = new Uri(Navegacion.Uri).Query.Contains("preapproval_id", StringComparison.OrdinalIgnoreCase);
+        await RecargarAsync();
+    }
+
+    private async Task PagarAsync(PlanDto plan)
+    {
+        error = null;
+        procesando = true;
+        planPagando = plan.Id;
+        try
+        {
+            var inicio = await Api.IniciarPagoMercadoPagoAsync(plan.Id, emailPagador.Trim());
+            Navegacion.NavigateTo(inicio.UrlPago, forceLoad: true); // sale de la app hacia Mercado Pago
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            procesando = false;
+        }
+        catch (HttpRequestException)
+        {
+            error = "No se pudo conectar con el servidor.";
+            procesando = false;
+        }
+    }
+
+    private async Task CancelarDebitoAsync()
+    {
+        error = null;
+        procesando = true;
+        try
+        {
+            await Api.CancelarDebitoAutomaticoAsync();
+            confirmandoCancelacion = false;
+            await RecargarAsync();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        catch (HttpRequestException)
+        {
+            error = "No se pudo conectar con el servidor.";
+        }
+        finally
+        {
+            procesando = false;
+        }
+    }
+
+    private async Task RecargarAsync()
+    {
         try
         {
             datos = await Api.ObtenerMiSuscripcionAsync();

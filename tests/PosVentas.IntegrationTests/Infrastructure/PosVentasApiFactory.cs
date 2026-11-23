@@ -28,6 +28,9 @@ public sealed class PosVentasApiFactory : WebApplicationFactory<Program>, IAsync
     public const string UsuarioPlataforma = "hs-admin";
     public string PasswordPlataforma { get; } = $"Plataforma-{Convert.ToHexString(RandomNumberGenerator.GetBytes(8))}";
 
+    /// <summary>Clave con la que los tests firman los webhooks simulados de Mercado Pago.</summary>
+    public string SecretoWebhookMercadoPago { get; } = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
+
     /// <summary>Reloj de la lógica de suscripciones (adelantable).</summary>
     public RelojDePrueba Reloj { get; } = new();
 
@@ -49,6 +52,8 @@ public sealed class PosVentasApiFactory : WebApplicationFactory<Program>, IAsync
         builder.UseSetting("Plataforma:Slug", SlugPlataforma);
         builder.UseSetting("Plataforma:AdminUsuario", UsuarioPlataforma);
         builder.UseSetting("Plataforma:AdminPassword", PasswordPlataforma);
+        builder.UseSetting("MercadoPago:WebhookSecret", SecretoWebhookMercadoPago);
+        builder.UseSetting("MercadoPago:PermitirWebhookSinFirma", "false");
 
         builder.ConfigureTestServices(services =>
         {
@@ -59,6 +64,11 @@ public sealed class PosVentasApiFactory : WebApplicationFactory<Program>, IAsync
 
             // Claves de Data Protection en memoria: no se escribe nada en el perfil del usuario.
             services.AddSingleton<IDataProtectionProvider, EphemeralDataProtectionProvider>();
+
+            // Mercado Pago simulado: los tests nunca salen a internet ni usan credenciales reales.
+            services.RemoveAll<IMercadoPagoService>();
+            services.AddSingleton<MercadoPagoServiceFalso>();
+            services.AddSingleton<IMercadoPagoService>(sp => sp.GetRequiredService<MercadoPagoServiceFalso>());
 
             // Reloj de las suscripciones, adelantable para probar vencimientos.
             services.RemoveAll<IReloj>();

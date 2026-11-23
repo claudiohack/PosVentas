@@ -42,7 +42,9 @@ public sealed record MiSuscripcionDto(
     int ProductosActivos,
     IReadOnlyList<PlanDto> PlanesDisponibles,
     IReadOnlyList<PagoSuscripcionDto> Pagos,
-    IReadOnlyList<ModuloPlanDto> Modulos);
+    IReadOnlyList<ModuloPlanDto> Modulos,
+    bool MercadoPagoHabilitado,
+    EstadoDebitoAutomatico? DebitoAutomatico);
 
 /// <summary>Fila de la administración de comercios de HS Tech.</summary>
 public sealed record ComercioSuscripcionDto(
@@ -58,7 +60,8 @@ public sealed record ComercioSuscripcionDto(
     bool EnPrueba,
     DateTime VenceUtc,
     int DiasRestantes,
-    DateTime? UltimoPagoUtc);
+    DateTime? UltimoPagoUtc,
+    EstadoDebitoAutomatico? DebitoAutomatico);
 
 /// <summary>Nombres visibles de los módulos (el catálogo en sí vive en el dominio).</summary>
 public static class CatalogoModulos
@@ -86,7 +89,7 @@ internal static class SuscripcionMapper
 
     public static ComercioSuscripcionDto ToDto(Comercio c, Suscripcion s, DateTime? ultimoPago, DateTime ahoraUtc) =>
         new(c.Id, c.Nombre, c.Slug, c.Cuit, c.FechaCreacionUtc, c.EstaActivo, s.PlanId, s.Plan!.Nombre, s.EstadoEn(ahoraUtc), s.EnPrueba,
-            s.VenceUtc, s.DiasRestantesEn(ahoraUtc), ultimoPago);
+            s.VenceUtc, s.DiasRestantesEn(ahoraUtc), ultimoPago, s.DebitoAutomatico);
 
     public static async Task<IReadOnlyList<PagoSuscripcionDto>> PagosAsync(IApplicationDbContext db, Guid comercioId, CancellationToken ct) =>
         await db.PagosSuscripcion.AsNoTracking()
@@ -102,7 +105,8 @@ internal static class SuscripcionMapper
 
 public sealed record ObtenerMiSuscripcionQuery : IRequest<MiSuscripcionDto>;
 
-public sealed class ObtenerMiSuscripcionQueryHandler(IApplicationDbContext db, ICurrentTenantService tenant, SuscripcionActual actual)
+public sealed class ObtenerMiSuscripcionQueryHandler(
+    IApplicationDbContext db, ICurrentTenantService tenant, SuscripcionActual actual, IMercadoPagoService mercadoPago)
     : IRequestHandler<ObtenerMiSuscripcionQuery, MiSuscripcionDto>
 {
     public async Task<MiSuscripcionDto> Handle(ObtenerMiSuscripcionQuery request, CancellationToken ct)
@@ -122,7 +126,9 @@ public sealed class ObtenerMiSuscripcionQueryHandler(IApplicationDbContext db, I
             await db.Productos.CountAsync(p => p.EstaActivo, ct),
             planes.Select(SuscripcionMapper.ToDto).ToList(),
             await SuscripcionMapper.PagosAsync(db, comercioId, ct),
-            CatalogoModulos.Todos);
+            CatalogoModulos.Todos,
+            mercadoPago.Habilitado,
+            suscripcion.DebitoAutomatico);
     }
 }
 

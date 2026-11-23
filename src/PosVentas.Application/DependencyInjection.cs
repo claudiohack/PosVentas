@@ -21,6 +21,7 @@ public static class DependencyInjection
         services.AddValidatorsFromAssembly(assembly, includeInternalTypes: true);
 
         services.AddOptions<Features.Facturacion.FacturacionOptions>();
+        services.AddOptions<Features.Suscripciones.MercadoPagoOptions>();
         services.AddScoped<Features.Facturacion.EmisorComprobantesFiscales>();
         services.AddScoped<Common.Auditoria.RegistradorAuditoria>();
         services.AddScoped<Common.Suscripciones.SuscripcionActual>();

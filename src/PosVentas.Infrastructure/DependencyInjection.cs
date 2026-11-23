@@ -63,6 +63,16 @@ public static class DependencyInjection
         services.AddScoped<IAfipService, Afip.AfipService>();
         services.AddSingleton<IGeneradorQr, Afip.GeneradorQr>();
 
+        // --- Mercado Pago (cobro de las suscripciones de los comercios) ---
+        services.AddOptions<Application.Features.Suscripciones.MercadoPagoOptions>()
+            .Bind(configuration.GetSection(Application.Features.Suscripciones.MercadoPagoOptions.SectionName));
+        services.AddHttpClient<IMercadoPagoService, MercadoPago.MercadoPagoService>((sp, http) =>
+        {
+            http.BaseAddress = new Uri(MercadoPago.MercadoPagoService.UrlBase);
+            http.Timeout = TimeSpan.FromSeconds(
+                sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<Application.Features.Suscripciones.MercadoPagoOptions>>().Value.TimeoutSegundos);
+        });
+
         // --- Planillas Excel (importación / exportación de productos) ---
         services.AddSingleton<Application.Features.Productos.IPlanillaProductos, Planillas.PlanillaProductosExcel>();
 

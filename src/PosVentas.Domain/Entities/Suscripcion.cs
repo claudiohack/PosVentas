@@ -25,6 +25,13 @@ public sealed class Suscripcion : Entity<Guid>
     /// <summary>Fin del período pagado (o de la prueba). Después corren los días de gracia.</summary>
     public DateTime VenceUtc { get; private set; }
 
+    public const int LongitudMaximaIdExterno = 100;
+
+    /// <summary>Débito automático vigente en Mercado Pago (id de la "preapproval"); null si paga por otro medio.</summary>
+    public string? PreaprobacionMercadoPagoId { get; private set; }
+
+    public EstadoDebitoAutomatico? DebitoAutomatico { get; private set; }
+
     public byte[] RowVersion { get; private set; } = [];
 
     public DateTime FinGraciaUtc => VenceUtc.AddDays(DiasGracia);
@@ -78,6 +85,34 @@ public sealed class Suscripcion : Entity<Guid>
         EnPrueba = false;
         MarcarModificado();
         return VenceUtc;
+    }
+
+    /// <summary>
+    /// El comercio autorizó un débito automático en Mercado Pago para <paramref name="plan"/>: pasa a ese plan
+    /// (aunque HS Tech haya dejado de ofrecerlo después de iniciado el pago) y reemplaza el débito anterior.
+    /// Devuelve el id del débito anterior, que hay que cancelar en Mercado Pago para no cobrar dos veces.
+    /// </summary>
+    public string? VincularDebitoAutomatico(string preaprobacionId, Plan plan)
+    {
+        if (string.IsNullOrWhiteSpace(preaprobacionId) || preaprobacionId.Length > LongitudMaximaIdExterno)
+            throw new DomainException("El identificador del débito automático no es válido.");
+
+        var anterior = PreaprobacionMercadoPagoId != preaprobacionId ? PreaprobacionMercadoPagoId : null;
+        PreaprobacionMercadoPagoId = preaprobacionId;
+        DebitoAutomatico = EstadoDebitoAutomatico.Activo;
+        PlanId = plan.Id;
+        Plan = plan;
+        MarcarModificado();
+        return anterior;
+    }
+
+    /// <summary>Pausa, reanudación o cancelación del débito vigente (el servicio sigue hasta <see cref="VenceUtc"/>).</summary>
+    public void ActualizarDebitoAutomatico(EstadoDebitoAutomatico estado)
+    {
+        if (PreaprobacionMercadoPagoId is null)
+            throw new DomainException("La suscripción no tiene un débito automático.");
+        DebitoAutomatico = estado;
+        MarcarModificado();
     }
 
     public void CambiarPlan(Plan plan)

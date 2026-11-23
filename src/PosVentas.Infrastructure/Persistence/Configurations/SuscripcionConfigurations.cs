@@ -43,6 +43,11 @@ internal sealed class SuscripcionConfiguration : IEntityTypeConfiguration<Suscri
         builder.Property(s => s.Id).ValueGeneratedNever();
         builder.Property(s => s.RowVersion).IsRowVersion();
         builder.Ignore(s => s.FinGraciaUtc);
+        builder.Property(s => s.PreaprobacionMercadoPagoId).HasMaxLength(Suscripcion.LongitudMaximaIdExterno).IsUnicode(false);
+        builder.Property(s => s.DebitoAutomatico).HasConversion<string>().HasMaxLength(20);
+
+        // Un débito de Mercado Pago pertenece a una sola suscripción (el webhook la busca por este id)
+        builder.HasIndex(s => s.PreaprobacionMercadoPagoId).IsUnique().HasFilter("[PreaprobacionMercadoPagoId] IS NOT NULL");
 
         builder.HasOne<Comercio>().WithOne().HasForeignKey<Suscripcion>(s => s.ComercioId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(s => s.Plan).WithMany().HasForeignKey(s => s.PlanId).OnDelete(DeleteBehavior.Restrict);

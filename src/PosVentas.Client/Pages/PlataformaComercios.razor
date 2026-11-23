@@ -65,7 +65,13 @@ else
                                         }
                                     </select>
                                 </td>
-                                <td><span class="badge @TextosSuscripcion.Clase(c.Estado)">@TextosSuscripcion.Estado(c.Estado)</span></td>
+                                <td>
+                                    <span class="badge @TextosSuscripcion.Clase(c.Estado)">@TextosSuscripcion.Estado(c.Estado)</span>
+                                    @if (c.DebitoAutomatico is { } debito)
+                                    {
+                                        <br /><small class="ayuda">Mercado Pago: @(debito switch { EstadoDebitoAutomatico.Activo => "débito activo", EstadoDebitoAutomatico.Pausado => "débito pausado", _ => "débito cancelado" })</small>
+                                    }
+                                </td>
                                 <td>@c.VenceUtc.ToLocalTime().ToString("dd/MM/yyyy") <small class="ayuda">(@DiasTexto(c))</small></td>
                                 <td>@(c.UltimoPagoUtc?.ToLocalTime().ToString("dd/MM/yyyy") ?? "—")</td>
                                 <td class="acciones-fila">

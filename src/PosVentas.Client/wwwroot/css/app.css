@@ -709,3 +709,6 @@ code { color: #b4235f; font-size: 0.9em; }
 @media (max-width: 640px) {
     .aviso-suscripcion { padding: 0.55rem 1rem; }
 }
+.fila-debito { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem 1.5rem; }
+.fila-debito .badge { margin-left: 0.35rem; }
+.campo-email-mp { display: flex; flex-direction: column; gap: 0.3rem; max-width: 22rem; margin: 0.75rem 0 1rem; font-weight: 500; }
