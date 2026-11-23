@@ -491,6 +491,10 @@ p.permisos-resumen { padding-left: 0; }
 .detalle-auditoria { white-space: normal; min-width: 260px; color: var(--pv-texto-secundario); }
 .badge.accion-rol { background: #f1ebfd; color: #5b30b8; border-color: #d9c9f7; }
 .badge.accion-usuario { background: var(--pv-primario-suave); color: var(--pv-primario-texto); border-color: #c8d6f7; }
+.badge.accion-venta { background: #fdecec; color: #a52323; border-color: #f5c6c6; }
+.badge.accion-cajasesion { background: #e9f7ef; color: #1d7044; border-color: #c3e8d2; }
+.badge.accion-producto { background: #fff4e0; color: #8a5300; border-color: #f6dcae; }
+.badge.accion-comercio { background: #eef1f4; color: #3d4a57; border-color: #d3dae1; }
 .paginador { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0.75rem; margin-top: 1rem; color: var(--pv-texto-secundario); }
 .paginador > span:first-child { margin-right: auto; }
 

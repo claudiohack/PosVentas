@@ -1,6 +1,7 @@
 using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using PosVentas.Application.Common.Auditoria;
 using PosVentas.Application.Common.Exceptions;
 using PosVentas.Application.Common.Interfaces;
 using PosVentas.Application.Common.Security;
@@ -95,7 +96,7 @@ public sealed class ImportarProductosCommandValidator : AbstractValidator<Import
     }
 }
 
-public sealed class ImportarProductosCommandHandler(IApplicationDbContext db, IPlanillaProductos planilla)
+public sealed class ImportarProductosCommandHandler(IApplicationDbContext db, IPlanillaProductos planilla, RegistradorAuditoria auditoria)
     : IRequestHandler<ImportarProductosCommand, ResultadoImportacionDto>
 {
     public const int FilasMaximas = 5_000;
@@ -124,7 +125,15 @@ public sealed class ImportarProductosCommandHandler(IApplicationDbContext db, IP
 
         var aplicado = errores.Count == 0 && !request.Simular;
         if (aplicado)
-            await db.SaveChangesAsync(ct); // un solo SaveChanges: todo o nada
+        {
+            var categorias = estado.CategoriasNuevas.Count == 0
+                ? string.Empty
+                : $" Categorías nuevas: {string.Join(", ", estado.CategoriasNuevas.Select(c => c.Nombre))}.";
+            auditoria.Registrar(AccionesAuditoria.ProductosImportados, nameof(Producto), null,
+                $"Importación desde planilla: {estado.Nuevos} nuevos, {estado.Actualizados} actualizados, " +
+                $"{estado.SinCambios} sin cambios.{categorias}");
+            await db.SaveChangesAsync(ct); // un solo SaveChanges: todo o nada (incluido el registro de auditoría)
+        }
 
         return new ResultadoImportacionDto(
             aplicado,

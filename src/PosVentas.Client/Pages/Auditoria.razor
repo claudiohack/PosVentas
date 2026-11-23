@@ -22,6 +22,10 @@ else
                 <option value="">Todo</option>
                 <option value="Rol">Roles</option>
                 <option value="Usuario">Usuarios</option>
+                <option value="Venta">Ventas anuladas</option>
+                <option value="CajaSesion">Caja</option>
+                <option value="Producto">Productos</option>
+                <option value="Comercio">Facturación</option>
             </select>
         </label>
         <button type="submit" class="btn-buscar" disabled="@cargando">Filtrar</button>
@@ -122,6 +126,17 @@ else
         "usuario.password-reseteada" => "Contraseña reseteada",
         "usuario.activado" => "Usuario activado",
         "usuario.desactivado" => "Usuario dado de baja",
+        "venta.anulada" => "Venta anulada",
+        "caja.abierta" => "Caja abierta",
+        "caja.cerrada" => "Caja cerrada",
+        "producto.creado" => "Producto creado",
+        "producto.precio-modificado" => "Cambio de precio",
+        "producto.stock-ingresado" => "Ingreso de stock",
+        "producto.activado" => "Producto reactivado",
+        "producto.desactivado" => "Producto dado de baja",
+        "productos.importados" => "Importación de productos",
+        "facturacion.datos-modificados" => "Datos fiscales",
+        "facturacion.certificado-cargado" => "Certificado ARCA",
         _ => codigo
     };
 }

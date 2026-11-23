@@ -1,6 +1,7 @@
 ﻿using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using PosVentas.Application.Common.Auditoria;
 using PosVentas.Application.Common.Exceptions;
 using PosVentas.Application.Common.Interfaces;
 using PosVentas.Application.Common.Security;
@@ -49,7 +50,7 @@ public sealed class AbrirCajaCommandValidator : AbstractValidator<AbrirCajaComma
     }
 }
 
-public sealed class AbrirCajaCommandHandler(IApplicationDbContext db, ICurrentUserService usuarioActual)
+public sealed class AbrirCajaCommandHandler(IApplicationDbContext db, ICurrentUserService usuarioActual, RegistradorAuditoria auditoria)
     : IRequestHandler<AbrirCajaCommand, SesionCajaDto>
 {
     public async Task<SesionCajaDto> Handle(AbrirCajaCommand request, CancellationToken cancellationToken)
@@ -62,6 +63,8 @@ public sealed class AbrirCajaCommandHandler(IApplicationDbContext db, ICurrentUs
         // El dominio impide abrir dos veces (y un índice único filtrado lo garantiza ante carreras).
         var sesion = CajaSesion.Abrir(caja, usuarioId, request.MontoApertura);
         db.CajaSesiones.Add(sesion);
+        auditoria.Registrar(AccionesAuditoria.CajaAbierta, nameof(CajaSesion), sesion.Id,
+            $"Caja '{caja.Nombre}' abierta con {RegistradorAuditoria.Importe(sesion.MontoApertura)}.");
         await db.SaveChangesAsync(cancellationToken);
 
         return CajaMapper.ToDto(sesion, caja.Nombre);
@@ -101,7 +104,7 @@ public sealed class CerrarCajaCommandValidator : AbstractValidator<CerrarCajaCom
     }
 }
 
-public sealed class CerrarCajaCommandHandler(IApplicationDbContext db, ICurrentUserService usuarioActual)
+public sealed class CerrarCajaCommandHandler(IApplicationDbContext db, ICurrentUserService usuarioActual, RegistradorAuditoria auditoria)
     : IRequestHandler<CerrarCajaCommand, ResumenSesionDto>
 {
     public async Task<ResumenSesionDto> Handle(CerrarCajaCommand request, CancellationToken cancellationToken)
@@ -116,6 +119,18 @@ public sealed class CerrarCajaCommandHandler(IApplicationDbContext db, ICurrentU
         var efectivoCobrado = await ResumenSesionBuilder.TotalEfectivoAsync(db, sesion.Id, cancellationToken);
 
         sesion.Cerrar(sesion.Caja!, usuarioId, efectivoCobrado, request.MontoCierreReal, request.Observaciones);
+
+        var diferencia = sesion.DiferenciaArqueo ?? 0m;
+        var arqueo = diferencia switch
+        {
+            > 0 => $"sobrante de {RegistradorAuditoria.Importe(diferencia)}",
+            < 0 => $"faltante de {RegistradorAuditoria.Importe(-diferencia)}",
+            _ => "sin diferencias"
+        };
+        auditoria.Registrar(AccionesAuditoria.CajaCerrada, nameof(CajaSesion), sesion.Id,
+            $"Caja '{sesion.Caja!.Nombre}' cerrada. Esperado en efectivo: {RegistradorAuditoria.Importe(sesion.MontoCierreSistema ?? 0m)}; " +
+            $"contado: {RegistradorAuditoria.Importe(request.MontoCierreReal)}; {arqueo}." +
+            (string.IsNullOrWhiteSpace(request.Observaciones) ? string.Empty : $" Observaciones: {request.Observaciones.Trim()}"));
         await db.SaveChangesAsync(cancellationToken);
 
         return await ResumenSesionBuilder.ConstruirAsync(db, sesion, cancellationToken);

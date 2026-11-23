@@ -1,6 +1,7 @@
 ﻿using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using PosVentas.Application.Common.Auditoria;
 using PosVentas.Application.Common.Exceptions;
 using PosVentas.Application.Common.Interfaces;
 using PosVentas.Domain.Entities;
@@ -88,6 +89,10 @@ internal static class ReglasProducto
         else
             producto.AsignarPreciosYMargen(costo, porcentajeGanancia);
     }
+
+    public static string DescribirPrecios(Producto p) =>
+        $"Costo {RegistradorAuditoria.Importe(p.PrecioCompra.Monto)}, margen {RegistradorAuditoria.Cantidad(p.PorcentajeGanancia)} %, " +
+        $"precio de venta {RegistradorAuditoria.Importe(p.PrecioVenta.Monto)}";
 }
 
 public sealed class CrearProductoCommandValidator : AbstractValidator<CrearProductoCommand>
@@ -100,7 +105,7 @@ public sealed class CrearProductoCommandValidator : AbstractValidator<CrearProdu
     }
 }
 
-public sealed class CrearProductoCommandHandler(IApplicationDbContext db) : IRequestHandler<CrearProductoCommand, Guid>
+public sealed class CrearProductoCommandHandler(IApplicationDbContext db, RegistradorAuditoria auditoria) : IRequestHandler<CrearProductoCommand, Guid>
 {
     public async Task<Guid> Handle(CrearProductoCommand request, CancellationToken cancellationToken)
     {
@@ -127,6 +132,9 @@ public sealed class CrearProductoCommandHandler(IApplicationDbContext db) : IReq
             producto.IngresarStock(request.StockInicial);
 
         db.Productos.Add(producto);
+        auditoria.Registrar(AccionesAuditoria.ProductoCreado, nameof(Producto), producto.Id,
+            $"Producto '{producto.Nombre}' (SKU {producto.Sku}). {ReglasProducto.DescribirPrecios(producto)}; " +
+            $"stock inicial: {RegistradorAuditoria.Cantidad(producto.StockActual)}.");
         await db.SaveChangesAsync(cancellationToken);
         return producto.Id;
     }
@@ -145,14 +153,18 @@ public sealed class IngresarStockCommandValidator : AbstractValidator<IngresarSt
     }
 }
 
-public sealed class IngresarStockCommandHandler(IApplicationDbContext db) : IRequestHandler<IngresarStockCommand, decimal>
+public sealed class IngresarStockCommandHandler(IApplicationDbContext db, RegistradorAuditoria auditoria) : IRequestHandler<IngresarStockCommand, decimal>
 {
     public async Task<decimal> Handle(IngresarStockCommand request, CancellationToken cancellationToken)
     {
         var producto = await db.Productos.SingleOrDefaultAsync(p => p.Id == request.ProductoId, cancellationToken)
             ?? throw new NotFoundException(nameof(Producto), request.ProductoId);
 
+        var anterior = producto.StockActual;
         producto.IngresarStock(request.Cantidad);
+        auditoria.Registrar(AccionesAuditoria.ProductoStockIngresado, nameof(Producto), producto.Id,
+            $"Ingreso manual de {RegistradorAuditoria.Cantidad(request.Cantidad)} unidades de '{producto.Nombre}' " +
+            $"(stock {RegistradorAuditoria.Cantidad(anterior)} → {RegistradorAuditoria.Cantidad(producto.StockActual)}).");
         await db.SaveChangesAsync(cancellationToken);
         return producto.StockActual;
     }
@@ -183,7 +195,7 @@ public sealed class ActualizarProductoCommandValidator : AbstractValidator<Actua
     }
 }
 
-public sealed class ActualizarProductoCommandHandler(IApplicationDbContext db) : IRequestHandler<ActualizarProductoCommand, ProductoDto>
+public sealed class ActualizarProductoCommandHandler(IApplicationDbContext db, RegistradorAuditoria auditoria) : IRequestHandler<ActualizarProductoCommand, ProductoDto>
 {
     public async Task<ProductoDto> Handle(ActualizarProductoCommand r, CancellationToken ct)
     {
@@ -197,12 +209,20 @@ public sealed class ActualizarProductoCommandHandler(IApplicationDbContext db) :
         var codigoBarras = Producto.NormalizarCodigoBarras(r.CodigoBarras);
         await ReglasProducto.ExigirIdentificadoresLibresAsync(db, sku, codigoBarras, producto.Id, ct);
 
+        var preciosAnteriores = ReglasProducto.DescribirPrecios(producto);
+        var (costoAnterior, ventaAnterior) = (producto.PrecioCompra.Monto, producto.PrecioVenta.Monto);
+
         producto.ActualizarDatosBasicos(sku, r.Nombre, r.PorcentajeIva);
         producto.AsignarCodigoBarras(codigoBarras);
         producto.CambiarCategoria(r.CategoriaId);
         ReglasProducto.AplicarPrecios(producto, Money.Crear(r.PrecioCompra, producto.PrecioCompra.Moneda), r.PorcentajeGanancia, r.PrecioVenta);
         producto.ConfigurarVentaSinStock(r.VenderSinStock);
         producto.ConfigurarStockMinimo(r.StockMinimo);
+
+        // Solo se audita lo que afecta la plata: costo o precio de venta (el margen se deriva de ambos).
+        if (producto.PrecioCompra.Monto != costoAnterior || producto.PrecioVenta.Monto != ventaAnterior)
+            auditoria.Registrar(AccionesAuditoria.ProductoPrecioModificado, nameof(Producto), producto.Id,
+                $"'{producto.Nombre}' (SKU {producto.Sku}). Antes: {preciosAnteriores}. Ahora: {ReglasProducto.DescribirPrecios(producto)}.");
 
         await db.SaveChangesAsync(ct); // RowVersion: si una venta tocó el producto en el medio, 409
         await db.Categorias.Where(c => c.Id == producto.CategoriaId).LoadAsync(ct);
@@ -214,14 +234,19 @@ public sealed class ActualizarProductoCommandHandler(IApplicationDbContext db) :
 
 public sealed record CambiarEstadoProductoCommand(Guid Id, bool Activo) : IRequest<ProductoDto>;
 
-public sealed class CambiarEstadoProductoCommandHandler(IApplicationDbContext db) : IRequestHandler<CambiarEstadoProductoCommand, ProductoDto>
+public sealed class CambiarEstadoProductoCommandHandler(IApplicationDbContext db, RegistradorAuditoria auditoria) : IRequestHandler<CambiarEstadoProductoCommand, ProductoDto>
 {
     public async Task<ProductoDto> Handle(CambiarEstadoProductoCommand request, CancellationToken ct)
     {
         var producto = await db.Productos.Include(p => p.Categoria).SingleOrDefaultAsync(p => p.Id == request.Id, ct)
             ?? throw new NotFoundException(nameof(Producto), request.Id);
 
+        var cambia = producto.EstaActivo != request.Activo;
         if (request.Activo) producto.Activar(); else producto.Desactivar();
+        if (cambia)
+            auditoria.Registrar(request.Activo ? AccionesAuditoria.ProductoActivado : AccionesAuditoria.ProductoDesactivado,
+                nameof(Producto), producto.Id,
+                $"Producto '{producto.Nombre}' (SKU {producto.Sku}) {(request.Activo ? "reactivado" : "dado de baja")}.");
         await db.SaveChangesAsync(ct);
         return ProductoMapper.ToDto(producto);
     }
