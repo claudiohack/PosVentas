@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -8,11 +8,13 @@ using Microsoft.IdentityModel.Tokens;
 using PosVentas.Application;
 using PosVentas.Application.Common.Interfaces;
 using PosVentas.Application.Common.Security;
-using PosVentas.Domain.Enums;
+using Microsoft.AspNetCore.HttpOverrides;
 using PosVentas.Infrastructure;
+using PosVentas.Infrastructure.Persistence;
 using PosVentas.Infrastructure.Security;
 using PosVentas.WebAPI;
 using PosVentas.WebAPI.Middlewares;
+using PosVentas.WebAPI.Security;
 using PosVentas.WebAPI.Services;
 
 const string CorsClientPolicy = "PosVentasClient";
@@ -28,6 +30,7 @@ builder.Services.Configure<PosVentas.Application.Features.Facturacion.Facturacio
 // ---------- Contexto del request (tenant / usuario desde el JWT) ----------
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentTenantService, CurrentTenantService>();
+builder.Services.AddScoped<SesionActual>(); // rol y permisos del request, cargados de la base por ValidacionSesionMiddleware
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 
 // ---------- Errores en formato ProblemDetails ----------
@@ -58,25 +61,22 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
         };
     });
 
-// ---------- Autorización: seguro por defecto ----------
-// Todo endpoint exige usuario autenticado con comercio, salvo los marcados [AllowAnonymous].
+// ---------- Autorización por permisos: seguro por defecto ----------
+// Todo endpoint exige usuario autenticado con comercio, salvo los marcados [AllowAnonymous]. Cada endpoint
+// declara su permiso con [AutorizarPermiso(...)]; las políticas "perm:..." se crean al vuelo y se evalúan
+// contra los permisos que ValidacionSesionMiddleware leyó de la base para este request.
+builder.Services.AddSingleton<IAuthorizationPolicyProvider, PoliticasPermisoProvider>();
+builder.Services.AddScoped<IAuthorizationHandler, PermisoAuthorizationHandler>();
 builder.Services.AddAuthorizationBuilder()
     .SetFallbackPolicy(new AuthorizationPolicyBuilder()
         .RequireAuthenticatedUser()
         .RequireClaim(PosVentasClaims.TenantId)
         .Build())
-    .AddPolicy(Politicas.SoloAdministrador, policy => policy
+    .AddPolicy(Politicas.AdministradorGlobal, policy => policy
         .RequireAuthenticatedUser()
         .RequireClaim(PosVentasClaims.TenantId)
-        .RequireRole(nameof(RolUsuario.Administrador)))
-    .AddPolicy(Politicas.Supervision, policy => policy
-        .RequireAuthenticatedUser()
-        .RequireClaim(PosVentasClaims.TenantId)
-        .RequireRole(nameof(RolUsuario.Administrador), nameof(RolUsuario.Supervisor)))
-    .AddPolicy(Politicas.Operador, policy => policy
-        .RequireAuthenticatedUser()
-        .RequireClaim(PosVentasClaims.TenantId)
-        .RequireRole(nameof(RolUsuario.Administrador), nameof(RolUsuario.Supervisor), nameof(RolUsuario.Cajero)));
+        .RequireClaim(PosVentasClaims.AdministradorPlataforma, "1")
+        .AddRequirements(new AdministradorRequirement()));
 
 // ---------- Rate limiting en endpoints de autenticación ----------
 var authPermitLimit = builder.Configuration.GetValue("RateLimiting:AuthPorMinuto", 10);
@@ -105,7 +105,29 @@ builder.Services.AddControllers()
     .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddOpenApi();
 
+// ---------- Detrás de un reverse proxy (Nginx en Docker / DigitalOcean) ----------
+// Con Proxy:ConfiarEnEncabezados=true se toman X-Forwarded-For / -Proto del proxy: la IP real del cliente
+// (rate limiting, logs) y el esquema https original. Solo activarlo cuando la API NO está expuesta directo.
+var detrasDeProxy = builder.Configuration.GetValue("Proxy:ConfiarEnEncabezados", false);
+if (detrasDeProxy)
+{
+    builder.Services.Configure<ForwardedHeadersOptions>(o =>
+    {
+        o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+        o.ForwardLimit = 1;
+        o.KnownIPNetworks.Clear(); // la red interna de Docker: el proxy es el único que llega a la API
+        o.KnownProxies.Clear();
+    });
+}
+
 var app = builder.Build();
+
+// Contenedores: migraciones y comercio operador de la plataforma al arrancar (idempotente).
+if (app.Configuration.GetValue("BaseDatos:InicializarAlArrancar", false))
+    await InicializadorBaseDatos.InicializarAsync(app.Services, aplicarMigraciones: true);
+
+if (detrasDeProxy)
+    app.UseForwardedHeaders();
 
 app.UseMiddleware<GlobalExceptionMiddleware>();
 app.UseStatusCodePages();
@@ -119,7 +141,9 @@ else
     app.UseHsts();
 }
 
-app.UseHttpsRedirection();
+// En Docker el TLS lo termina el proxy: la API escucha http interno y no redirige.
+if (app.Configuration.GetValue("Https:Redireccionar", true))
+    app.UseHttpsRedirection();
 app.UseCors(CorsClientPolicy);
 app.UseAuthentication();
 app.UseMiddleware<ValidacionSesionMiddleware>(); // revoca tokens de usuarios desactivados o con clave/rol cambiados

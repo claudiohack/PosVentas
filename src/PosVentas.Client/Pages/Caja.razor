@@ -76,9 +76,9 @@ else
 
                 <p class="destacado">Efectivo esperado en caja: <strong>@Pesos(resumen.EfectivoEsperado)</strong></p>
 
-                @if (!Sesion.PuedeSupervisar)
+                @if (!Sesion.Tiene(Permisos.CajaCerrar))
                 {
-                    <p class="aviso">El cierre y arqueo de caja lo realiza un supervisor o un administrador.</p>
+                    <p class="aviso">Tu rol no tiene permiso para cerrar y arquear la caja.</p>
                 }
                 else
                 {

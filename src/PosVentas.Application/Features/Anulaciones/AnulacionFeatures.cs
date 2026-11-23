@@ -3,10 +3,12 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using PosVentas.Application.Common.Exceptions;
 using PosVentas.Application.Common.Interfaces;
+using PosVentas.Application.Common.Security;
 using PosVentas.Application.Features.Cajas;
 using PosVentas.Application.Features.Facturacion;
 using PosVentas.Domain.Common;
 using PosVentas.Domain.Entities;
+using PosVentas.Domain.Seguridad;
 using PosVentas.Domain.Enums;
 
 namespace PosVentas.Application.Features.Anulaciones;
@@ -31,6 +33,7 @@ public sealed record AnulacionDto(
 
 /// <param name="CajaSesionId">Turno desde el que se devuelve el dinero. Si se omite: el turno original si sigue abierto,
 /// o la única caja abierta.</param>
+[RequierePermiso(Permisos.VentasAnular)]
 public sealed record AnularVentaCommand(Guid VentaId, string MotivoAnulacion, Guid? CajaSesionId = null) : IRequest<AnulacionDto>;
 
 public sealed class AnularVentaCommandValidator : AbstractValidator<AnularVentaCommand>
@@ -117,6 +120,7 @@ public sealed class AnularVentaCommandHandler(
 
 // ---------- Reintento de la nota de crédito ----------
 
+[RequierePermiso(Permisos.VentasAnular)]
 public sealed record EmitirNotaCreditoPendienteCommand(Guid VentaId) : IRequest<AnulacionDto>;
 
 public sealed class EmitirNotaCreditoPendienteCommandHandler(

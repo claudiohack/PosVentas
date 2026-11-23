@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using PosVentas.Domain.Entities;
 
 namespace PosVentas.Application.Common.Interfaces;
@@ -11,6 +11,8 @@ public interface IApplicationDbContext
 {
     DbSet<Comercio> Comercios { get; }
     DbSet<Usuario> Usuarios { get; }
+    DbSet<Rol> Roles { get; }
+    DbSet<RegistroAuditoria> RegistrosAuditoria { get; }
     DbSet<Categoria> Categorias { get; }
     DbSet<Producto> Productos { get; }
     DbSet<Cliente> Clientes { get; }
@@ -27,6 +29,7 @@ public interface IApplicationDbContext
     DbSet<CompraDetalle> CompraDetalles { get; }
     DbSet<ComprobanteFiscal> ComprobantesFiscales { get; }
     DbSet<AnulacionVenta> AnulacionesVenta { get; }
+    DbSet<InvitacionComercio> InvitacionesComercio { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

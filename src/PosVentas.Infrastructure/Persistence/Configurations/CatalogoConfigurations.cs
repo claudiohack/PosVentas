@@ -34,6 +34,7 @@ internal sealed class ProductoConfiguration : IEntityTypeConfiguration<Producto>
             .HasMaxLength(Sku.LongitudMaxima);
 
         builder.Property(p => p.Nombre).IsRequired().HasMaxLength(Producto.LongitudMaximaNombre);
+        builder.Property(p => p.CodigoBarras).HasMaxLength(Producto.LongitudMaximaCodigoBarras);
 
         builder.ComplexProperty(p => p.PrecioCompra, money =>
         {
@@ -61,6 +62,9 @@ internal sealed class ProductoConfiguration : IEntityTypeConfiguration<Producto>
 
         // SKU único por comercio (dos comercios pueden usar el mismo código)
         builder.HasIndex(p => new { p.TenantId, p.Sku }).IsUnique();
+
+        // Código de barras único por comercio (lo leen los scanners del mostrador)
+        builder.HasIndex(p => new { p.TenantId, p.CodigoBarras }).IsUnique().HasFilter("[CodigoBarras] IS NOT NULL");
         builder.HasIndex(p => new { p.TenantId, p.Nombre });
     }
 }

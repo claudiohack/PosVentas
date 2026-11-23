@@ -6,12 +6,13 @@ using PosVentas.Application.Features.Anulaciones;
 using PosVentas.Application.Features.Facturacion;
 using PosVentas.Application.Features.Ventas;
 using PosVentas.Domain.Enums;
+using PosVentas.Domain.Seguridad;
+using PosVentas.WebAPI.Security;
 
 namespace PosVentas.WebAPI.Controllers;
 
 [ApiController]
 [Route("api/ventas")]
-[Authorize(Policy = Politicas.Operador)]
 public sealed class VentasController(ISender mediator) : ControllerBase
 {
     /// <summary>
@@ -20,6 +21,7 @@ public sealed class VentasController(ISender mediator) : ControllerBase
     /// la venta queda registrada como pendiente de facturación (el id viene en "ventaId").
     /// </summary>
     [HttpPost]
+    [AutorizarPermiso(Permisos.VentasRegistrar)]
     [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
     [ProducesResponseType<VentaDto>(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -33,6 +35,7 @@ public sealed class VentasController(ISender mediator) : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [AutorizarPermiso(Permisos.VentasConsultar)]
     [ProducesResponseType<VentaDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<VentaDto>> ObtenerPorId(Guid id, CancellationToken ct)
@@ -43,6 +46,7 @@ public sealed class VentasController(ISender mediator) : ControllerBase
     /// 400 con los códigos de ARCA si la rechaza; 503 si ARCA no responde (la venta sigue pendiente).
     /// </summary>
     [HttpPost("{id:guid}/facturar")]
+    [AutorizarPermiso(Permisos.VentasRegistrar)]
     [ProducesResponseType<VentaDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -54,6 +58,7 @@ public sealed class VentasController(ISender mediator) : ControllerBase
 
     /// <summary>Datos para imprimir el comprobante: emisor, receptor, renglones, totales, CAE y QR fiscal (RG 4892).</summary>
     [HttpGet("{id:guid}/comprobante")]
+    [AutorizarPermiso(Permisos.VentasConsultar)]
     [ProducesResponseType<ComprobanteImpresionDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ComprobanteImpresionDto>> Comprobante(Guid id, CancellationToken ct)
@@ -61,6 +66,7 @@ public sealed class VentasController(ISender mediator) : ControllerBase
 
     /// <summary>Historial de ventas del período (fechas yyyy-MM-dd, calendario argentino; sin fechas = hoy).</summary>
     [HttpGet]
+    [AutorizarPermiso(Permisos.VentasConsultar)]
     [ProducesResponseType<IReadOnlyList<VentaHistorialDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<IReadOnlyList<VentaHistorialDto>>> Historial(
@@ -73,7 +79,7 @@ public sealed class VentasController(ISender mediator) : ControllerBase
     /// (si ARCA la rechaza: 400; si no responde: 503; en ambos casos la anulación ya quedó hecha).
     /// </summary>
     [HttpPost("{id:guid}/anular")]
-    [Authorize(Policy = Politicas.Supervision)]
+    [AutorizarPermiso(Permisos.VentasAnular)]
     [ProducesResponseType<AnulacionDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -85,6 +91,7 @@ public sealed class VentasController(ISender mediator) : ControllerBase
         => Ok(await mediator.Send(new AnularVentaCommand(id, request.MotivoAnulacion, request.CajaSesionId), ct));
 
     [HttpGet("{id:guid}/anulacion")]
+    [AutorizarPermiso(Permisos.VentasConsultar)]
     [ProducesResponseType<AnulacionDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<AnulacionDto>> Anulacion(Guid id, CancellationToken ct)
@@ -92,7 +99,7 @@ public sealed class VentasController(ISender mediator) : ControllerBase
 
     /// <summary>Reintenta la nota de crédito pendiente de una venta anulada.</summary>
     [HttpPost("{id:guid}/nota-credito")]
-    [Authorize(Policy = Politicas.Supervision)]
+    [AutorizarPermiso(Permisos.VentasAnular)]
     [ProducesResponseType<AnulacionDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -103,6 +110,7 @@ public sealed class VentasController(ISender mediator) : ControllerBase
 
     /// <summary>Datos para imprimir la nota de crédito (CAE y QR de ARCA) o el comprobante interno de anulación.</summary>
     [HttpGet("{id:guid}/nota-credito")]
+    [AutorizarPermiso(Permisos.VentasConsultar)]
     [ProducesResponseType<ComprobanteImpresionDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ComprobanteImpresionDto>> NotaCredito(Guid id, CancellationToken ct)

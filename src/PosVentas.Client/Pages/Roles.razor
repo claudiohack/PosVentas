@@ -1,0 +1,178 @@
+@page "/roles"
+@inject PosVentasApi Api
+@inject SesionService Sesion
+@inject NavigationManager Navegacion
+
+<PageTitle>Roles y permisos · PosVentas</PageTitle>
+
+<div class="encabezado">
+    <h1>Roles y permisos</h1>
+    @if (Sesion.Tiene(Permisos.RolesGestionar))
+    {
+        <label class="check"><input type="checkbox" @bind="incluirEliminados" @bind:after="CargarAsync" /> Ver eliminados</label>
+        <button class="btn-primario ancho-auto" @onclick="() => AbrirModal(null)" disabled="@(catalogo.Count == 0)">Nuevo rol</button>
+    }
+</div>
+
+@if (!Sesion.Tiene(Permisos.RolesGestionar))
+{
+    <section class="tarjeta"><p>Tu rol no tiene permiso para gestionar roles.</p></section>
+}
+else
+{
+    <p class="ayuda subtitulo">
+        Cada usuario tiene un rol, y el rol define qué puede hacer. Los cambios rigen en la próxima acción de cada usuario,
+        sin que tenga que volver a ingresar. El Administrador siempre tiene todos los permisos.
+    </p>
+
+    @if (mensaje is not null)
+    {
+        <p class="ok" role="status">@mensaje</p>
+    }
+    @if (error is not null)
+    {
+        <p class="error" role="alert">@error</p>
+    }
+
+    @if (roles is null)
+    {
+        <p>Cargando…</p>
+    }
+    else
+    {
+        <div class="grilla-roles">
+            @foreach (var r in roles)
+            {
+                <section class="tarjeta tarjeta-rol @(r.Activo ? null : "inactivo") @(r.EsAdministrador ? "es-admin" : null)">
+                    <div class="tarjeta-rol-cabecera">
+                        <div>
+                            <h2>@r.Nombre</h2>
+                            <span class="badge">@(r.EsSistema ? "Predeterminado" : "Personalizado")</span>
+                            @if (!r.Activo)
+                            {
+                                <span class="badge baja">Eliminado</span>
+                            }
+                        </div>
+                        <span class="cantidad-usuarios" title="Usuarios con este rol">@r.CantidadUsuarios <small>usuario@(r.CantidadUsuarios == 1 ? "" : "s")</small></span>
+                    </div>
+                    @if (r.Descripcion is not null)
+                    {
+                        <p class="ayuda">@r.Descripcion</p>
+                    }
+
+                    @if (r.EsAdministrador)
+                    {
+                        <p class="permisos-resumen"><strong>Todos los permisos</strong>, incluidos los que se agreguen en el futuro.</p>
+                    }
+                    else
+                    {
+                        <ul class="permisos-resumen">
+                            @foreach (var g in catalogo)
+                            {
+                                var deGrupo = g.Permisos.Where(p => r.Permisos.Contains(p.Codigo)).ToList();
+                                if (deGrupo.Count == 0) continue;
+                                <li><strong>@g.Grupo:</strong> @string.Join(", ", deGrupo.Select(p => p.Nombre))</li>
+                            }
+                        </ul>
+                    }
+
+                    @if (r.Activo && !r.EsAdministrador)
+                    {
+                        <div class="acciones-fila">
+                            <button class="btn-secundario" @onclick="() => AbrirModal(r)">Editar permisos</button>
+                            @if (!r.EsSistema)
+                            {
+                                <button class="btn-secundario" disabled="@procesando" @onclick="() => EliminarAsync(r)">Eliminar</button>
+                            }
+                        </div>
+                    }
+                </section>
+            }
+        </div>
+    }
+
+    @if (mostrarModal)
+    {
+        <RolModal Rol="editado" Catalogo="catalogo" OnGuardado="AlGuardarAsync" OnCancelar="() => mostrarModal = false" />
+    }
+}
+
+@code {
+    private List<RolDto>? roles;
+    private List<GrupoPermisosDto> catalogo = [];
+    private RolDto? editado;
+    private bool mostrarModal;
+    private bool incluirEliminados;
+    private string? mensaje;
+    private string? error;
+    private bool procesando;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Sesion.EstaAutenticado)
+        {
+            Navegacion.NavigateTo("/");
+            return;
+        }
+        if (!Sesion.Tiene(Permisos.RolesGestionar))
+            return;
+
+        await EjecutarAsync(async () => catalogo = await Api.ObtenerCatalogoPermisosAsync());
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync() =>
+        await EjecutarAsync(async () => roles = await Api.ObtenerRolesAsync(incluirEliminados));
+
+    private void AbrirModal(RolDto? rol)
+    {
+        editado = rol;
+        mensaje = null;
+        error = null;
+        mostrarModal = true;
+    }
+
+    private async Task AlGuardarAsync(RolDto guardado)
+    {
+        mostrarModal = false;
+        mensaje = editado is null ? $"Rol '{guardado.Nombre}' creado." : $"Rol '{guardado.Nombre}' actualizado.";
+        await CargarAsync();
+        // Si edité mi propio rol, el menú se ajusta sin volver a ingresar
+        if (guardado.Id == Sesion.Actual?.RolId)
+            await EjecutarAsync(async () => Sesion.Actualizar(await Api.ObtenerSesionAsync()));
+    }
+
+    private async Task EliminarAsync(RolDto rol)
+    {
+        mensaje = null;
+        await EjecutarAsync(async () =>
+        {
+            await Api.EliminarRolAsync(rol.Id);
+            mensaje = $"Rol '{rol.Nombre}' eliminado.";
+        });
+        await CargarAsync();
+    }
+
+    private async Task EjecutarAsync(Func<Task> accion)
+    {
+        error = null;
+        procesando = true;
+        try
+        {
+            await accion();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            if (!Sesion.EstaAutenticado) Navegacion.NavigateTo("/");
+        }
+        catch (HttpRequestException)
+        {
+            error = "No se pudo conectar con el servidor.";
+        }
+        finally
+        {
+            procesando = false;
+        }
+    }
+}

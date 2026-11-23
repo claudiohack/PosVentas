@@ -1,7 +1,8 @@
-@page "/productos"
+﻿@page "/productos"
 @inject PosVentasApi Api
 @inject SesionService Sesion
 @inject NavigationManager Navegacion
+@inject IJSRuntime JS
 
 <PageTitle>Productos · PosVentas</PageTitle>
 
@@ -10,7 +11,7 @@
     <section class="tarjeta alerta-stock" role="status">
         <strong>@cantidadStockBajo @(cantidadStockBajo == 1 ? "producto está" : "productos están") en o por debajo del stock mínimo.</strong>
         <button class="btn-secundario" @onclick="VerStockBajoAsync">Ver cuáles</button>
-        @if (Sesion.PuedeSupervisar)
+        @if (Sesion.Tiene(Permisos.ComprasRegistrar))
         {
             <a href="compras">Cargar una compra</a>
         }
@@ -20,11 +21,30 @@
 <section class="tarjeta">
     <div class="encabezado">
         <h1>Productos</h1>
-        <form class="buscador" @onsubmit="CargarAsync">
-            <input type="search" @bind="buscar" placeholder="Buscar por nombre" aria-label="Buscar productos" disabled="@soloStockBajo" />
-            <button type="submit" class="btn-secundario" disabled="@soloStockBajo">Buscar</button>
-        </form>
+        <CampoBusqueda @bind-Valor="buscar" OnBuscar="CargarAsync" Placeholder="Nombre, SKU o código de barras" Etiqueta="Buscar productos" Deshabilitado="soloStockBajo" />
         <label class="check"><input type="checkbox" @bind="soloStockBajo" @bind:after="CargarAsync" /> Solo stock bajo</label>
+        @if (Sesion.Tiene(Permisos.ProductosGestionar))
+        {
+            <label class="check"><input type="checkbox" @bind="incluirInactivos" @bind:after="CargarAsync" /> Incluir dados de baja</label>
+        }
+        <div class="acciones-encabezado">
+            @if (Sesion.Tiene(Permisos.ProductosExportar))
+            {
+                <button class="btn-excel" @onclick="ExportarAsync" disabled="@exportando" title="Descargar el catálogo en Excel">
+                    <Icono Nombre="descargar" /> @(exportando ? "Generando…" : "Exportar Excel")
+                </button>
+            }
+            @if (Sesion.Tiene(Permisos.ProductosImportar))
+            {
+                <button class="btn-excel" @onclick="AbrirImportacion" title="Crear o actualizar productos desde una planilla">
+                    <Icono Nombre="subir" /> Importar Excel
+                </button>
+            }
+            @if (Sesion.Tiene(Permisos.ProductosGestionar))
+            {
+                <button class="btn-primario ancho-auto" @onclick="() => AbrirModal(null)">Nuevo producto</button>
+            }
+        </div>
     </div>
 
     @if (mensaje is not null)
@@ -57,13 +77,17 @@
                     <th class="num">IVA %</th>
                     <th class="num">Stock</th>
                     <th class="num">Mínimo</th>
+                    @if (Sesion.Tiene(Permisos.ProductosGestionar))
+                    {
+                        <th></th>
+                    }
                 </tr>
             </thead>
             <tbody>
                 @foreach (var p in productos)
                 {
-                    <tr class="@(p.StockBajo ? "fila-stock-bajo" : null)">
-                        <td>@p.Sku</td>
+                    <tr class="@(p.StockBajo ? "fila-stock-bajo" : null) @(p.EstaActivo ? null : "inactivo")">
+                        <td>@p.Sku @if (p.CodigoBarras is not null) { <br /><small>@p.CodigoBarras</small> }</td>
                         <td>
                             @p.Nombre
                             @if (p.StockBajo)
@@ -77,14 +101,14 @@
                         <td class="num">@p.PorcentajeIva.ToString("0.##")</td>
                         <td class="num @(p.StockBajo ? "faltante" : null)">@p.StockActual.ToString("0.###")</td>
                         <td class="num">
-                            @if (Sesion.PuedeSupervisar && editandoMinimo == p.Id)
+                            @if (Sesion.Tiene(Permisos.ProductosStockMinimo) && editandoMinimo == p.Id)
                             {
                                 <form class="minimo-form" @onsubmit="() => GuardarMinimoAsync(p)">
                                     <input class="cantidad" type="number" min="0" step="0.001" @bind="nuevoMinimo" aria-label="Stock mínimo de @p.Nombre" />
                                     <button type="submit" class="btn-secundario" disabled="@procesando">OK</button>
                                 </form>
                             }
-                            else if (Sesion.PuedeSupervisar)
+                            else if (Sesion.Tiene(Permisos.ProductosStockMinimo))
                             {
                                 <button class="btn-link" @onclick="() => EditarMinimo(p)" title="Cambiar stock mínimo">@p.StockMinimo.ToString("0.###")</button>
                             }
@@ -93,6 +117,13 @@
                                 @p.StockMinimo.ToString("0.###")
                             }
                         </td>
+                        @if (Sesion.Tiene(Permisos.ProductosGestionar))
+                        {
+                            <td class="acciones-fila">
+                                <button class="btn-secundario" @onclick="() => AbrirModal(p)">Editar</button>
+                                <button class="btn-secundario" disabled="@procesando" @onclick="() => CambiarEstadoAsync(p)">@(p.EstaActivo ? "Dar de baja" : "Reactivar")</button>
+                            </td>
+                        }
                     </tr>
                 }
             </tbody>
@@ -100,8 +131,92 @@
     }
 </section>
 
+@if (mostrarModal)
+{
+    <ProductoModal Producto="editado" Categorias="categorias" OnGuardado="AlGuardarAsync" OnCancelar="() => mostrarModal = false" />
+}
+
+@if (mostrarImportacion)
+{
+    <ImportarProductosModal OnImportado="AlImportarAsync" OnCancelar="() => mostrarImportacion = false" />
+}
+
 @code {
+    private bool mostrarImportacion;
+    private bool exportando;
+
+    private void AbrirImportacion()
+    {
+        mensaje = null;
+        error = null;
+        mostrarImportacion = true;
+    }
+
+    private async Task AlImportarAsync(ResultadoImportacionDto r)
+    {
+        mostrarImportacion = false;
+        mensaje = $"Importación lista: {r.Nuevos} {(r.Nuevos == 1 ? "producto nuevo" : "productos nuevos")} y {r.Actualizados} {(r.Actualizados == 1 ? "actualizado" : "actualizados")}"
+            + (r.CategoriasNuevas.Count > 0 ? $". Categorías creadas: {string.Join(", ", r.CategoriasNuevas)}." : ".");
+        await CargarAsync();
+    }
+
+    private async Task ExportarAsync()
+    {
+        mensaje = null;
+        exportando = true;
+        await EjecutarAsync(async () =>
+        {
+            var contenido = await Api.ExportarProductosAsync();
+            await JS.InvokeVoidAsync("posVentas.descargarArchivo", $"productos-{DateTime.Now:yyyy-MM-dd}.xlsx",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", contenido);
+        });
+        exportando = false;
+    }
+
     private List<ProductoDto>? productos;
+    private List<CategoriaDto> categorias = [];
+    private ProductoDto? editado;
+    private bool mostrarModal;
+    private bool incluirInactivos;
+
+    private async Task AbrirModal(ProductoDto? producto)
+    {
+        mensaje = null;
+        error = null;
+        try
+        {
+            categorias = await Api.ObtenerCategoriasAsync();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            return;
+        }
+        if (categorias.Count == 0)
+        {
+            error = "Primero creá una categoría en Categorías.";
+            return;
+        }
+        editado = producto;
+        mostrarModal = true;
+    }
+
+    private async Task AlGuardarAsync(ProductoDto guardado)
+    {
+        mostrarModal = false;
+        mensaje = editado is null ? $"Producto '{guardado.Nombre}' creado." : $"Producto '{guardado.Nombre}' actualizado.";
+        await CargarAsync();
+    }
+
+    private async Task CambiarEstadoAsync(ProductoDto producto)
+    {
+        await EjecutarAsync(async () =>
+        {
+            var actualizado = await Api.CambiarEstadoProductoAsync(producto.Id, !producto.EstaActivo);
+            mensaje = actualizado.EstaActivo ? $"'{actualizado.Nombre}' reactivado." : $"'{actualizado.Nombre}' dado de baja.";
+        });
+        await CargarAsync();
+    }
     private string? buscar;
     private bool soloStockBajo;
     private int cantidadStockBajo;
@@ -128,7 +243,7 @@
         {
             var bajos = await Api.ObtenerProductosStockBajoAsync();
             cantidadStockBajo = bajos.Count;
-            productos = soloStockBajo ? bajos : await Api.ObtenerProductosAsync(buscar);
+            productos = soloStockBajo ? bajos : await Api.ObtenerProductosTodosAsync(buscar, incluirInactivos);
         });
     }
 

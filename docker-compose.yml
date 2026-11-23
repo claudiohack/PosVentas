@@ -1,0 +1,66 @@
+# Entorno local completo de PosVentas.
+#   1. Copiá .env.example a .env y completá los secretos (nunca se commitea).
+#   2. docker compose up -d --build
+#   3. Abrí http://localhost:8080 e ingresá con el comercio "hs-tech" y el administrador de .env.
+name: posventas
+
+services:
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: "Developer"
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Definí MSSQL_SA_PASSWORD en .env}
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+    # Solo en la máquina local, en un puerto que no choca con un SQL Server instalado (para SSMS / Azure Data Studio)
+    ports:
+      - "127.0.0.1:14333:1433"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD}\" -C -b -Q \"SELECT 1\" -o /dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: src/PosVentas.WebAPI/Dockerfile
+    environment:
+      ConnectionStrings__PosVentas: "Server=db;Database=PosVentasSaaS;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;Encrypt=True"
+      Jwt__SigningKey: ${JWT_SIGNING_KEY:?Definí JWT_SIGNING_KEY en .env}
+      # Al arrancar: aplica migraciones y crea el comercio operador de HS Tech si no existe
+      BaseDatos__InicializarAlArrancar: "true"
+      Plataforma__Slug: ${PLATAFORMA_SLUG:-hs-tech}
+      Plataforma__AdminUsuario: ${PLATAFORMA_ADMIN_USUARIO:-hs-admin}
+      Plataforma__AdminPassword: ${PLATAFORMA_ADMIN_PASSWORD:?Definí PLATAFORMA_ADMIN_PASSWORD en .env}
+    volumes:
+      # Claves de Data Protection: cifran los certificados de ARCA. Si se borra el volumen, hay que recargarlos.
+      - dataprotection_keys:/keys
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: src/PosVentas.Client/Dockerfile
+    restart: unless-stopped
+
+  proxy:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./docker/proxy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+      - frontend
+    restart: unless-stopped
+
+volumes:
+  sqlserver_data:
+  dataprotection_keys:

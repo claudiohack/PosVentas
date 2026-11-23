@@ -1,4 +1,4 @@
-using PosVentas.Domain.Common;
+﻿using PosVentas.Domain.Common;
 using PosVentas.Domain.ValueObjects;
 
 namespace PosVentas.Domain.Entities;
@@ -11,7 +11,13 @@ public sealed class Producto : TenantEntity
 {
     public const int LongitudMaximaNombre = 150;
 
+    public const int LongitudMaximaCodigoBarras = 32;
+
     public Sku Sku { get; private set; } = null!;
+
+    /// <summary>Código de barras (EAN-13, EAN-8, UPC o interno). Opcional y único por comercio.</summary>
+    public string? CodigoBarras { get; private set; }
+
     public string Nombre { get; private set; } = string.Empty;
     public Money PrecioCompra { get; private set; } = null!;
     public decimal PorcentajeGanancia { get; private set; }
@@ -63,6 +69,39 @@ public sealed class Producto : TenantEntity
         Sku = sku;
         Nombre = nombre.Trim();
         PorcentajeIva = porcentajeIva;
+        MarcarModificado();
+    }
+
+    public void AsignarCodigoBarras(string? codigoBarras)
+    {
+        var codigo = NormalizarCodigoBarras(codigoBarras);
+        if (codigo is not null && (codigo.Length > LongitudMaximaCodigoBarras || !codigo.All(char.IsAsciiLetterOrDigit)))
+            throw new DomainException($"El código de barras admite hasta {LongitudMaximaCodigoBarras} letras o números, sin espacios.");
+        CodigoBarras = codigo;
+        MarcarModificado();
+    }
+
+    public static string? NormalizarCodigoBarras(string? codigo) =>
+        string.IsNullOrWhiteSpace(codigo) ? null : codigo.Trim().ToUpperInvariant();
+
+    /// <summary>
+    /// Fija un precio de venta exacto y recalcula el margen sobre el costo. Si después cambia el costo
+    /// (una compra), el precio se vuelve a calcular con ese margen.
+    /// </summary>
+    public void FijarPrecioVenta(Money precioCompra, Money precioVenta)
+    {
+        ArgumentNullException.ThrowIfNull(precioCompra);
+        ArgumentNullException.ThrowIfNull(precioVenta);
+        if (precioCompra.Moneda != precioVenta.Moneda)
+            throw new DomainException("El costo y el precio de venta deben estar en la misma moneda.");
+        if (precioCompra.Monto <= 0)
+            throw new DomainException("Para fijar el precio de venta el producto necesita un costo mayor a cero; si no, indicá el margen.");
+        if (precioVenta.Monto < precioCompra.Monto)
+            throw new DomainException("El precio de venta no puede ser menor al costo.");
+
+        PrecioCompra = precioCompra;
+        PorcentajeGanancia = decimal.Round((precioVenta.Monto / precioCompra.Monto - 1) * 100m, 2, MidpointRounding.AwayFromZero);
+        PrecioVenta = precioVenta;
         MarcarModificado();
     }
 

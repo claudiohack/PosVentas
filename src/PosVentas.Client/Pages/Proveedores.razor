@@ -7,15 +7,15 @@
 
 <div class="encabezado">
     <h1>Proveedores</h1>
-    @if (Sesion.PuedeSupervisar)
+    @if (Sesion.Tiene(Permisos.ProveedoresGestionar))
     {
         <button class="btn-primario ancho-auto" @onclick="() => AbrirModal(null)">Nuevo proveedor</button>
     }
 </div>
 
-@if (!Sesion.PuedeSupervisar)
+@if (!Sesion.TieneAlguno(Permisos.ProveedoresConsultar, Permisos.ProveedoresGestionar))
 {
-    <section class="tarjeta"><p>La gestión de proveedores está disponible para supervisores y administradores.</p></section>
+    <section class="tarjeta"><p>Tu rol no tiene permiso para ver proveedores.</p></section>
 }
 else
 {
@@ -30,10 +30,7 @@ else
 
     <section class="tarjeta">
         <div class="encabezado">
-            <form class="buscador" @onsubmit="CargarAsync">
-                <input type="search" @bind="buscar" placeholder="Buscar por razón social o CUIT" aria-label="Buscar proveedores" />
-                <button type="submit" class="btn-secundario">Buscar</button>
-            </form>
+            <CampoBusqueda @bind-Valor="buscar" OnBuscar="CargarAsync" Placeholder="Buscar por razón social o CUIT" Etiqueta="Buscar proveedores" />
             <label class="check"><input type="checkbox" @bind="incluirInactivos" @bind:after="CargarAsync" /> Incluir dados de baja</label>
         </div>
 
@@ -100,7 +97,7 @@ else
             Navegacion.NavigateTo("/");
             return;
         }
-        if (Sesion.PuedeSupervisar)
+        if (Sesion.TieneAlguno(Permisos.ProveedoresConsultar, Permisos.ProveedoresGestionar))
             await CargarAsync();
     }
 

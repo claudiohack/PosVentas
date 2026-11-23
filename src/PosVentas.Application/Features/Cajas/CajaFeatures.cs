@@ -3,7 +3,9 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using PosVentas.Application.Common.Exceptions;
 using PosVentas.Application.Common.Interfaces;
+using PosVentas.Application.Common.Security;
 using PosVentas.Domain.Entities;
+using PosVentas.Domain.Seguridad;
 using PosVentas.Domain.Enums;
 
 namespace PosVentas.Application.Features.Cajas;
@@ -86,6 +88,7 @@ public sealed class ObtenerResumenSesionQueryHandler(IApplicationDbContext db)
 
 // ---------- Cierre con arqueo ----------
 
+[RequierePermiso(Permisos.CajaCerrar)]
 public sealed record CerrarCajaCommand(Guid SesionId, decimal MontoCierreReal, string? Observaciones) : IRequest<ResumenSesionDto>;
 
 public sealed class CerrarCajaCommandValidator : AbstractValidator<CerrarCajaCommand>

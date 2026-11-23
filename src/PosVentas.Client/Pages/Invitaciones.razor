@@ -1,0 +1,133 @@
+@page "/invitaciones"
+@inject PosVentasApi Api
+@inject SesionService Sesion
+@inject NavigationManager Navegacion
+
+<PageTitle>Invitaciones · PosVentas</PageTitle>
+
+<h1>Invitaciones de comercios</h1>
+
+@if (!Sesion.EsAdministradorPlataforma)
+{
+    <section class="tarjeta"><p>Esta sección es exclusiva de los administradores de HS Tech.</p></section>
+}
+else
+{
+    @if (error is not null)
+    {
+        <p class="error" role="alert">@error</p>
+    }
+
+    @if (creada is not null)
+    {
+        <section class="tarjeta venta-ok" role="status">
+            <strong>Invitación creada. Copiá el enlace ahora: no se vuelve a mostrar.</strong>
+            <input class="enlace-invitacion" readonly value="@Enlace(creada.Token)" aria-label="Enlace de invitación" />
+            <span>Vence el @creada.VenceUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm").</span>
+            <button class="btn-secundario" @onclick="() => creada = null">Listo</button>
+        </section>
+    }
+
+    <section class="tarjeta">
+        <form class="fila-form" @onsubmit="CrearAsync">
+            <label>Email del comercio (opcional) <input type="email" @bind="email" /></label>
+            <label class="ancho">Nota <input type="text" maxlength="250" @bind="nota" placeholder="Ej.: Almacén Don José, piloto" /></label>
+            <label>Vence en (días) <input type="number" min="1" max="30" @bind="dias" /></label>
+            <button type="submit" class="btn-primario" disabled="@procesando">Crear invitación</button>
+        </form>
+    </section>
+
+    <section class="tarjeta">
+        @if (invitaciones is null)
+        {
+            <p>Cargando…</p>
+        }
+        else if (invitaciones.Count == 0)
+        {
+            <p>Todavía no se emitieron invitaciones.</p>
+        }
+        else
+        {
+            <table>
+                <thead><tr><th>Creada</th><th>Email</th><th>Nota</th><th>Vence</th><th>Estado</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var i in invitaciones)
+                    {
+                        <tr class="@(i.Estado == "Vigente" ? null : "inactivo")">
+                            <td>@i.FechaCreacionUtc.ToLocalTime().ToString("dd/MM HH:mm")</td>
+                            <td>@i.EmailDestinatario</td>
+                            <td>@i.Nota</td>
+                            <td>@i.VenceUtc.ToLocalTime().ToString("dd/MM/yyyy")</td>
+                            <td><span class="badge @(i.Estado == "Vigente" ? "activo" : "baja")">@i.Estado</span></td>
+                            <td class="acciones-fila">
+                                @if (i.Estado == "Vigente")
+                                {
+                                    <button class="btn-secundario" disabled="@procesando" @onclick="() => RevocarAsync(i)">Revocar</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </section>
+}
+
+@code {
+    private List<InvitacionDto>? invitaciones;
+    private InvitacionCreadaDto? creada;
+    private string? email;
+    private string? nota;
+    private int dias = 7;
+    private string? error;
+    private bool procesando;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Sesion.EstaAutenticado)
+        {
+            Navegacion.NavigateTo("/");
+            return;
+        }
+        if (Sesion.EsAdministradorPlataforma)
+            await EjecutarAsync(async () => invitaciones = await Api.ObtenerInvitacionesAsync());
+    }
+
+    private string Enlace(string token) => $"{Navegacion.BaseUri}registro?token={Uri.EscapeDataString(token)}";
+
+    private async Task CrearAsync() => await EjecutarAsync(async () =>
+    {
+        creada = await Api.CrearInvitacionAsync(email, nota, dias);
+        email = nota = null;
+        invitaciones = await Api.ObtenerInvitacionesAsync();
+    });
+
+    private async Task RevocarAsync(InvitacionDto invitacion) => await EjecutarAsync(async () =>
+    {
+        await Api.RevocarInvitacionAsync(invitacion.Id);
+        invitaciones = await Api.ObtenerInvitacionesAsync();
+    });
+
+    private async Task EjecutarAsync(Func<Task> accion)
+    {
+        error = null;
+        procesando = true;
+        try
+        {
+            await accion();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            if (!Sesion.EstaAutenticado) Navegacion.NavigateTo("/");
+        }
+        catch (HttpRequestException)
+        {
+            error = "No se pudo conectar con el servidor.";
+        }
+        finally
+        {
+            procesando = false;
+        }
+    }
+}

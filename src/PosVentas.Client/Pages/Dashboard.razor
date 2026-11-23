@@ -7,7 +7,7 @@
 
 <div class="encabezado">
     <h1>Dashboard</h1>
-    @if (Sesion.PuedeSupervisar)
+    @if (Sesion.Tiene(Permisos.ReportesVer))
     {
         <div class="selector-periodo" role="group" aria-label="Período">
             @foreach (var (rango, texto) in Rangos)
@@ -19,7 +19,7 @@
     }
 </div>
 
-@if (!Sesion.PuedeSupervisar)
+@if (!Sesion.Tiene(Permisos.ReportesVer))
 {
     <section class="tarjeta"><p>Los reportes financieros están disponibles para supervisores y administradores.</p></section>
 }
@@ -50,17 +50,17 @@ else
     @if (resumen is not null)
     {
         <section class="kpis" aria-label="Indicadores del período">
-            <div class="kpi">
+            <div class="kpi kpi-azul">
                 <span class="kpi-etiqueta">Total vendido</span>
                 <span class="kpi-valor">@Pesos(resumen.TotalVendido)</span>
                 <span class="kpi-detalle">Neto @Pesos(resumen.VentaNeta) · IVA @Pesos(resumen.TotalIva)</span>
             </div>
-            <div class="kpi">
+            <div class="kpi kpi-verde">
                 <span class="kpi-etiqueta">Ganancia bruta estimada</span>
                 <span class="kpi-valor">@Pesos(resumen.MargenBruto)</span>
                 <span class="kpi-detalle">@resumen.MargenPorcentaje.ToString("0.#")% sobre la venta neta · costo @Pesos(resumen.CostoEstimado)</span>
             </div>
-            <div class="kpi">
+            <div class="kpi kpi-violeta">
                 <span class="kpi-etiqueta">Operaciones</span>
                 <span class="kpi-valor">@resumen.CantidadVentas.ToString("N0")</span>
                 <span class="kpi-detalle">
@@ -78,14 +78,14 @@ else
                     }
                 </span>
             </div>
-            <div class="kpi">
+            <div class="kpi kpi-ambar">
                 <span class="kpi-etiqueta">Ticket promedio</span>
                 <span class="kpi-valor">@Pesos(resumen.TicketPromedio)</span>
                 <span class="kpi-detalle">por operación</span>
             </div>
         </section>
 
-        <div class="grilla-reportes">
+        <div class="grilla-reportes panel-dashboard">
             <section class="tarjeta">
                 <h2>Ingresos por medio de pago</h2>
                 <table>
@@ -206,7 +206,7 @@ else
 
         @if (cajas is not null)
         {
-            <section class="tarjeta">
+            <section class="tarjeta panel-dashboard-unico">
                 <h2>Auditoría de cajas</h2>
                 <dl class="cifras cifras-cajas">
                     <dt>Turnos cerrados</dt><dd>@cajas.CantidadTurnos (@cajas.TurnosExactos exactos)</dd>
@@ -272,7 +272,7 @@ else
             Navegacion.NavigateTo("/");
             return;
         }
-        if (Sesion.PuedeSupervisar)
+        if (Sesion.Tiene(Permisos.ReportesVer))
             await CargarAsync();
     }
 

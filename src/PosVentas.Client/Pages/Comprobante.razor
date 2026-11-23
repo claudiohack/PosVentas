@@ -54,7 +54,7 @@ else
                     <span> · acreditado en cuenta corriente: @Pesos(anulacion.MontoAcreditadoCuentaCorriente)</span>
                 }
             </p>
-            @if (anulacion.EstadoNotaCredito == EstadoNotaCredito.Pendiente && Sesion.PuedeSupervisar)
+            @if (anulacion.EstadoNotaCredito == EstadoNotaCredito.Pendiente && Sesion.Tiene(Permisos.VentasAnular))
             {
                 <button class="btn-primario ancho-auto" disabled="@procesando" @onclick="ReintentarNotaCreditoAsync">
                     @(procesando ? "Solicitando CAE…" : "Reintentar nota de crédito ante ARCA")

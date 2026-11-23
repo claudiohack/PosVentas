@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 using PosVentas.Domain.Common;
 using PosVentas.Domain.Enums;
 using PosVentas.Domain.Fiscal;
@@ -23,6 +23,12 @@ public sealed partial class Comercio : Entity<Guid>
 
     public string? Cuit { get; private set; }
     public bool EstaActivo { get; private set; }
+
+    /// <summary>
+    /// Comercio operador del SaaS (HS Tech). Sus administradores son administradores de la plataforma:
+    /// emiten invitaciones para dar de alta comercios nuevos. Hay uno solo y se crea al inicializar la base.
+    /// </summary>
+    public bool EsPlataforma { get; private set; }
 
     // ---------- Configuración fiscal ----------
 
@@ -73,6 +79,14 @@ public sealed partial class Comercio : Entity<Guid>
 
         return new Comercio(Guid.NewGuid(), nombre.Trim(), slugNormalizado,
             string.IsNullOrWhiteSpace(cuit) ? null : CuitArgentino.Normalizar(cuit));
+    }
+
+    /// <summary>Crea el comercio operador de la plataforma (lo usa solo la inicialización de la base).</summary>
+    public static Comercio CrearPlataforma(string nombre, string slug)
+    {
+        var comercio = Crear(nombre, slug, null);
+        comercio.EsPlataforma = true;
+        return comercio;
     }
 
     public static string NormalizarSlug(string? slug)

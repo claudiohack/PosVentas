@@ -21,6 +21,7 @@ public static class DependencyInjection
 
         services.AddOptions<Features.Facturacion.FacturacionOptions>();
         services.AddScoped<Features.Facturacion.EmisorComprobantesFiscales>();
+        services.AddScoped<Common.Auditoria.RegistradorAuditoria>();
 
         return services;
     }

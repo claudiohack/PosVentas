@@ -1,4 +1,4 @@
-using PosVentas.Domain.Entities;
+﻿using PosVentas.Domain.Entities;
 
 namespace PosVentas.Application.Common.Interfaces;
 
@@ -17,5 +17,7 @@ public sealed record TokenGenerado(string AccessToken, DateTime ExpiraUtc);
 
 public interface IJwtTokenGenerator
 {
-    TokenGenerado Generar(Usuario usuario);
+    /// <param name="rol">Rol del usuario: su nombre viaja como dato informativo (la autorización usa la base).</param>
+    /// <param name="esAdministradorPlataforma">Agrega el claim de administrador de la plataforma (solo para el comercio operador).</param>
+    TokenGenerado Generar(Usuario usuario, Rol rol, bool esAdministradorPlataforma = false);
 }

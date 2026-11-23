@@ -80,7 +80,7 @@
                             {
                                 <a href="nota-credito/@v.Id">@(v.EstadoNotaCredito == EstadoNotaCredito.NoRequerida ? "Anulación" : "Nota de crédito")</a>
                             }
-                            else if (Sesion.PuedeSupervisar)
+                            else if (Sesion.Tiene(Permisos.VentasAnular))
                             {
                                 <button class="btn-secundario" @onclick="() => aAnular = v">Anular</button>
                             }

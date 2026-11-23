@@ -22,9 +22,13 @@ public sealed record AuthResponse(
     DateTime ExpiraUtc,
     Guid UsuarioId,
     string NombreCompleto,
+    Guid RolId,
     string Rol,
+    bool EsAdministrador,
+    List<string> Permisos,
     Guid ComercioId,
-    string Comercio);
+    string Comercio,
+    bool EsAdministradorPlataforma);
 
 public sealed record ProductoDto(
     Guid Id,
@@ -41,7 +45,8 @@ public sealed record ProductoDto(
     decimal StockMinimo,
     bool StockBajo,
     bool VenderSinStock,
-    bool EstaActivo);
+    bool EstaActivo,
+    string? CodigoBarras = null);
 
 public sealed record ProblemaApi(
     string? Title, string? Detail, int? Status, Dictionary<string, string[]>? Errors,

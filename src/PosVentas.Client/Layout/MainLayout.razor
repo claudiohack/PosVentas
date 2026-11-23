@@ -2,48 +2,181 @@
 @implements IDisposable
 @inject SesionService Sesion
 @inject NavigationManager Navegacion
+@inject PosVentasApi Api
 
-<header class="barra">
-    <strong>PosVentas</strong>
-    @if (Sesion.EstaAutenticado)
-    {
-        <nav class="menu">
-            <NavLink href="pos">Vender</NavLink>
-            <NavLink href="caja">Caja</NavLink>
-            <NavLink href="ventas">Ventas</NavLink>
-            <NavLink href="clientes">Clientes</NavLink>
-            <NavLink href="productos">Productos</NavLink>
-            @if (Sesion.PuedeSupervisar)
-            {
-                <NavLink href="dashboard">Dashboard</NavLink>
-                <NavLink href="compras">Compras</NavLink>
-                <NavLink href="proveedores">Proveedores</NavLink>
-            }
-            @if (Sesion.EsAdministrador)
-            {
-                <NavLink href="usuarios">Usuarios</NavLink>
-                <NavLink href="configuracion-fiscal">Facturación</NavLink>
-            }
-        </nav>
-        <span class="barra-info">@Sesion.Actual!.Comercio · @Sesion.Actual.NombreCompleto (@Sesion.Actual.Rol)</span>
-        <button class="btn-secundario" @onclick="CerrarSesion">Salir</button>
-    }
-</header>
+@if (Sesion.EstaAutenticado)
+{
+    <div class="app @(menuAbierto ? "menu-abierto" : null)">
+        <aside class="lateral" id="menu-lateral" aria-label="Menú principal">
+            <div class="marca">
+                <span class="marca-logo" aria-hidden="true">PV</span>
+                <span class="marca-texto">PosVentas<small>HS Tech</small></span>
+                <button class="btn-icono lateral-cerrar" @onclick="CerrarMenu" aria-label="Cerrar menú"><Icono Nombre="cerrar" /></button>
+            </div>
 
-<main class="contenido">
-    @Body
-</main>
+            @* El menú refleja los permisos del rol; la API los vuelve a verificar en cada request. *@
+            <nav class="menu" @onclick="CerrarMenu">
+                @if (Sesion.TieneAlguno(Permisos.VentasRegistrar, Permisos.CajaOperar, Permisos.VentasConsultar, Permisos.ClientesConsultar))
+                {
+                    <span class="menu-grupo">Mostrador</span>
+                }
+                @if (Sesion.Tiene(Permisos.VentasRegistrar))
+                {
+                    <NavLink href="pos"><Icono Nombre="vender" /><span>Vender</span></NavLink>
+                }
+                @if (Sesion.Tiene(Permisos.CajaOperar))
+                {
+                    <NavLink href="caja"><Icono Nombre="caja" /><span>Caja</span></NavLink>
+                }
+                @if (Sesion.Tiene(Permisos.VentasConsultar))
+                {
+                    <NavLink href="ventas"><Icono Nombre="ventas" /><span>Ventas</span></NavLink>
+                }
+                @if (Sesion.Tiene(Permisos.ClientesConsultar))
+                {
+                    <NavLink href="clientes"><Icono Nombre="clientes" /><span>Clientes</span></NavLink>
+                }
+
+                @if (Sesion.TieneAlguno(Permisos.ProductosConsultar, Permisos.CategoriasGestionar, Permisos.ComprasRegistrar, Permisos.ProveedoresConsultar))
+                {
+                    <span class="menu-grupo">Inventario</span>
+                }
+                @if (Sesion.Tiene(Permisos.ProductosConsultar))
+                {
+                    <NavLink href="productos"><Icono Nombre="productos" /><span>Productos</span></NavLink>
+                }
+                @if (Sesion.Tiene(Permisos.CategoriasGestionar))
+                {
+                    <NavLink href="categorias"><Icono Nombre="categorias" /><span>Categorías</span></NavLink>
+                }
+                @if (Sesion.Tiene(Permisos.ComprasRegistrar))
+                {
+                    <NavLink href="compras"><Icono Nombre="compras" /><span>Compras</span></NavLink>
+                }
+                @if (Sesion.TieneAlguno(Permisos.ProveedoresConsultar, Permisos.ProveedoresGestionar))
+                {
+                    <NavLink href="proveedores"><Icono Nombre="proveedores" /><span>Proveedores</span></NavLink>
+                }
+
+                @if (Sesion.TieneAlguno(Permisos.ReportesVer, Permisos.UsuariosGestionar, Permisos.RolesGestionar, Permisos.FacturacionConfigurar, Permisos.AuditoriaConsultar))
+                {
+                    <span class="menu-grupo">Gestión</span>
+                }
+                @if (Sesion.Tiene(Permisos.ReportesVer))
+                {
+                    <NavLink href="dashboard"><Icono Nombre="dashboard" /><span>Dashboard</span></NavLink>
+                }
+                @if (Sesion.Tiene(Permisos.UsuariosGestionar))
+                {
+                    <NavLink href="usuarios"><Icono Nombre="usuarios" /><span>Usuarios</span></NavLink>
+                }
+                @if (Sesion.Tiene(Permisos.RolesGestionar))
+                {
+                    <NavLink href="roles"><Icono Nombre="roles" /><span>Roles y permisos</span></NavLink>
+                }
+                @if (Sesion.Tiene(Permisos.AuditoriaConsultar))
+                {
+                    <NavLink href="auditoria"><Icono Nombre="auditoria" /><span>Auditoría</span></NavLink>
+                }
+                @if (Sesion.Tiene(Permisos.FacturacionConfigurar))
+                {
+                    <NavLink href="configuracion-fiscal"><Icono Nombre="facturacion" /><span>Facturación</span></NavLink>
+                }
+                @if (Sesion.EsAdministradorPlataforma)
+                {
+                    <span class="menu-grupo">Plataforma</span>
+                    <NavLink href="invitaciones"><Icono Nombre="invitaciones" /><span>Invitaciones</span></NavLink>
+                }
+            </nav>
+
+            <div class="lateral-pie">
+                <span class="avatar" aria-hidden="true">@Iniciales</span>
+                <span class="usuario">
+                    <strong>@Sesion.Actual!.NombreCompleto</strong>
+                    <small>@Sesion.Actual.Rol · @Sesion.Actual.Comercio</small>
+                </span>
+                <button class="btn-icono" @onclick="CerrarSesion" title="Salir" aria-label="Cerrar sesión"><Icono Nombre="salir" /></button>
+            </div>
+        </aside>
+
+        <div class="lateral-fondo" @onclick="CerrarMenu"></div>
+
+        <div class="principal">
+            <header class="barra">
+                <button class="btn-icono btn-menu" @onclick="AlternarMenu" aria-label="Abrir menú"
+                        aria-controls="menu-lateral" aria-expanded="@(menuAbierto ? "true" : "false")"><Icono Nombre="menu" /></button>
+                <span class="barra-comercio">@Sesion.Actual.Comercio</span>
+                <span class="barra-info">@Sesion.Actual.NombreCompleto <span class="badge">@Sesion.Actual.Rol</span></span>
+            </header>
+            <main class="contenido">
+                @Body
+            </main>
+        </div>
+    </div>
+}
+else
+{
+    <div class="publico">
+        <div class="publico-marca">
+            <span class="marca-logo" aria-hidden="true">PV</span>
+            <span class="marca-texto">PosVentas<small>Punto de venta para tu comercio</small></span>
+        </div>
+        @Body
+        <p class="publico-pie">© HS Tech</p>
+    </div>
+}
 
 @code {
-    protected override void OnInitialized() => Sesion.Cambio += AlCambiar;
+    private bool menuAbierto;
+
+    private string Iniciales
+    {
+        get
+        {
+            var partes = (Sesion.Actual?.NombreCompleto ?? "?").Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            return string.Concat(partes.Take(2).Select(p => char.ToUpperInvariant(p[0])));
+        }
+    }
+
+    // Cada cuánto, como mínimo, se vuelven a pedir los permisos al navegar (un cambio de rol se ve sin reingresar).
+    private static readonly TimeSpan IntervaloRefresco = TimeSpan.FromSeconds(20);
+
+    protected override void OnInitialized()
+    {
+        Sesion.Cambio += AlCambiar;
+        Navegacion.LocationChanged += AlNavegar;
+    }
 
     private void AlCambiar() => InvokeAsync(StateHasChanged);
 
+    private async void AlNavegar(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        if (!Sesion.EstaAutenticado || DateTime.UtcNow - Sesion.UltimaActualizacionUtc < IntervaloRefresco)
+            return;
+        try
+        {
+            Sesion.Actualizar(await Api.ObtenerSesionAsync());
+        }
+        catch (Exception ex) when (ex is ApiException or HttpRequestException)
+        {
+            // Sin conexión o sesión revocada: el próximo request de la página lo informa (o PosVentasApi cierra la sesión).
+        }
+    }
+
+    private void AlternarMenu() => menuAbierto = !menuAbierto;
+
+    private void CerrarMenu() => menuAbierto = false;
+
     private void CerrarSesion()
     {
+        menuAbierto = false;
         Sesion.Cerrar();
         Navegacion.NavigateTo("/");
     }
 
-    public void Dispose() => Sesion.Cambio -= AlCambiar;
+    public void Dispose()
+    {
+        Sesion.Cambio -= AlCambiar;
+        Navegacion.LocationChanged -= AlNavegar;
+    }
 }

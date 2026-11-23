@@ -98,7 +98,7 @@ else
     private string? error;
     private bool procesando;
 
-    private bool EsAdmin => Sesion.EsAdministrador;
+    private bool EsAdmin => Sesion.Tiene(Permisos.ClientesGestionar);
 
     protected override async Task OnParametersSetAsync()
     {

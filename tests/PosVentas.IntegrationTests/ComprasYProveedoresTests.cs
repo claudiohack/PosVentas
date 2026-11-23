@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Json;
 using PosVentas.Application.Features.Auth;
 using PosVentas.Application.Features.Compras;
@@ -193,7 +193,7 @@ public sealed class ComprasYProveedoresTests(PosVentasApiFactory factory)
             nombreUsuario = "cajero1",
             email = (string?)null,
             password = "Cajero-2026-segura",
-            rol = "Cajero"
+            rolId = await a.RolIdAsync("Cajero")
         }, ApiTestHelpers.Json);
         Assert.Equal(HttpStatusCode.Created, alta.StatusCode);
 

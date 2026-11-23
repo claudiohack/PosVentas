@@ -1,4 +1,4 @@
-namespace PosVentas.Application.Common.Interfaces;
+﻿namespace PosVentas.Application.Common.Interfaces;
 
 /// <summary>
 /// Comercio (tenant) del request actual. Se obtiene del claim <c>tid</c> del JWT.
@@ -16,10 +16,25 @@ public interface ICurrentTenantService
 }
 
 /// <summary>
-/// Usuario autenticado del request actual (claims <c>uid</c> y <c>role</c>).
+/// Usuario autenticado del request actual. La identidad sale del JWT (<c>uid</c>, <c>name</c>); el rol y los
+/// permisos, de la base, validados en cada request (nunca del token).
 /// </summary>
 public interface ICurrentUserService
 {
     Guid? UsuarioId { get; }
-    string? Rol { get; }
+    string? Nombre { get; }
+
+    /// <summary>Rol vigente del usuario (null si el request es anónimo).</summary>
+    Guid? RolId { get; }
+
+    /// <summary>El rol del usuario es el Administrador del comercio (todos los permisos).</summary>
+    bool EsAdministrador { get; }
+
+    /// <summary>Permisos efectivos del usuario (el Administrador tiene todo el catálogo).</summary>
+    IReadOnlySet<string> Permisos { get; }
+
+    bool TienePermiso(string permiso);
+
+    /// <summary>True si es un administrador del comercio operador de la plataforma.</summary>
+    bool EsAdministradorPlataforma { get; }
 }

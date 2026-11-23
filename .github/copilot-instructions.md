@@ -35,12 +35,16 @@ Dependencias permitidas: Domain ← Application ← Infrastructure ← WebAPI. E
 5. **El dominio protege sus invariantes**: setters privados, fábricas estáticas y métodos explícitos (`Producto.DescontarStock`, `CajaSesion.Cerrar`, `Cliente.RegistrarCargo`…). Prohibido modificar estado por reflexión.
 6. **Validación de entrada con FluentValidation** en cada comando/query. Las reglas que dependen del estado van en el dominio.
 7. **Errores como ProblemDetails** vía `GlobalExceptionMiddleware`: validación → 400, credenciales → 401, acceso entre comercios → 403, no encontrado → 404, conflicto/concurrencia → 409, regla de dominio → 422. Los 500 no exponen detalles internos.
-8. **Seguridad**: contraseñas con BCrypt; JWT HS256 con claims `uid`, `tid`, `role`, `sst`; política de respaldo que exige usuario autenticado con comercio.
-   - Roles: `Administrador` (todo, incluida la gestión de usuarios), `Supervisor` (mostrador + cierre/arqueo de caja), `Cajero` (vende, abre caja, cobra).
-   - Políticas: `SoloAdministrador`, `Supervision` (Admin + Supervisor), `Operador` (los tres roles). Todo endpoint nuevo declara la suya.
-   - Comandos solo para administradores implementan `IRequiereAdministrador` (lo verifica `AutorizacionBehavior`, devuelve 403).
-   - `ValidacionSesionMiddleware` revoca el token si el usuario se desactivó o cambió su rol o contraseña (el `SecurityStamp` del usuario se renueva). No saltear ese middleware.
-   - Las restricciones de la UI Blazor (`SesionService.EsAdministrador` / `PuedeSupervisar`) son solo visuales: la API siempre vuelve a verificar.
+8. **Seguridad**: contraseñas con BCrypt; JWT HS256 con claims `uid`, `tid`, `role` (nombre del rol, informativo) y `sst`; política de respaldo que exige usuario autenticado con comercio.
+   - **Autorización por permisos**, no por rol. El catálogo cerrado está en `Domain/Seguridad/Permisos.cs` ("módulo.acción"). Cada comercio tiene roles (`Rol`, tabla `RolesPermisos`) configurables en `/api/roles`.
+   - Roles de sistema por comercio (`CodigoSistema`): `ADMINISTRADOR` (todos los permisos, presentes y futuros; inmutable), `SUPERVISOR` y `CAJERO` (permisos editables; no se renombran ni eliminan). Se pueden crear roles personalizados.
+   - **Los permisos no viajan en el JWT**: `ValidacionSesionMiddleware` los lee de la base en cada request (una consulta junto con estado y `SecurityStamp`) y los deja en `SesionActual`. Un cambio de permisos rige en el próximo request; cambiar el rol de un usuario renueva su sello (vuelve a ingresar).
+   - Todo endpoint nuevo declara `[AutorizarPermiso(Permisos.X)]` (varios códigos = cualquiera; varios atributos = todos). Las políticas `perm:...` las crea `PoliticasPermisoProvider`.
+   - Los casos de uso sensibles llevan además `[RequierePermiso(Permisos.X)]` (lo verifica `AutorizacionBehavior` → 403).
+   - **Sin escalada de privilegios** (`ReglasRoles`): nadie otorga permisos que no tiene, ni asigna/edita/resetea/da de baja usuarios de un rol con permisos que él no tiene; el rol Administrador solo lo administra un Administrador. El comercio siempre conserva un administrador activo.
+   - Agregar un permiso: constante + `Permisos.Todos` + `CatalogoPermisos` (texto) + atributo en el endpoint. Los roles existentes no lo reciben solos (salvo el Administrador); si un rol de sistema debe tenerlo, otorgarlo en la migración. Nunca renombrar un código publicado.
+   - **Auditoría** (`RegistroAuditoria`, solo inserción): `RegistradorAuditoria.Registrar(...)` en el mismo `SaveChanges` que el cambio. Hoy cubre roles y usuarios; `GET /api/auditoria` con `auditoria.consultar`.
+   - Las restricciones de la UI Blazor (`SesionService.Tiene(...)`) son solo visuales: la API siempre vuelve a verificar. El cliente refresca permisos con `GET /api/auth/sesion` al navegar.
 9. **Cero secretos en el repositorio.** `Jwt:SigningKey` vive en User Secrets (desarrollo) o en la variable de entorno `Jwt__SigningKey` (producción). Las cadenas de conexión productivas también van por variables de entorno.
 10. **Migraciones estrictas**: todo cambio de esquema se hace con `dotnet ef migrations add` y se versiona. Nunca editar la base a mano ni reescribir migraciones ya publicadas.
 11. **Concurrencia optimista** con `RowVersion` en entidades que se modifican en paralelo (`Producto`, `Caja`, `CajaSesion`, `Cliente`).
@@ -71,12 +75,21 @@ dotnet ef database update --project src/PosVentas.Infrastructure --startup-proje
 - Una compra al contado (efectivo / transferencia) con caja abierta genera un `MovimientoCaja` tipo `PagoProveedor` con monto **negativo**; el arqueo lo descuenta solo. No se puede pagar en efectivo más de lo que hay en la caja.
 - El mismo comprobante de un proveedor no se carga dos veces (409). El CUIT del proveedor es único por comercio.
 - Stock bajo = producto activo con `StockActual <= StockMinimo`.
-- Anulaciones (`POST /api/ventas/{id}/anular`, política `Supervision`): anulación total vía `AnulacionVenta.Registrar` en un solo `SaveChanges`.
+- Alta de comercios SOLO por invitación: `POST /api/auth/invitaciones` (política `AdministradorGlobal` = administrador del comercio con `EsPlataforma`, claim `plat=1`) y `POST /api/auth/registro-invitacion`. El token se entrega una vez; solo se persiste su hash SHA-256. El alta abierta `POST /api/auth/registro` está deshabilitada.
+- El comercio operador (HS Tech) lo crea `InicializadorBaseDatos` desde `Plataforma:*` cuando `BaseDatos:InicializarAlArrancar=true` (Docker y Development); los tests lo llaman después de migrar.
+- Productos: SKU y código de barras únicos por comercio; la búsqueda acepta nombre parcial o SKU / código exactos (scanner). Precio por margen o precio de venta fijo (`FijarPrecioVenta` recalcula el margen). IVA solo en alícuotas de ARCA.
+- Planilla de productos (Excel .xlsx vía `IPlanillaProductos`, implementada con Open XML SDK en `Infrastructure/Planillas`):
+  - `GET /api/productos/exportar` (permiso `productos.exportar`): catálogo completo, incluidos los dados de baja; sirve de plantilla.
+  - `POST /api/productos/importar?simular=` (permiso `productos.importar`): por SKU, crea o actualiza; celda vacía = no cambiar; categoría inexistente se crea.
+  - Todo o nada en un solo `SaveChanges`: con cualquier error de fila no se guarda nada. `simular=true` es la vista previa.
+  - El stock de los existentes no se toca (solo compras y ventas); en los nuevos la columna Stock es el stock inicial. Máximo 5 MB y 5.000 filas.
+- Categorías: no se dan de baja con productos activos; el orden se fija con `PUT /api/categorias/orden`.
+- Anulaciones (`POST /api/ventas/{id}/anular`, permiso `ventas.anular`): anulación total vía `AnulacionVenta.Registrar` en un solo `SaveChanges`.
   - Revierte: stock con `Producto.ReintegrarStock`, egresos `DevolucionAnulacion` (monto negativo, efectivo neto del vuelto) en la caja abierta, y `Cliente.RevertirCargo` (el saldo puede quedar a favor del cliente).
   - Una venta se anula una sola vez: índice único por `VentaId` (409). No se puede devolver más efectivo del que hay en la caja (422).
   - Si la venta tenía factura con CAE, la nota de crédito (misma letra, con `ComprobanteAsociadoId` a la factura) se pide **después** de confirmar la anulación. Si ARCA falla, queda `EstadoNotaCredito.Pendiente` y se reintenta con `POST /api/ventas/{id}/nota-credito`.
   - Las ventas anuladas no cuentan en los reportes de venta (`Consultas.VentasDel`); el dashboard las informa aparte.
-- Reportes (`/api/reportes/*`, política `Supervision`): agregan en SQL sobre DbSets con filtro de tenant; nunca cargar ventas en memoria para sumarlas.
+- Reportes (`/api/reportes/*`, permiso `reportes.ver`): agregan en SQL sobre DbSets con filtro de tenant; nunca cargar ventas en memoria para sumarlas.
   - Períodos en fechas calendario argentinas (`FechaFiscal.InicioDelDiaUtc`), extremos incluidos, máximo 366 días; sin fechas = hoy.
   - Margen bruto = venta neta (sin IVA) − Σ cantidad × `VentaDetalle.CostoUnitario`. El costo se congela al vender: no usar el costo actual del producto.
   - Efectivo por medio de pago se informa neto del vuelto. La cuenta corriente es crédito, no dinero cobrado.

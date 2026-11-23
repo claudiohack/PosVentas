@@ -35,7 +35,69 @@ public sealed class PosVentasApi(HttpClient http, SesionService sesion)
         return await LeerAsync<AuthResponse>(respuesta, ct);
     }
 
+    public async Task<AuthResponse> RegistrarComercioAsync(RegistroComercioFormulario f, CancellationToken ct = default)
+    {
+        using var respuesta = await http.PostAsJsonAsync("api/auth/registro-invitacion", f, Json, ct);
+        return await LeerAsync<AuthResponse>(respuesta, ct);
+    }
+
+    // ---------- Invitaciones (administradores de la plataforma) ----------
+
+    public Task<List<InvitacionDto>> ObtenerInvitacionesAsync(CancellationToken ct = default) =>
+        EnviarAsync<List<InvitacionDto>>(HttpMethod.Get, "api/auth/invitaciones", null, ct);
+
+    public Task<InvitacionCreadaDto> CrearInvitacionAsync(string? emailDestinatario, string? nota, int diasVigencia, CancellationToken ct = default) =>
+        EnviarAsync<InvitacionCreadaDto>(HttpMethod.Post, "api/auth/invitaciones", new { emailDestinatario, nota, diasVigencia }, ct);
+
+    public Task<InvitacionDto> RevocarInvitacionAsync(Guid id, CancellationToken ct = default) =>
+        EnviarAsync<InvitacionDto>(HttpMethod.Delete, $"api/auth/invitaciones/{id}", null, ct);
+
+    // ---------- Categorías ----------
+
+    public Task<List<CategoriaDto>> ObtenerCategoriasAsync(bool incluirInactivas = false, CancellationToken ct = default) =>
+        EnviarAsync<List<CategoriaDto>>(HttpMethod.Get, $"api/categorias{(incluirInactivas ? "?incluirInactivas=true" : null)}", null, ct);
+
+    public async Task<Guid> CrearCategoriaAsync(CategoriaFormulario f, CancellationToken ct = default) =>
+        (await EnviarAsync<IdCreado>(HttpMethod.Post, "api/categorias", f, ct)).Id;
+
+    public Task<CategoriaDto> ActualizarCategoriaAsync(Guid id, CategoriaFormulario f, CancellationToken ct = default) =>
+        EnviarAsync<CategoriaDto>(HttpMethod.Put, $"api/categorias/{id}", f, ct);
+
+    public Task<CategoriaDto> CambiarEstadoCategoriaAsync(Guid id, bool activa, CancellationToken ct = default) =>
+        EnviarAsync<CategoriaDto>(HttpMethod.Patch, $"api/categorias/{id}/estado", new { activa }, ct);
+
+    public Task<List<CategoriaDto>> ReordenarCategoriasAsync(IReadOnlyList<Guid> ids, CancellationToken ct = default) =>
+        EnviarAsync<List<CategoriaDto>>(HttpMethod.Put, "api/categorias/orden", new { ids }, ct);
+
+    private sealed record IdCreado(Guid Id);
+
     // ---------- Productos ----------
+
+    public Task<ProductoDto> CrearProductoAsync(ProductoFormulario f, CancellationToken ct = default) =>
+        EnviarAsync<ProductoDto>(HttpMethod.Post, "api/productos", new
+        {
+            f.Sku, f.Nombre, f.CodigoBarras, f.PrecioCompra, moneda = "ARS", f.PorcentajeGanancia,
+            precioVenta = f.FijarPrecio ? f.PrecioVenta : (decimal?)null, f.PorcentajeIva, f.CategoriaId,
+            f.VenderSinStock, f.StockMinimo, f.StockInicial
+        }, ct);
+
+    public Task<ProductoDto> ActualizarProductoAsync(Guid id, ProductoFormulario f, CancellationToken ct = default) =>
+        EnviarAsync<ProductoDto>(HttpMethod.Put, $"api/productos/{id}", new
+        {
+            f.Sku, f.Nombre, f.CodigoBarras, f.CategoriaId, f.PrecioCompra, f.PorcentajeGanancia,
+            precioVenta = f.FijarPrecio ? f.PrecioVenta : (decimal?)null, f.PorcentajeIva, f.VenderSinStock, f.StockMinimo
+        }, ct);
+
+    public Task<ProductoDto> CambiarEstadoProductoAsync(Guid id, bool activo, CancellationToken ct = default) =>
+        EnviarAsync<ProductoDto>(HttpMethod.Patch, $"api/productos/{id}/estado", new { activo }, ct);
+
+    public Task<List<ProductoDto>> ObtenerProductosTodosAsync(string? buscar, bool incluirInactivos, CancellationToken ct = default)
+    {
+        var query = new List<string>();
+        if (!string.IsNullOrWhiteSpace(buscar)) query.Add($"buscar={Uri.EscapeDataString(buscar)}");
+        if (incluirInactivos) query.Add("incluirInactivos=true");
+        return EnviarAsync<List<ProductoDto>>(HttpMethod.Get, query.Count == 0 ? "api/productos" : $"api/productos?{string.Join('&', query)}", null, ct);
+    }
 
     public Task<List<ProductoDto>> ObtenerProductosAsync(string? buscar, CancellationToken ct = default)
     {
@@ -43,6 +105,27 @@ public sealed class PosVentasApi(HttpClient http, SesionService sesion)
             ? "api/productos"
             : $"api/productos?buscar={Uri.EscapeDataString(buscar)}";
         return EnviarAsync<List<ProductoDto>>(HttpMethod.Get, ruta, null, ct);
+    }
+
+    /// <summary>Catálogo completo en .xlsx (sirve también de plantilla para importar).</summary>
+    public async Task<byte[]> ExportarProductosAsync(CancellationToken ct = default)
+    {
+        using var request = CrearRequest(HttpMethod.Get, "api/productos/exportar", null);
+        using var respuesta = await http.SendAsync(request, ct);
+        if (!respuesta.IsSuccessStatusCode)
+            await LeerAsync<object>(respuesta, ct); // lanza ApiException con el ProblemDetails
+        return await respuesta.Content.ReadAsByteArrayAsync(ct);
+    }
+
+    /// <param name="simular">true = vista previa sin guardar.</param>
+    public async Task<ResultadoImportacionDto> ImportarProductosAsync(byte[] contenido, string nombreArchivo, bool simular, CancellationToken ct = default)
+    {
+        using var request = CrearRequest(HttpMethod.Post, $"api/productos/importar?simular={(simular ? "true" : "false")}", null);
+        var archivo = new ByteArrayContent(contenido);
+        archivo.Headers.ContentType = new MediaTypeHeaderValue("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        request.Content = new MultipartFormDataContent { { archivo, "archivo", nombreArchivo } };
+        using var respuesta = await http.SendAsync(request, ct);
+        return await LeerAsync<ResultadoImportacionDto>(respuesta, ct);
     }
 
     public Task<List<ProductoDto>> ObtenerProductosStockBajoAsync(CancellationToken ct = default) =>
@@ -189,16 +272,50 @@ public sealed class PosVentasApi(HttpClient http, SesionService sesion)
 
     public Task<UsuarioDto> CrearUsuarioAsync(UsuarioFormulario f, CancellationToken ct = default) =>
         EnviarAsync<UsuarioDto>(HttpMethod.Post, "api/usuarios",
-            new { f.NombreCompleto, f.NombreUsuario, f.Email, f.Password, f.Rol }, ct);
+            new { f.NombreCompleto, f.NombreUsuario, f.Email, f.Password, f.RolId }, ct);
 
     public Task<UsuarioDto> ActualizarUsuarioAsync(Guid id, UsuarioFormulario f, CancellationToken ct = default) =>
-        EnviarAsync<UsuarioDto>(HttpMethod.Put, $"api/usuarios/{id}", new { f.NombreCompleto, f.Email, f.Rol }, ct);
+        EnviarAsync<UsuarioDto>(HttpMethod.Put, $"api/usuarios/{id}", new { f.NombreCompleto, f.Email, f.RolId }, ct);
 
     public Task CambiarPasswordAsync(Guid id, string nuevaPassword, CancellationToken ct = default) =>
         EnviarSinRespuestaAsync(HttpMethod.Put, $"api/usuarios/{id}/password", new { nuevaPassword }, ct);
 
     public Task<UsuarioDto> CambiarEstadoUsuarioAsync(Guid id, bool activo, CancellationToken ct = default) =>
         EnviarAsync<UsuarioDto>(HttpMethod.Patch, $"api/usuarios/{id}/estado", new { activo }, ct);
+
+    // ---------- Roles, sesión y auditoría ----------
+
+    public Task<SesionDto> ObtenerSesionAsync(CancellationToken ct = default) =>
+        EnviarAsync<SesionDto>(HttpMethod.Get, "api/auth/sesion", null, ct);
+
+    public Task<List<RolDto>> ObtenerRolesAsync(bool incluirEliminados = false, CancellationToken ct = default) =>
+        EnviarAsync<List<RolDto>>(HttpMethod.Get, $"api/roles{(incluirEliminados ? "?incluirEliminados=true" : null)}", null, ct);
+
+    public Task<List<GrupoPermisosDto>> ObtenerCatalogoPermisosAsync(CancellationToken ct = default) =>
+        EnviarAsync<List<GrupoPermisosDto>>(HttpMethod.Get, "api/roles/permisos", null, ct);
+
+    public Task<RolDto> CrearRolAsync(RolFormulario f, CancellationToken ct = default) =>
+        EnviarAsync<RolDto>(HttpMethod.Post, "api/roles", new { f.Nombre, f.Descripcion, permisos = f.Permisos.ToList() }, ct);
+
+    public Task<RolDto> ActualizarRolAsync(Guid id, RolFormulario f, CancellationToken ct = default) =>
+        EnviarAsync<RolDto>(HttpMethod.Put, $"api/roles/{id}", new { f.Nombre, f.Descripcion, permisos = f.Permisos.ToList() }, ct);
+
+    public async Task EliminarRolAsync(Guid id, CancellationToken ct = default)
+    {
+        using var request = CrearRequest(HttpMethod.Delete, $"api/roles/{id}", null);
+        using var respuesta = await http.SendAsync(request, ct);
+        if (!respuesta.IsSuccessStatusCode)
+            await LeerAsync<object>(respuesta, ct);
+    }
+
+    public Task<PaginaAuditoriaDto> ObtenerAuditoriaAsync(DateOnly? desde, DateOnly? hasta, string? entidad, int pagina, CancellationToken ct = default)
+    {
+        var query = new List<string> { $"pagina={pagina}", "tamanioPagina=50" };
+        if (desde is { } d) query.Add($"desde={d:yyyy-MM-dd}");
+        if (hasta is { } h) query.Add($"hasta={h:yyyy-MM-dd}");
+        if (!string.IsNullOrWhiteSpace(entidad)) query.Add($"entidad={Uri.EscapeDataString(entidad)}");
+        return EnviarAsync<PaginaAuditoriaDto>(HttpMethod.Get, $"api/auditoria?{string.Join('&', query)}", null, ct);
+    }
 
     // ---------- Infraestructura ----------
 

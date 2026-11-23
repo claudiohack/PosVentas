@@ -38,6 +38,8 @@
             @(enviando ? "Ingresando…" : "Ingresar")
         </button>
     </EditForm>
+
+    <p class="ayuda">¿Recibiste una invitación de HS Tech? <a href="registro">Registrá tu comercio</a>.</p>
 </section>
 
 @code {
@@ -48,7 +50,7 @@
     protected override void OnInitialized()
     {
         if (Sesion.EstaAutenticado)
-            Navegacion.NavigateTo("/pos");
+            Navegacion.NavigateTo(Sesion.PaginaInicial());
     }
 
     private async Task IngresarAsync()
@@ -59,7 +61,7 @@
         {
             var respuesta = await Api.LoginAsync(modelo);
             Sesion.Iniciar(respuesta);
-            Navegacion.NavigateTo("/pos");
+            Navegacion.NavigateTo(Sesion.PaginaInicial());
         }
         catch (ApiException ex)
         {
