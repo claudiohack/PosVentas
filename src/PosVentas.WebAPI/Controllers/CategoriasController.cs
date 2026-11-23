@@ -3,21 +3,23 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PosVentas.Application.Common.Security;
 using PosVentas.Application.Features.Categorias;
+using PosVentas.Domain.Seguridad;
+using PosVentas.WebAPI.Security;
 
 namespace PosVentas.WebAPI.Controllers;
 
 [ApiController]
 [Route("api/categorias")]
-[Authorize(Policy = Politicas.Operador)]
 public sealed class CategoriasController(ISender mediator) : ControllerBase
 {
     [HttpGet]
+    [AutorizarPermiso(Permisos.ProductosConsultar)]
     [ProducesResponseType<IReadOnlyList<CategoriaDto>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<CategoriaDto>>> Listar([FromQuery] bool incluirInactivas, CancellationToken ct)
         => Ok(await mediator.Send(new ObtenerCategoriasQuery(incluirInactivas), ct));
 
     [HttpPost]
-    [Authorize(Policy = Politicas.SoloAdministrador)]
+    [AutorizarPermiso(Permisos.CategoriasGestionar)]
     [ProducesResponseType(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -28,7 +30,7 @@ public sealed class CategoriasController(ISender mediator) : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
-    [Authorize(Policy = Politicas.SoloAdministrador)]
+    [AutorizarPermiso(Permisos.CategoriasGestionar)]
     [ProducesResponseType<CategoriaDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -38,7 +40,7 @@ public sealed class CategoriasController(ISender mediator) : ControllerBase
 
     /// <summary>Activa o da de baja (lógica) la categoría. Con productos activos no se puede dar de baja (422).</summary>
     [HttpPatch("{id:guid}/estado")]
-    [Authorize(Policy = Politicas.SoloAdministrador)]
+    [AutorizarPermiso(Permisos.CategoriasGestionar)]
     [ProducesResponseType<CategoriaDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
@@ -47,7 +49,7 @@ public sealed class CategoriasController(ISender mediator) : ControllerBase
 
     /// <summary>Reordena las categorías: el orden de la lista de ids es el orden de visualización.</summary>
     [HttpPut("orden")]
-    [Authorize(Policy = Politicas.SoloAdministrador)]
+    [AutorizarPermiso(Permisos.CategoriasGestionar)]
     [ProducesResponseType<IReadOnlyList<CategoriaDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<IReadOnlyList<CategoriaDto>>> Reordenar(ReordenarCategoriasCommand command, CancellationToken ct)

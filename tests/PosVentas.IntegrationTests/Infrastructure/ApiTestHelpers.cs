@@ -94,6 +94,13 @@ public static class ApiTestHelpers
         return cliente;
     }
 
+    /// <summary>Id del rol del comercio con ese nombre ("Administrador", "Supervisor", "Cajero" o uno personalizado).</summary>
+    public static async Task<Guid> RolIdAsync(this ComercioDePrueba comercio, string nombre)
+    {
+        var roles = await comercio.Http.GetFromJsonAsync<List<PosVentas.Application.Features.Roles.RolDto>>("/api/roles", Json);
+        return Assert.Single(roles!, r => r.Nombre == nombre).Id;
+    }
+
     public static async Task<Guid> CategoriaGeneralAsync(this ComercioDePrueba comercio)
     {
         var categorias = await comercio.Http.GetFromJsonAsync<List<CategoriaDto>>("/api/categorias", Json);

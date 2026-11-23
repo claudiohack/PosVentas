@@ -57,7 +57,8 @@ public static class FiscalTestHelpers
     {
         const string clave = "Usuario-2026-segura";
         var alta = await comercio.Http.PostAsJsonAsync("/api/usuarios",
-            new { nombreCompleto = usuario, nombreUsuario = usuario, email = (string?)null, password = clave, rol }, ApiTestHelpers.Json);
+            new { nombreCompleto = usuario, nombreUsuario = usuario, email = (string?)null, password = clave, rolId = await comercio.RolIdAsync(rol) },
+            ApiTestHelpers.Json);
         Assert.Equal(HttpStatusCode.Created, alta.StatusCode);
 
         using var anonimo = factory.CreateClient();

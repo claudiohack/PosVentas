@@ -22,10 +22,13 @@ public sealed record AuthResponse(
     DateTime ExpiraUtc,
     Guid UsuarioId,
     string NombreCompleto,
+    Guid RolId,
     string Rol,
+    bool EsAdministrador,
+    List<string> Permisos,
     Guid ComercioId,
     string Comercio,
-    bool EsAdministradorPlataforma = false);
+    bool EsAdministradorPlataforma);
 
 public sealed record ProductoDto(
     Guid Id,

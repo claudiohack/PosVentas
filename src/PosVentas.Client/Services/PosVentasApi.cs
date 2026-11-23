@@ -272,16 +272,50 @@ public sealed class PosVentasApi(HttpClient http, SesionService sesion)
 
     public Task<UsuarioDto> CrearUsuarioAsync(UsuarioFormulario f, CancellationToken ct = default) =>
         EnviarAsync<UsuarioDto>(HttpMethod.Post, "api/usuarios",
-            new { f.NombreCompleto, f.NombreUsuario, f.Email, f.Password, f.Rol }, ct);
+            new { f.NombreCompleto, f.NombreUsuario, f.Email, f.Password, f.RolId }, ct);
 
     public Task<UsuarioDto> ActualizarUsuarioAsync(Guid id, UsuarioFormulario f, CancellationToken ct = default) =>
-        EnviarAsync<UsuarioDto>(HttpMethod.Put, $"api/usuarios/{id}", new { f.NombreCompleto, f.Email, f.Rol }, ct);
+        EnviarAsync<UsuarioDto>(HttpMethod.Put, $"api/usuarios/{id}", new { f.NombreCompleto, f.Email, f.RolId }, ct);
 
     public Task CambiarPasswordAsync(Guid id, string nuevaPassword, CancellationToken ct = default) =>
         EnviarSinRespuestaAsync(HttpMethod.Put, $"api/usuarios/{id}/password", new { nuevaPassword }, ct);
 
     public Task<UsuarioDto> CambiarEstadoUsuarioAsync(Guid id, bool activo, CancellationToken ct = default) =>
         EnviarAsync<UsuarioDto>(HttpMethod.Patch, $"api/usuarios/{id}/estado", new { activo }, ct);
+
+    // ---------- Roles, sesión y auditoría ----------
+
+    public Task<SesionDto> ObtenerSesionAsync(CancellationToken ct = default) =>
+        EnviarAsync<SesionDto>(HttpMethod.Get, "api/auth/sesion", null, ct);
+
+    public Task<List<RolDto>> ObtenerRolesAsync(bool incluirEliminados = false, CancellationToken ct = default) =>
+        EnviarAsync<List<RolDto>>(HttpMethod.Get, $"api/roles{(incluirEliminados ? "?incluirEliminados=true" : null)}", null, ct);
+
+    public Task<List<GrupoPermisosDto>> ObtenerCatalogoPermisosAsync(CancellationToken ct = default) =>
+        EnviarAsync<List<GrupoPermisosDto>>(HttpMethod.Get, "api/roles/permisos", null, ct);
+
+    public Task<RolDto> CrearRolAsync(RolFormulario f, CancellationToken ct = default) =>
+        EnviarAsync<RolDto>(HttpMethod.Post, "api/roles", new { f.Nombre, f.Descripcion, permisos = f.Permisos.ToList() }, ct);
+
+    public Task<RolDto> ActualizarRolAsync(Guid id, RolFormulario f, CancellationToken ct = default) =>
+        EnviarAsync<RolDto>(HttpMethod.Put, $"api/roles/{id}", new { f.Nombre, f.Descripcion, permisos = f.Permisos.ToList() }, ct);
+
+    public async Task EliminarRolAsync(Guid id, CancellationToken ct = default)
+    {
+        using var request = CrearRequest(HttpMethod.Delete, $"api/roles/{id}", null);
+        using var respuesta = await http.SendAsync(request, ct);
+        if (!respuesta.IsSuccessStatusCode)
+            await LeerAsync<object>(respuesta, ct);
+    }
+
+    public Task<PaginaAuditoriaDto> ObtenerAuditoriaAsync(DateOnly? desde, DateOnly? hasta, string? entidad, int pagina, CancellationToken ct = default)
+    {
+        var query = new List<string> { $"pagina={pagina}", "tamanioPagina=50" };
+        if (desde is { } d) query.Add($"desde={d:yyyy-MM-dd}");
+        if (hasta is { } h) query.Add($"hasta={h:yyyy-MM-dd}");
+        if (!string.IsNullOrWhiteSpace(entidad)) query.Add($"entidad={Uri.EscapeDataString(entidad)}");
+        return EnviarAsync<PaginaAuditoriaDto>(HttpMethod.Get, $"api/auditoria?{string.Join('&', query)}", null, ct);
+    }
 
     // ---------- Infraestructura ----------
 

@@ -454,6 +454,46 @@ input.cantidad { min-height: 34px; padding: 0.3rem 0.5rem; }
 .errores-importacion table { margin-top: 0; font-size: 0.85rem; }
 .errores-importacion td { white-space: normal; }
 
+/* Roles y permisos */
+.subtitulo { margin: -0.5rem 0 1rem; max-width: 820px; }
+.badge.rol-personalizado { background: #f1ebfd; color: #5b30b8; border-color: #d9c9f7; }
+.grilla-roles { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr)); gap: 1rem; align-items: start; }
+.grilla-roles .tarjeta + .tarjeta { margin-top: 0; }
+.tarjeta-rol { border-top: 3px solid #6d3fd6; display: flex; flex-direction: column; gap: 0.6rem; }
+.tarjeta-rol.es-admin { border-top-color: var(--pv-primario); background: linear-gradient(180deg, #eef3fd 0%, #ffffff 120px); }
+.tarjeta-rol.inactivo { opacity: 0.6; border-top-color: var(--pv-borde-fuerte); }
+.tarjeta-rol-cabecera { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.75rem; }
+.tarjeta-rol-cabecera h2 { margin: 0 0 0.3rem; }
+.tarjeta-rol-cabecera .badge + .badge { margin-left: 0.3rem; }
+.cantidad-usuarios { font-size: 1.4rem; font-weight: 700; line-height: 1; text-align: right; white-space: nowrap; }
+.cantidad-usuarios small { display: block; font-size: 0.72rem; font-weight: 500; }
+.permisos-resumen { margin: 0; padding-left: 1rem; font-size: 0.86rem; color: var(--pv-texto-secundario); }
+p.permisos-resumen { padding-left: 0; }
+.permisos-resumen li + li { margin-top: 0.2rem; }
+.tarjeta-rol .acciones-fila { justify-content: flex-start; margin-top: auto; }
+.permisos-encabezado { display: flex; justify-content: space-between; align-items: center; margin: 1rem 0 0.5rem; }
+.acciones-permisos { display: flex; gap: 1rem; }
+.grilla-permisos { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 0.75rem; }
+.grupo-permisos { margin: 0; padding: 0.6rem 0.8rem 0.75rem; border: 1px solid var(--pv-borde); border-radius: var(--pv-radio-chico); background: var(--pv-superficie-2); }
+.grupo-permisos legend { padding: 0 0.3rem; font-weight: 700; }
+.grupo-permisos legend label.check { color: var(--pv-texto); font-weight: 700; }
+.modal label.permiso { flex-direction: row; align-items: flex-start; gap: 0.55rem; padding: 0.4rem 0.2rem; font-weight: 400; cursor: pointer; border-radius: 6px; }
+.modal label.permiso:hover { background: #ffffff; }
+.modal label.permiso input { margin-top: 0.2rem; }
+.modal label.permiso span { display: flex; flex-direction: column; }
+.modal label.permiso strong { font-size: 0.88rem; font-weight: 600; }
+.modal label.permiso small { font-size: 0.78rem; }
+.modal label.permiso.no-otorgable { opacity: 0.55; cursor: not-allowed; }
+
+/* Auditoría */
+.filtros-auditoria { margin-top: 0; margin-bottom: 1rem; }
+.nowrap { white-space: nowrap; }
+.detalle-auditoria { white-space: normal; min-width: 260px; color: var(--pv-texto-secundario); }
+.badge.accion-rol { background: #f1ebfd; color: #5b30b8; border-color: #d9c9f7; }
+.badge.accion-usuario { background: var(--pv-primario-suave); color: var(--pv-primario-texto); border-color: #c8d6f7; }
+.paginador { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0.75rem; margin-top: 1rem; color: var(--pv-texto-secundario); }
+.paginador > span:first-child { margin-right: auto; }
+
 .enlace-invitacion { flex: 1 1 320px; min-width: 0; font-size: 0.85rem; font-family: ui-monospace, "Cascadia Code", Consolas, monospace; }
 
 /* ---------- Facturación electrónica ---------- */

@@ -11,7 +11,7 @@
     <section class="tarjeta alerta-stock" role="status">
         <strong>@cantidadStockBajo @(cantidadStockBajo == 1 ? "producto está" : "productos están") en o por debajo del stock mínimo.</strong>
         <button class="btn-secundario" @onclick="VerStockBajoAsync">Ver cuáles</button>
-        @if (Sesion.PuedeSupervisar)
+        @if (Sesion.Tiene(Permisos.ComprasRegistrar))
         {
             <a href="compras">Cargar una compra</a>
         }
@@ -23,22 +23,25 @@
         <h1>Productos</h1>
         <CampoBusqueda @bind-Valor="buscar" OnBuscar="CargarAsync" Placeholder="Nombre, SKU o código de barras" Etiqueta="Buscar productos" Deshabilitado="soloStockBajo" />
         <label class="check"><input type="checkbox" @bind="soloStockBajo" @bind:after="CargarAsync" /> Solo stock bajo</label>
-        @if (Sesion.EsAdministrador)
+        @if (Sesion.Tiene(Permisos.ProductosGestionar))
         {
             <label class="check"><input type="checkbox" @bind="incluirInactivos" @bind:after="CargarAsync" /> Incluir dados de baja</label>
         }
         <div class="acciones-encabezado">
-            @if (Sesion.PuedeSupervisar)
+            @if (Sesion.Tiene(Permisos.ProductosExportar))
             {
                 <button class="btn-excel" @onclick="ExportarAsync" disabled="@exportando" title="Descargar el catálogo en Excel">
                     <Icono Nombre="descargar" /> @(exportando ? "Generando…" : "Exportar Excel")
                 </button>
             }
-            @if (Sesion.EsAdministrador)
+            @if (Sesion.Tiene(Permisos.ProductosImportar))
             {
                 <button class="btn-excel" @onclick="AbrirImportacion" title="Crear o actualizar productos desde una planilla">
                     <Icono Nombre="subir" /> Importar Excel
                 </button>
+            }
+            @if (Sesion.Tiene(Permisos.ProductosGestionar))
+            {
                 <button class="btn-primario ancho-auto" @onclick="() => AbrirModal(null)">Nuevo producto</button>
             }
         </div>
@@ -74,7 +77,7 @@
                     <th class="num">IVA %</th>
                     <th class="num">Stock</th>
                     <th class="num">Mínimo</th>
-                    @if (Sesion.EsAdministrador)
+                    @if (Sesion.Tiene(Permisos.ProductosGestionar))
                     {
                         <th></th>
                     }
@@ -98,14 +101,14 @@
                         <td class="num">@p.PorcentajeIva.ToString("0.##")</td>
                         <td class="num @(p.StockBajo ? "faltante" : null)">@p.StockActual.ToString("0.###")</td>
                         <td class="num">
-                            @if (Sesion.PuedeSupervisar && editandoMinimo == p.Id)
+                            @if (Sesion.Tiene(Permisos.ProductosStockMinimo) && editandoMinimo == p.Id)
                             {
                                 <form class="minimo-form" @onsubmit="() => GuardarMinimoAsync(p)">
                                     <input class="cantidad" type="number" min="0" step="0.001" @bind="nuevoMinimo" aria-label="Stock mínimo de @p.Nombre" />
                                     <button type="submit" class="btn-secundario" disabled="@procesando">OK</button>
                                 </form>
                             }
-                            else if (Sesion.PuedeSupervisar)
+                            else if (Sesion.Tiene(Permisos.ProductosStockMinimo))
                             {
                                 <button class="btn-link" @onclick="() => EditarMinimo(p)" title="Cambiar stock mínimo">@p.StockMinimo.ToString("0.###")</button>
                             }
@@ -114,7 +117,7 @@
                                 @p.StockMinimo.ToString("0.###")
                             }
                         </td>
-                        @if (Sesion.EsAdministrador)
+                        @if (Sesion.Tiene(Permisos.ProductosGestionar))
                         {
                             <td class="acciones-fila">
                                 <button class="btn-secundario" @onclick="() => AbrirModal(p)">Editar</button>

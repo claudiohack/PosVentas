@@ -29,13 +29,13 @@
 
         <label>
             Rol
-            <InputSelect @bind-Value="formulario.Rol">
-                @foreach (var rol in Enum.GetValues<RolUsuario>())
+            <InputSelect @bind-Value="formulario.RolId">
+                @foreach (var rol in Roles)
                 {
-                    <option value="@rol">@rol</option>
+                    <option value="@rol.Id">@rol.Nombre</option>
                 }
             </InputSelect>
-            <small>@Roles.Descripcion(formulario.Rol)</small>
+            <small>@RolElegido?.Descripcion</small>
         </label>
 
         <label>
@@ -76,14 +76,23 @@
 
     [Parameter] public EventCallback OnCancelar { get; set; }
 
+    /// <summary>Roles activos del comercio para elegir.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<RolDto> Roles { get; set; } = [];
+
     private UsuarioFormulario formulario = new();
     private string? error;
     private bool procesando;
 
     private bool EsAlta => Usuario is null;
+    private RolDto? RolElegido => Roles.FirstOrDefault(r => r.Id == formulario.RolId);
 
-    protected override void OnParametersSet() =>
+    protected override void OnParametersSet()
+    {
         formulario = Usuario is null ? new UsuarioFormulario() : UsuarioFormulario.Desde(Usuario);
+        // Alta: por defecto el rol de menor privilegio (el que tiene menos permisos)
+        if (formulario.RolId == Guid.Empty && Roles.Count > 0)
+            formulario.RolId = Roles.Where(r => !r.EsAdministrador).OrderBy(r => r.Permisos.Count).FirstOrDefault()?.Id ?? Roles[0].Id;
+    }
 
     private async Task GuardarAsync()
     {
@@ -110,7 +119,7 @@
                     await Api.CambiarPasswordAsync(Usuario.Id, formulario.Password!);
             }
 
-            var revocada = !EsAlta && EsUsuarioActual && (cambiaPassword || guardado.Rol != Usuario!.Rol);
+            var revocada = !EsAlta && EsUsuarioActual && (cambiaPassword || guardado.RolId != Usuario!.RolId);
             await OnGuardado.InvokeAsync((guardado, revocada));
         }
         catch (ApiException ex)

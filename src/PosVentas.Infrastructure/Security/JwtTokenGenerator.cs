@@ -15,9 +15,12 @@ public sealed class JwtTokenGenerator(IOptions<JwtOptions> options) : IJwtTokenG
 {
     private readonly JsonWebTokenHandler _handler = new();
 
-    public TokenGenerado Generar(Usuario usuario, bool esAdministradorPlataforma = false)
+    public TokenGenerado Generar(Usuario usuario, Rol rol, bool esAdministradorPlataforma = false)
     {
         ArgumentNullException.ThrowIfNull(usuario);
+        ArgumentNullException.ThrowIfNull(rol);
+        if (rol.Id != usuario.RolId)
+            throw new InvalidOperationException("El rol no corresponde al usuario.");
         if (usuario.TenantId == Guid.Empty)
             throw new InvalidOperationException("No se puede emitir un token para un usuario sin comercio.");
 
@@ -40,12 +43,12 @@ public sealed class JwtTokenGenerator(IOptions<JwtOptions> options) : IJwtTokenG
                 [JwtRegisteredClaimNames.Jti] = Guid.NewGuid().ToString(),
                 [PosVentasClaims.UsuarioId] = usuario.Id.ToString(),
                 [PosVentasClaims.TenantId] = usuario.TenantId.ToString(),
-                [PosVentasClaims.Rol] = usuario.Rol.ToString(),
+                [PosVentasClaims.Rol] = rol.Nombre, // informativo: los permisos se leen de la base en cada request
                 [PosVentasClaims.Nombre] = usuario.NombreCompleto,
                 [PosVentasClaims.SelloSeguridad] = usuario.SecurityStamp.ToString()
             }
         };
-        if (esAdministradorPlataforma && usuario.Rol == Domain.Enums.RolUsuario.Administrador)
+        if (esAdministradorPlataforma && rol.EsAdministrador)
             descriptor.Claims[PosVentasClaims.AdministradorPlataforma] = "1";
 
         return new TokenGenerado(_handler.CreateToken(descriptor), expira);

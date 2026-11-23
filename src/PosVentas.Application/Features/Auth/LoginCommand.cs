@@ -46,17 +46,17 @@ public sealed class LoginCommandHandler(
 
         var username = request.Username.Trim().ToLowerInvariant();
         var usuario = await db.Usuarios
+            .Include(u => u.Rol).ThenInclude(r => r!.Permisos)
             .SingleOrDefaultAsync(u => u.Username == username && u.EstaActivo, cancellationToken);
 
-        if (!passwordHasher.Verificar(request.Password, usuario?.PasswordHash) || usuario is null)
+        if (!passwordHasher.Verificar(request.Password, usuario?.PasswordHash) || usuario?.Rol is not { EstaActivo: true } rol)
             throw new CredencialesInvalidasException();
 
         usuario.RegistrarLogin();
         await db.SaveChangesAsync(cancellationToken);
 
-        var esAdminPlataforma = comercio.EsPlataforma && usuario.Rol == Domain.Enums.RolUsuario.Administrador;
-        var token = tokenGenerator.Generar(usuario, esAdminPlataforma);
-        return new AuthResponse(token.AccessToken, token.ExpiraUtc, usuario.Id, usuario.NombreCompleto,
-            usuario.Rol.ToString(), comercio.Id, comercio.Nombre, esAdminPlataforma);
+        var esAdminPlataforma = comercio.EsPlataforma && rol.EsAdministrador;
+        var token = tokenGenerator.Generar(usuario, rol, esAdminPlataforma);
+        return AuthResponse.Crear(token, usuario, rol, comercio, esAdminPlataforma);
     }
 }

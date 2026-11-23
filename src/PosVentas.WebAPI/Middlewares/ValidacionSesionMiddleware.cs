@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PosVentas.Application.Common.Interfaces;
 using PosVentas.Application.Common.Security;
+using PosVentas.Domain.Seguridad;
+using PosVentas.WebAPI.Services;
 
 namespace PosVentas.WebAPI.Middlewares;
 
@@ -37,16 +39,27 @@ public sealed class ValidacionSesionMiddleware(ILogger<ValidacionSesionMiddlewar
             || !Guid.TryParse(principal.FindFirstValue(PosVentasClaims.SelloSeguridad), out var sello))
             return false;
 
+        // Una sola consulta: estado del usuario + rol + permisos vigentes (filtrada por el tenant del token).
         var db = context.RequestServices.GetRequiredService<IApplicationDbContext>();
         var usuario = await db.Usuarios.AsNoTracking()
             .Where(u => u.Id == usuarioId)
-            .Select(u => new { u.EstaActivo, u.SecurityStamp, u.Rol })
+            .Select(u => new
+            {
+                u.EstaActivo,
+                u.SecurityStamp,
+                u.RolId,
+                RolActivo = u.Rol!.EstaActivo,
+                EsAdministrador = u.Rol.CodigoSistema == RolesSistema.Administrador,
+                Permisos = u.Rol.Permisos.Select(p => p.Codigo).ToList()
+            })
             .SingleOrDefaultAsync(context.RequestAborted);
 
-        return usuario is not null
-            && usuario.EstaActivo
-            && usuario.SecurityStamp == sello
-            && usuario.Rol.ToString() == principal.FindFirstValue(PosVentasClaims.Rol);
+        if (usuario is null || !usuario.EstaActivo || !usuario.RolActivo || usuario.SecurityStamp != sello)
+            return false;
+
+        // Los permisos quedan disponibles para la autorización de este request (un cambio en el rol rige ya).
+        context.RequestServices.GetRequiredService<SesionActual>().Cargar(usuario.RolId, usuario.EsAdministrador, usuario.Permisos);
+        return true;
     }
 
     private static async Task RechazarAsync(HttpContext context)

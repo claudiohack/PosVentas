@@ -7,7 +7,7 @@
 
 <div class="encabezado">
     <h1>Dashboard</h1>
-    @if (Sesion.PuedeSupervisar)
+    @if (Sesion.Tiene(Permisos.ReportesVer))
     {
         <div class="selector-periodo" role="group" aria-label="Período">
             @foreach (var (rango, texto) in Rangos)
@@ -19,7 +19,7 @@
     }
 </div>
 
-@if (!Sesion.PuedeSupervisar)
+@if (!Sesion.Tiene(Permisos.ReportesVer))
 {
     <section class="tarjeta"><p>Los reportes financieros están disponibles para supervisores y administradores.</p></section>
 }
@@ -272,7 +272,7 @@ else
             Navegacion.NavigateTo("/");
             return;
         }
-        if (Sesion.PuedeSupervisar)
+        if (Sesion.Tiene(Permisos.ReportesVer))
             await CargarAsync();
     }
 

@@ -4,7 +4,6 @@ using Microsoft.EntityFrameworkCore;
 using PosVentas.Application.Common.Exceptions;
 using PosVentas.Application.Common.Interfaces;
 using PosVentas.Domain.Entities;
-using PosVentas.Domain.Enums;
 
 namespace PosVentas.Application.Features.Auth;
 
@@ -66,11 +65,16 @@ public sealed class RegistrarComercioCommandHandler(
         // A partir de acá todo lo que se cree queda asignado a este comercio.
         tenant.EstablecerTenant(comercio.Id);
 
+        // Roles de sistema (Administrador, Supervisor, Cajero); el que da de alta el comercio es su Administrador.
+        var roles = Rol.CrearRolesDeSistema();
+        db.Roles.AddRange(roles);
+        var rolAdministrador = roles.Single(r => r.EsAdministrador);
+
         var admin = Usuario.Crear(
             request.NombreAdministrador,
             request.Username,
             passwordHasher.Hash(request.Password),
-            RolUsuario.Administrador);
+            rolAdministrador);
 
         db.Usuarios.Add(admin);
         db.Clientes.Add(Cliente.CrearConsumidorFinalGenerico());
@@ -84,8 +88,7 @@ public sealed class RegistrarComercioCommandHandler(
         // dos altas simultáneas con el mismo token no puedan confirmarse ambas (la segunda recibe 409).
         await db.SaveChangesAsync(cancellationToken);
 
-        var token = tokenGenerator.Generar(admin);
-        return new AuthResponse(token.AccessToken, token.ExpiraUtc, admin.Id, admin.NombreCompleto,
-            admin.Rol.ToString(), comercio.Id, comercio.Nombre);
+        var token = tokenGenerator.Generar(admin, rolAdministrador);
+        return AuthResponse.Crear(token, admin, rolAdministrador, comercio, esAdministradorPlataforma: false);
     }
 }

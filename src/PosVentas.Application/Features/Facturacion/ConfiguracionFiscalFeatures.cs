@@ -1,4 +1,4 @@
-using FluentValidation;
+﻿using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using PosVentas.Application.Common.Interfaces;
@@ -7,6 +7,7 @@ using PosVentas.Domain.Common;
 using PosVentas.Domain.Entities;
 using PosVentas.Domain.Enums;
 using PosVentas.Domain.Fiscal;
+using PosVentas.Domain.Seguridad;
 
 namespace PosVentas.Application.Features.Facturacion;
 
@@ -39,7 +40,8 @@ internal static class ComercioActual
 
 // ---------- Consulta ----------
 
-public sealed record ObtenerConfiguracionFiscalQuery : IRequest<ConfiguracionFiscalDto>, IRequiereAdministrador;
+[RequierePermiso(Permisos.FacturacionConfigurar)]
+public sealed record ObtenerConfiguracionFiscalQuery : IRequest<ConfiguracionFiscalDto>;
 
 public sealed class ObtenerConfiguracionFiscalQueryHandler(IApplicationDbContext db, ICurrentTenantService tenant)
     : IRequestHandler<ObtenerConfiguracionFiscalQuery, ConfiguracionFiscalDto>
@@ -50,6 +52,7 @@ public sealed class ObtenerConfiguracionFiscalQueryHandler(IApplicationDbContext
 
 // ---------- Datos fiscales ----------
 
+[RequierePermiso(Permisos.FacturacionConfigurar)]
 public sealed record ActualizarDatosFiscalesCommand(
     string Cuit,
     CondicionIva CondicionIva,
@@ -57,7 +60,7 @@ public sealed record ActualizarDatosFiscalesCommand(
     string? DomicilioFiscal,
     string? IngresosBrutos,
     DateOnly? InicioActividades,
-    bool Produccion) : IRequest<ConfiguracionFiscalDto>, IRequiereAdministrador;
+    bool Produccion) : IRequest<ConfiguracionFiscalDto>;
 
 public sealed class ActualizarDatosFiscalesCommandValidator : AbstractValidator<ActualizarDatosFiscalesCommand>
 {
@@ -96,12 +99,13 @@ public enum FormatoCertificado
     Pem = 2
 }
 
+[RequierePermiso(Permisos.FacturacionConfigurar)]
 public sealed record CargarCertificadoAfipCommand(
     FormatoCertificado Formato,
     string? Pkcs12Base64,
     string? CertificadoPem,
     string? ClavePrivadaPem,
-    string? Password) : IRequest<ConfiguracionFiscalDto>, IRequiereAdministrador;
+    string? Password) : IRequest<ConfiguracionFiscalDto>;
 
 public sealed class CargarCertificadoAfipCommandValidator : AbstractValidator<CargarCertificadoAfipCommand>
 {
@@ -157,7 +161,8 @@ public sealed class CargarCertificadoAfipCommandHandler(
 
 // ---------- Verificación de conexión ----------
 
-public sealed record VerificarConexionAfipCommand : IRequest<EstadoServicioAfip>, IRequiereAdministrador;
+[RequierePermiso(Permisos.FacturacionConfigurar)]
+public sealed record VerificarConexionAfipCommand : IRequest<EstadoServicioAfip>;
 
 public sealed class VerificarConexionAfipCommandHandler(IApplicationDbContext db, ICurrentTenantService tenant, IAfipService afip)
     : IRequestHandler<VerificarConexionAfipCommand, EstadoServicioAfip>

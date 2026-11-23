@@ -1,5 +1,4 @@
 using PosVentas.Domain.Common;
-using PosVentas.Domain.Enums;
 
 namespace PosVentas.Domain.Entities;
 
@@ -20,7 +19,10 @@ public sealed class Usuario : TenantEntity
 
     public string? Email { get; private set; }
     public string PasswordHash { get; private set; } = string.Empty;
-    public RolUsuario Rol { get; private set; }
+    /// <summary>Rol del comercio que define los permisos del usuario.</summary>
+    public Guid RolId { get; private set; }
+    public Rol? Rol { get; private set; }
+
     public bool EstaActivo { get; private set; }
     public DateTime? UltimoLoginUtc { get; private set; }
 
@@ -30,12 +32,13 @@ public sealed class Usuario : TenantEntity
     /// </summary>
     public Guid SecurityStamp { get; private set; }
 
-    private Usuario(Guid id, string nombreCompleto, string username, string? email, string passwordHash, RolUsuario rol) : base(id)
+    private Usuario(Guid id, string nombreCompleto, string username, string? email, string passwordHash, Rol rol) : base(id)
     {
         NombreCompleto = nombreCompleto;
         Username = username;
         Email = email;
         PasswordHash = passwordHash;
+        RolId = rol.Id;
         Rol = rol;
         EstaActivo = true;
         SecurityStamp = Guid.NewGuid();
@@ -44,11 +47,11 @@ public sealed class Usuario : TenantEntity
     // Requerido por EF Core
     private Usuario() { }
 
-    public static Usuario Crear(string nombreCompleto, string username, string passwordHash, RolUsuario rol, string? email = null)
+    public static Usuario Crear(string nombreCompleto, string username, string passwordHash, Rol rol, string? email = null)
     {
         if (string.IsNullOrWhiteSpace(passwordHash))
             throw new DomainException("El hash de la contraseña es obligatorio.");
-        ValidarRol(rol);
+        ValidarRol(rol, tenantId: null);
 
         return new Usuario(Guid.NewGuid(), NormalizarNombre(nombreCompleto), NormalizarUsername(username),
             NormalizarEmail(email), passwordHash, rol);
@@ -76,11 +79,13 @@ public sealed class Usuario : TenantEntity
         RenovarSello();
     }
 
-    public void CambiarRol(RolUsuario rol)
+    /// <summary>Cambia el rol y revoca los tokens vigentes (el usuario vuelve a ingresar con su nuevo rol).</summary>
+    public void CambiarRol(Rol rol)
     {
-        ValidarRol(rol);
-        if (Rol == rol)
+        ValidarRol(rol, TenantId);
+        if (RolId == rol.Id)
             return;
+        RolId = rol.Id;
         Rol = rol;
         RenovarSello();
     }
@@ -112,10 +117,13 @@ public sealed class Usuario : TenantEntity
         MarcarModificado();
     }
 
-    private static void ValidarRol(RolUsuario rol)
+    private static void ValidarRol(Rol rol, Guid? tenantId)
     {
-        if (!Enum.IsDefined(rol))
-            throw new DomainException("El rol indicado no es válido.");
+        ArgumentNullException.ThrowIfNull(rol);
+        if (!rol.EstaActivo)
+            throw new DomainException($"El rol '{rol.Nombre}' fue eliminado y no se puede asignar.");
+        if (tenantId is { } t && t != Guid.Empty && rol.TenantId != Guid.Empty && rol.TenantId != t)
+            throw new DomainException("El rol pertenece a otro comercio.");
     }
 
     private static string NormalizarNombre(string? nombreCompleto)

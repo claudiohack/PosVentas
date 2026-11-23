@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PosVentas.Application.Common.Security;
 using PosVentas.Application.Features.Productos;
+using PosVentas.Domain.Seguridad;
+using PosVentas.WebAPI.Security;
 
 namespace PosVentas.WebAPI.Controllers;
 
@@ -12,10 +14,10 @@ namespace PosVentas.WebAPI.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/productos")]
-[Authorize(Policy = Politicas.Operador)]
 public sealed class ProductosController(ISender mediator) : ControllerBase
 {
     [HttpGet]
+    [AutorizarPermiso(Permisos.ProductosConsultar)]
     [ProducesResponseType<IReadOnlyList<ProductoDto>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<ProductoDto>>> Listar(
         [FromQuery] string? buscar,
@@ -25,13 +27,14 @@ public sealed class ProductosController(ISender mediator) : ControllerBase
 
     /// <summary>Productos activos con existencias menores o iguales a su stock mínimo.</summary>
     [HttpGet("stock-bajo")]
+    [AutorizarPermiso(Permisos.ProductosConsultar)]
     [ProducesResponseType<IReadOnlyList<ProductoDto>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<ProductoDto>>> StockBajo(CancellationToken ct)
         => Ok(await mediator.Send(new ObtenerProductosStockBajoQuery(), ct));
 
     /// <summary>Fija el umbral de alerta de stock bajo.</summary>
     [HttpPut("{id:guid}/stock-minimo")]
-    [Authorize(Policy = Politicas.Supervision)]
+    [AutorizarPermiso(Permisos.ProductosStockMinimo)]
     [ProducesResponseType<ProductoDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -39,13 +42,14 @@ public sealed class ProductosController(ISender mediator) : ControllerBase
         => Ok(await mediator.Send(new ConfigurarStockMinimoCommand(id, request.StockMinimo), ct));
 
     [HttpGet("{id:guid}")]
+    [AutorizarPermiso(Permisos.ProductosConsultar)]
     [ProducesResponseType<ProductoDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ProductoDto>> ObtenerPorId(Guid id, CancellationToken ct)
         => Ok(await mediator.Send(new ObtenerProductoPorIdQuery(id), ct));
 
     [HttpPost]
-    [Authorize(Policy = Politicas.SoloAdministrador)]
+    [AutorizarPermiso(Permisos.ProductosGestionar)]
     [ProducesResponseType<ProductoDto>(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -58,7 +62,7 @@ public sealed class ProductosController(ISender mediator) : ControllerBase
     }
 
     [HttpPost("{id:guid}/stock/ingreso")]
-    [Authorize(Policy = Politicas.SoloAdministrador)]
+    [AutorizarPermiso(Permisos.ProductosGestionar)]
     [ProducesResponseType<StockResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<StockResponse>> IngresarStock(Guid id, IngresarStockRequest request, CancellationToken ct)
@@ -69,7 +73,7 @@ public sealed class ProductosController(ISender mediator) : ControllerBase
 
     /// <summary>Edita datos, código de barras, categoría, costo y precio (por margen o precio de venta fijo).</summary>
     [HttpPut("{id:guid}")]
-    [Authorize(Policy = Politicas.SoloAdministrador)]
+    [AutorizarPermiso(Permisos.ProductosGestionar)]
     [ProducesResponseType<ProductoDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -80,7 +84,7 @@ public sealed class ProductosController(ISender mediator) : ControllerBase
 
     /// <summary>Activa o da de baja (lógica) el producto. Uno dado de baja no se vende ni se compra.</summary>
     [HttpPatch("{id:guid}/estado")]
-    [Authorize(Policy = Politicas.SoloAdministrador)]
+    [AutorizarPermiso(Permisos.ProductosGestionar)]
     [ProducesResponseType<ProductoDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ProductoDto>> CambiarEstado(Guid id, EstadoProductoRequest r, CancellationToken ct)
@@ -88,7 +92,7 @@ public sealed class ProductosController(ISender mediator) : ControllerBase
 
     /// <summary>Descarga el catálogo completo (incluye dados de baja) en Excel. Sirve también de plantilla para importar.</summary>
     [HttpGet("exportar")]
-    [Authorize(Policy = Politicas.Supervision)]
+    [AutorizarPermiso(Permisos.ProductosExportar)]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> Exportar(CancellationToken ct)
     {
@@ -101,7 +105,7 @@ public sealed class ProductosController(ISender mediator) : ControllerBase
     /// Es todo o nada: si alguna fila tiene errores no se guarda ninguna (<c>aplicado=false</c> y la lista de errores).
     /// </summary>
     [HttpPost("importar")]
-    [Authorize(Policy = Politicas.SoloAdministrador)]
+    [AutorizarPermiso(Permisos.ProductosImportar)]
     [RequestSizeLimit(ImportarProductosCommandValidator.TamanioMaximo + 64 * 1024)]
     [RequestFormLimits(MultipartBodyLengthLimit = ImportarProductosCommandValidator.TamanioMaximo + 64 * 1024)]
     [ProducesResponseType<ResultadoImportacionDto>(StatusCodes.Status200OK)]

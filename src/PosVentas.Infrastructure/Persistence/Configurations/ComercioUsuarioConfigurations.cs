@@ -67,9 +67,65 @@ internal sealed class UsuarioConfiguration : IEntityTypeConfiguration<Usuario>
         builder.Property(u => u.Email).HasMaxLength(Usuario.LongitudMaximaEmail);
         builder.Property(u => u.PasswordHash).IsRequired().HasMaxLength(100);
         builder.Property(u => u.SecurityStamp).IsRequired();
-        builder.Property(u => u.Rol).HasConversion<string>().HasMaxLength(20);
+
+        // Un rol con usuarios no se borra (ni físico ni lógico: lo valida el caso de uso)
+        builder.HasOne(u => u.Rol).WithMany().HasForeignKey(u => u.RolId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(u => u.RolId);
 
         // El nombre de usuario es único dentro de cada comercio
         builder.HasIndex(u => new { u.TenantId, u.Username }).IsUnique();
+    }
+}
+
+internal sealed class RolConfiguration : IEntityTypeConfiguration<Rol>
+{
+    public void Configure(EntityTypeBuilder<Rol> builder)
+    {
+        builder.ToTable("Roles");
+        builder.HasKey(r => r.Id);
+        builder.Property(r => r.Id).ValueGeneratedNever();
+
+        builder.Property(r => r.Nombre).IsRequired().HasMaxLength(Rol.LongitudMaximaNombre);
+        builder.Property(r => r.Descripcion).HasMaxLength(Rol.LongitudMaximaDescripcion);
+        builder.Property(r => r.CodigoSistema).HasMaxLength(Rol.LongitudMaximaCodigo).IsUnicode(false);
+        builder.Property(r => r.RowVersion).IsRowVersion();
+        builder.Ignore(r => r.EsSistema);
+        builder.Ignore(r => r.EsAdministrador);
+
+        // Permisos: tabla propia (RolId + Codigo), siempre cargada con el rol
+        builder.OwnsMany(r => r.Permisos, permisos =>
+        {
+            permisos.ToTable("RolesPermisos");
+            permisos.WithOwner().HasForeignKey("RolId");
+            permisos.Property(p => p.Codigo).HasMaxLength(Domain.Seguridad.Permisos.LongitudMaxima).IsUnicode(false);
+            permisos.HasKey("RolId", nameof(RolPermiso.Codigo));
+        });
+        builder.Navigation(r => r.Permisos).UsePropertyAccessMode(PropertyAccessMode.Field).HasField("_permisos");
+
+        // Nombre único entre los roles activos de cada comercio (uno eliminado libera el nombre)
+        builder.HasIndex(r => new { r.TenantId, r.Nombre }).IsUnique().HasFilter("[EstaActivo] = 1")
+            .HasDatabaseName("UX_Roles_Tenant_Nombre_Activo");
+        // Un solo rol de sistema de cada tipo por comercio
+        builder.HasIndex(r => new { r.TenantId, r.CodigoSistema }).IsUnique().HasFilter("[CodigoSistema] IS NOT NULL")
+            .HasDatabaseName("UX_Roles_Tenant_CodigoSistema");
+    }
+}
+
+internal sealed class RegistroAuditoriaConfiguration : IEntityTypeConfiguration<RegistroAuditoria>
+{
+    public void Configure(EntityTypeBuilder<RegistroAuditoria> builder)
+    {
+        builder.ToTable("RegistrosAuditoria");
+        builder.HasKey(r => r.Id);
+        builder.Property(r => r.Id).ValueGeneratedNever();
+
+        builder.Property(r => r.Accion).IsRequired().HasMaxLength(RegistroAuditoria.LongitudMaximaAccion).IsUnicode(false);
+        builder.Property(r => r.Entidad).IsRequired().HasMaxLength(RegistroAuditoria.LongitudMaximaEntidad).IsUnicode(false);
+        builder.Property(r => r.NombreUsuario).HasMaxLength(RegistroAuditoria.LongitudMaximaUsuario);
+        builder.Property(r => r.Detalle).HasMaxLength(RegistroAuditoria.LongitudMaximaDetalle);
+
+        // Sin FK a Usuarios a propósito: el registro sobrevive aunque cambie o se depure el usuario.
+        builder.HasIndex(r => new { r.TenantId, r.FechaCreacionUtc });
+        builder.HasIndex(r => new { r.TenantId, r.Entidad, r.EntidadId });
     }
 }

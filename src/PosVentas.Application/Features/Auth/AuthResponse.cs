@@ -1,16 +1,42 @@
 ﻿using FluentValidation;
+using PosVentas.Application.Common.Interfaces;
 
 namespace PosVentas.Application.Features.Auth;
 
+/// <summary>
+/// Respuesta de login / alta de comercio. Los permisos son para que la UI muestre u oculte opciones:
+/// la API los vuelve a verificar en cada request contra la base.
+/// </summary>
 public sealed record AuthResponse(
     string AccessToken,
     DateTime ExpiraUtc,
     Guid UsuarioId,
     string NombreCompleto,
+    Guid RolId,
     string Rol,
+    bool EsAdministrador,
+    IReadOnlyList<string> Permisos,
     Guid ComercioId,
     string Comercio,
-    bool EsAdministradorPlataforma = false);
+    bool EsAdministradorPlataforma)
+{
+    internal static AuthResponse Crear(TokenGenerado token, Domain.Entities.Usuario usuario, Domain.Entities.Rol rol,
+        Domain.Entities.Comercio comercio, bool esAdministradorPlataforma) =>
+        new(token.AccessToken, token.ExpiraUtc, usuario.Id, usuario.NombreCompleto, rol.Id, rol.Nombre, rol.EsAdministrador,
+            Roles.CatalogoPermisos.Ordenar(rol.PermisosEfectivos()), comercio.Id, comercio.Nombre, esAdministradorPlataforma);
+}
+
+/// <summary>Sesión vigente según la base (GET /api/auth/sesion): la UI refresca sus permisos sin volver a ingresar.</summary>
+public sealed record SesionDto(
+    Guid UsuarioId,
+    string NombreCompleto,
+    Guid RolId,
+    string Rol,
+    bool EsAdministrador,
+    IReadOnlyList<string> Permisos,
+    Guid ComercioId,
+    string Comercio,
+    bool EsAdministradorPlataforma);
 
 internal static class AuthValidationRules
 {

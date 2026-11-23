@@ -1,0 +1,10 @@
+@page "/sin-acceso"
+@inject SesionService Sesion
+
+<PageTitle>Sin acceso · PosVentas</PageTitle>
+
+<section class="tarjeta">
+    <h1>Tu rol todavía no tiene permisos</h1>
+    <p>Ingresaste como <strong>@Sesion.Actual?.NombreCompleto</strong> con el rol <strong>@Sesion.Actual?.Rol</strong>, que no tiene acceso a ninguna pantalla.</p>
+    <p class="ayuda">Pedile a un administrador del comercio que le asigne permisos a tu rol en <em>Roles y permisos</em>. Apenas lo haga, el menú se actualiza solo.</p>
+</section>

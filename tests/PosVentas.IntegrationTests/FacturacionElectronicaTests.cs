@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
@@ -414,7 +414,7 @@ public sealed class FacturacionElectronicaTests(PosVentasApiFactory factory)
             nombreUsuario = "cajero1",
             email = (string?)null,
             password = "Cajero-2026-segura",
-            rol = "Cajero"
+            rolId = await comercio.RolIdAsync("Cajero")
         }, ApiTestHelpers.Json);
         Assert.Equal(HttpStatusCode.Created, alta.StatusCode);
 

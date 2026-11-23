@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PosVentas.Application.Common.Security;
 using PosVentas.Application.Features.Reportes;
+using PosVentas.Domain.Seguridad;
+using PosVentas.WebAPI.Security;
 
 namespace PosVentas.WebAPI.Controllers;
 
@@ -12,7 +14,6 @@ namespace PosVentas.WebAPI.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/reportes")]
-[Authorize(Policy = Politicas.Supervision)]
 [ProducesResponseType(StatusCodes.Status400BadRequest)]
 [ProducesResponseType(StatusCodes.Status401Unauthorized)]
 [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -20,12 +21,14 @@ public sealed class ReportesController(ISender mediator) : ControllerBase
 {
     /// <summary>Total vendido, operaciones, ticket promedio, margen bruto estimado e ingresos por medio de pago.</summary>
     [HttpGet("dashboard")]
+    [AutorizarPermiso(Permisos.ReportesVer)]
     [ProducesResponseType<DashboardResumenDto>(StatusCodes.Status200OK)]
     public async Task<ActionResult<DashboardResumenDto>> Dashboard([FromQuery] DateOnly? desde, [FromQuery] DateOnly? hasta, CancellationToken ct)
         => Ok(await mediator.Send(new GetDashboardResumenQuery(desde, hasta), ct));
 
     /// <summary>Ranking de productos por unidades o por recaudación. Opcionalmente filtrado por categoría.</summary>
     [HttpGet("top-productos")]
+    [AutorizarPermiso(Permisos.ReportesVer)]
     [ProducesResponseType<TopProductosDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<TopProductosDto>> TopProductos(
@@ -35,12 +38,14 @@ public sealed class ReportesController(ISender mediator) : ControllerBase
 
     /// <summary>Venta, costo, margen y participación de cada categoría.</summary>
     [HttpGet("categorias")]
+    [AutorizarPermiso(Permisos.ReportesVer)]
     [ProducesResponseType<RentabilidadPorCategoriaDto>(StatusCodes.Status200OK)]
     public async Task<ActionResult<RentabilidadPorCategoriaDto>> Categorias([FromQuery] DateOnly? desde, [FromQuery] DateOnly? hasta, CancellationToken ct)
         => Ok(await mediator.Send(new GetRentabilidadPorCategoriaQuery(desde, hasta), ct));
 
     /// <summary>Turnos cerrados en el período con su arqueo, y sobrantes / faltantes acumulados.</summary>
     [HttpGet("cajas")]
+    [AutorizarPermiso(Permisos.ReportesVer)]
     [ProducesResponseType<ReporteCierresCajaDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ReporteCierresCajaDto>> Cajas(

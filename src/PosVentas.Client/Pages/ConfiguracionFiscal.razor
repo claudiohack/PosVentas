@@ -7,9 +7,9 @@
 
 <h1>Facturación electrónica (ARCA)</h1>
 
-@if (!Sesion.EsAdministrador)
+@if (!Sesion.Tiene(Permisos.FacturacionConfigurar))
 {
-    <section class="tarjeta"><p>La configuración fiscal está disponible solo para administradores.</p></section>
+    <section class="tarjeta"><p>Tu rol no tiene permiso para configurar la facturación.</p></section>
 }
 else
 {
@@ -124,7 +124,7 @@ else
             Navegacion.NavigateTo("/");
             return;
         }
-        if (Sesion.EsAdministrador)
+        if (Sesion.Tiene(Permisos.FacturacionConfigurar))
             await EjecutarAsync(async () => Aplicar(await Api.ObtenerConfiguracionFiscalAsync()));
     }
 

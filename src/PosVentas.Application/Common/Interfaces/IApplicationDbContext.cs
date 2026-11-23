@@ -11,6 +11,8 @@ public interface IApplicationDbContext
 {
     DbSet<Comercio> Comercios { get; }
     DbSet<Usuario> Usuarios { get; }
+    DbSet<Rol> Roles { get; }
+    DbSet<RegistroAuditoria> RegistrosAuditoria { get; }
     DbSet<Categoria> Categorias { get; }
     DbSet<Producto> Productos { get; }
     DbSet<Cliente> Clientes { get; }

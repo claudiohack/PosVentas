@@ -1,23 +1,29 @@
-﻿using MediatR;
+﻿using System.Reflection;
+using MediatR;
 using PosVentas.Application.Common.Exceptions;
 using PosVentas.Application.Common.Interfaces;
 using PosVentas.Application.Common.Security;
-using PosVentas.Domain.Enums;
 
 namespace PosVentas.Application.Common.Behaviors;
 
 /// <summary>
-/// Rechaza los requests marcados con <see cref="IRequiereAdministrador"/> si el rol del JWT no es Administrador.
-/// Complementa la política del controller: si un endpoint nuevo olvida el [Authorize], el comando igual queda protegido.
+/// Verifica los <see cref="RequierePermisoAttribute"/> del request contra los permisos vigentes del usuario
+/// (leídos de la base) y la marca <see cref="IRequiereAdministradorPlataforma"/>. Complementa la política del
+/// endpoint: si un endpoint nuevo olvida su atributo, el caso de uso igual queda protegido.
 /// </summary>
 public sealed class AutorizacionBehavior<TRequest, TResponse>(ICurrentUserService usuarioActual)
     : IPipelineBehavior<TRequest, TResponse>
     where TRequest : notnull
 {
+    // Reflexión una sola vez por tipo de request
+    private static readonly string[] PermisosRequeridos =
+        typeof(TRequest).GetCustomAttributes<RequierePermisoAttribute>(inherit: false).Select(a => a.Permiso).Distinct().ToArray();
+
     public Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
     {
-        if (request is IRequiereAdministrador && usuarioActual.Rol != nameof(RolUsuario.Administrador))
-            throw new AccesoDenegadoException("La operación requiere el rol Administrador.");
+        var faltante = PermisosRequeridos.FirstOrDefault(p => !usuarioActual.TienePermiso(p));
+        if (faltante is not null)
+            throw new AccesoDenegadoException($"Tu rol no tiene el permiso '{faltante}'.");
         if (request is IRequiereAdministradorPlataforma && !usuarioActual.EsAdministradorPlataforma)
             throw new AccesoDenegadoException("La operación es exclusiva de los administradores de la plataforma.");
 

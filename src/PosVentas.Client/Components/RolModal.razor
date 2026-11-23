@@ -1,0 +1,141 @@
+@inject PosVentasApi Api
+@inject SesionService Sesion
+
+@* Alta / edición de rol con la grilla de permisos agrupada por módulo. Rol = null es alta. *@
+
+<div class="modal-fondo" @onclick="CancelarAsync"></div>
+<div class="modal modal-ancho" role="dialog" aria-modal="true" aria-labelledby="titulo-rol">
+    <h2 id="titulo-rol">@(Rol is null ? "Nuevo rol" : $"Editar rol {Rol.Nombre}")</h2>
+
+    <EditForm Model="f" OnValidSubmit="GuardarAsync" FormName="rol">
+        <DataAnnotationsValidator />
+        <div class="grilla-form">
+            <label>
+                Nombre
+                <InputText @bind-Value="f.Nombre" disabled="@(Rol?.EsSistema == true)" placeholder="Ej.: Repositor" />
+                <ValidationMessage For="() => f.Nombre" />
+            </label>
+            <label>
+                Descripción (opcional)
+                <InputText @bind-Value="f.Descripcion" placeholder="Qué hace este rol" />
+            </label>
+        </div>
+
+        @if (Rol?.EsSistema == true)
+        {
+            <p class="ayuda">Es un rol predeterminado: no se puede renombrar ni eliminar, pero sí ajustar sus permisos.</p>
+        }
+
+        <div class="permisos-encabezado">
+            <strong>Permisos <span class="badge">@f.Permisos.Count de @TotalPermisos</span></strong>
+            <span class="acciones-permisos">
+                <button type="button" class="btn-link" @onclick="MarcarTodos">Marcar todos</button>
+                <button type="button" class="btn-link" @onclick="() => f.Permisos.Clear()">Ninguno</button>
+            </span>
+        </div>
+
+        <div class="grilla-permisos">
+            @foreach (var grupo in Catalogo)
+            {
+                var marcados = grupo.Permisos.Count(p => f.Permisos.Contains(p.Codigo));
+                <fieldset class="grupo-permisos">
+                    <legend>
+                        <label class="check">
+                            <input type="checkbox" checked="@(marcados == grupo.Permisos.Count)"
+                                   @onchange="e => AlternarGrupo(grupo, (bool)e.Value!)" disabled="@(!PuedeOtorgarGrupo(grupo))" />
+                            @grupo.Grupo <small>(@marcados/@grupo.Permisos.Count)</small>
+                        </label>
+                    </legend>
+                    @foreach (var p in grupo.Permisos)
+                    {
+                        var otorgable = Sesion.Tiene(p.Codigo);
+                        <label class="permiso @(otorgable ? null : "no-otorgable")" title="@(otorgable ? p.Descripcion : "Tu rol no tiene este permiso: no podés otorgarlo.")">
+                            <input type="checkbox" checked="@f.Permisos.Contains(p.Codigo)" disabled="@(!otorgable)"
+                                   @onchange="e => Alternar(p.Codigo, (bool)e.Value!)" />
+                            <span>
+                                <strong>@p.Nombre</strong>
+                                <small>@p.Descripcion</small>
+                            </span>
+                        </label>
+                    }
+                </fieldset>
+            }
+        </div>
+
+        @if (Rol is { CantidadUsuarios: > 0 })
+        {
+            <p class="aviso">Los cambios rigen de inmediato para los @Rol.CantidadUsuarios usuario@(Rol.CantidadUsuarios == 1 ? "" : "s") con este rol.</p>
+        }
+
+        @if (error is not null)
+        {
+            <p class="error" role="alert">@error</p>
+        }
+
+        <div class="acciones">
+            <button type="button" class="btn-secundario" @onclick="CancelarAsync">Cancelar</button>
+            <button type="submit" class="btn-primario" disabled="@(procesando || f.Permisos.Count == 0)">
+                @(procesando ? "Guardando…" : Rol is null ? "Crear rol" : "Guardar cambios")
+            </button>
+        </div>
+    </EditForm>
+</div>
+
+@code {
+    [Parameter] public RolDto? Rol { get; set; }
+    [Parameter, EditorRequired] public IReadOnlyList<GrupoPermisosDto> Catalogo { get; set; } = [];
+    [Parameter, EditorRequired] public EventCallback<RolDto> OnGuardado { get; set; }
+    [Parameter, EditorRequired] public EventCallback OnCancelar { get; set; }
+
+    private RolFormulario f = new();
+    private string? error;
+    private bool procesando;
+
+    private int TotalPermisos => Catalogo.Sum(g => g.Permisos.Count);
+
+    protected override void OnParametersSet() => f = Rol is null ? new RolFormulario() : RolFormulario.Desde(Rol);
+
+    private void Alternar(string codigo, bool marcar)
+    {
+        if (marcar) f.Permisos.Add(codigo); else f.Permisos.Remove(codigo);
+    }
+
+    private bool PuedeOtorgarGrupo(GrupoPermisosDto grupo) => grupo.Permisos.All(p => Sesion.Tiene(p.Codigo));
+
+    private void AlternarGrupo(GrupoPermisosDto grupo, bool marcar)
+    {
+        foreach (var p in grupo.Permisos.Where(p => Sesion.Tiene(p.Codigo)))
+            Alternar(p.Codigo, marcar);
+    }
+
+    private void MarcarTodos()
+    {
+        foreach (var p in Catalogo.SelectMany(g => g.Permisos).Where(p => Sesion.Tiene(p.Codigo)))
+            f.Permisos.Add(p.Codigo);
+    }
+
+    private async Task GuardarAsync()
+    {
+        error = null;
+        procesando = true;
+        try
+        {
+            var guardado = Rol is null ? await Api.CrearRolAsync(f) : await Api.ActualizarRolAsync(Rol.Id, f);
+            await OnGuardado.InvokeAsync(guardado);
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        catch (HttpRequestException)
+        {
+            error = "No se pudo conectar con el servidor.";
+        }
+        finally
+        {
+            procesando = false;
+        }
+    }
+
+    private Task CancelarAsync() => procesando ? Task.CompletedTask : OnCancelar.InvokeAsync();
+}

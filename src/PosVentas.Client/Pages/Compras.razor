@@ -7,9 +7,9 @@
 
 <h1>Ingreso de stock / Compras</h1>
 
-@if (!Sesion.PuedeSupervisar)
+@if (!Sesion.Tiene(Permisos.ComprasRegistrar))
 {
-    <section class="tarjeta"><p>La carga de compras está disponible para supervisores y administradores.</p></section>
+    <section class="tarjeta"><p>Tu rol no tiene permiso para registrar compras.</p></section>
 }
 else
 {
@@ -228,7 +228,7 @@ else
             Navegacion.NavigateTo("/");
             return;
         }
-        if (!Sesion.PuedeSupervisar)
+        if (!Sesion.Tiene(Permisos.ComprasRegistrar))
             return;
 
         await EjecutarAsync(async () =>

@@ -6,6 +6,7 @@ using PosVentas.Application.Common.Interfaces;
 using PosVentas.Application.Common.Security;
 using PosVentas.Domain.Common;
 using PosVentas.Domain.Entities;
+using PosVentas.Domain.Seguridad;
 using PosVentas.Domain.ValueObjects;
 
 namespace PosVentas.Application.Features.Productos;
@@ -50,6 +51,7 @@ public sealed record ResultadoImportacionDto(
 
 // ---------- Exportación ----------
 
+[RequierePermiso(Permisos.ProductosExportar)]
 public sealed record ExportarProductosQuery : IRequest<ArchivoGeneradoDto>;
 
 public sealed class ExportarProductosQueryHandler(IApplicationDbContext db, IPlanillaProductos planilla)
@@ -79,7 +81,8 @@ public sealed class ExportarProductosQueryHandler(IApplicationDbContext db, IPla
 /// Con <paramref name="Simular"/> valida y devuelve el resumen sin guardar (vista previa).
 /// El stock de un producto existente no se toca (solo cambia por compras y ventas); en uno nuevo, la columna Stock es el stock inicial.
 /// </summary>
-public sealed record ImportarProductosCommand(byte[] Contenido, bool Simular) : IRequest<ResultadoImportacionDto>, IRequiereAdministrador;
+[RequierePermiso(Permisos.ProductosImportar)]
+public sealed record ImportarProductosCommand(byte[] Contenido, bool Simular) : IRequest<ResultadoImportacionDto>;
 
 public sealed class ImportarProductosCommandValidator : AbstractValidator<ImportarProductosCommand>
 {

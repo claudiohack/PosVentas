@@ -7,16 +7,16 @@
 
 <div class="encabezado">
     <h1>Usuarios del comercio</h1>
-    @if (Sesion.EsAdministrador)
+    @if (Sesion.Tiene(Permisos.UsuariosGestionar))
     {
         <button class="btn-primario ancho-auto" @onclick="() => AbrirModal(null)">Nuevo usuario</button>
     }
 </div>
 
-@if (!Sesion.EsAdministrador)
+@if (!Sesion.Tiene(Permisos.UsuariosGestionar))
 {
     <section class="tarjeta">
-        <p>La gestión de usuarios está disponible solo para administradores.</p>
+        <p>Tu rol no tiene permiso para gestionar usuarios.</p>
     </section>
 }
 else
@@ -57,7 +57,7 @@ else
                             <td>@u.NombreCompleto @(esYo ? "(vos)" : null)</td>
                             <td>@u.NombreUsuario</td>
                             <td>@u.Email</td>
-                            <td><span class="badge rol-@u.Rol.ToString().ToLowerInvariant()">@u.Rol</span></td>
+                            <td><span class="badge @ClaseRol(u.RolId)">@u.Rol</span></td>
                             <td><span class="badge @(u.Activo ? "activo" : "baja")">@(u.Activo ? "Activo" : "Inactivo")</span></td>
                             <td>@(u.UltimoLoginUtc?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? "Nunca")</td>
                             <td class="acciones-fila">
@@ -79,6 +79,7 @@ else
     @if (mostrarModal)
     {
         <UsuarioModal Usuario="usuarioEditado"
+                      Roles="roles"
                       EsUsuarioActual="@(usuarioEditado?.Id == Sesion.Actual?.UsuarioId)"
                       OnGuardado="AlGuardarAsync"
                       OnCancelar="() => mostrarModal = false" />
@@ -100,12 +101,27 @@ else
             Navegacion.NavigateTo("/");
             return;
         }
-        if (Sesion.EsAdministrador)
+        if (Sesion.Tiene(Permisos.UsuariosGestionar))
             await CargarAsync();
     }
 
+    private List<RolDto> roles = [];
+
     private async Task CargarAsync() =>
-        await EjecutarAsync(async () => usuarios = await Api.ObtenerUsuariosAsync());
+        await EjecutarAsync(async () =>
+        {
+            var tareaRoles = Api.ObtenerRolesAsync();
+            usuarios = await Api.ObtenerUsuariosAsync();
+            roles = await tareaRoles;
+        });
+
+    private string ClaseRol(Guid rolId) => roles.FirstOrDefault(r => r.Id == rolId)?.CodigoSistema switch
+    {
+        "ADMINISTRADOR" => "rol-administrador",
+        "SUPERVISOR" => "rol-supervisor",
+        "CAJERO" => "rol-cajero",
+        _ => "rol-personalizado"
+    };
 
     private void AbrirModal(UsuarioDto? usuario)
     {

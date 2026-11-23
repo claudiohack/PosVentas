@@ -41,15 +41,49 @@ public sealed class CurrentTenantService(IHttpContextAccessor httpContextAccesso
     }
 }
 
-public sealed class CurrentUserService(IHttpContextAccessor httpContextAccessor) : ICurrentUserService
+/// <summary>
+/// Rol y permisos vigentes del usuario del request, leídos de la base por <c>ValidacionSesionMiddleware</c>
+/// antes de la autorización. Nunca se completan desde el token.
+/// </summary>
+public sealed class SesionActual
+{
+    private static readonly IReadOnlySet<string> Ninguno = new HashSet<string>();
+
+    public bool Cargada { get; private set; }
+    public Guid? RolId { get; private set; }
+    public bool EsAdministrador { get; private set; }
+    public IReadOnlySet<string> Permisos { get; private set; } = Ninguno;
+
+    public void Cargar(Guid rolId, bool esAdministrador, IEnumerable<string> permisos)
+    {
+        if (Cargada)
+            throw new InvalidOperationException("La sesión del request ya fue cargada.");
+        RolId = rolId;
+        EsAdministrador = esAdministrador;
+        Permisos = esAdministrador
+            ? new HashSet<string>(Domain.Seguridad.Permisos.Todos, StringComparer.Ordinal)
+            : new HashSet<string>(permisos, StringComparer.Ordinal);
+        Cargada = true;
+    }
+}
+
+public sealed class CurrentUserService(IHttpContextAccessor httpContextAccessor, SesionActual sesion) : ICurrentUserService
 {
     public Guid? UsuarioId =>
         Guid.TryParse(Usuario?.FindFirstValue(PosVentasClaims.UsuarioId), out var id) ? id : null;
 
-    public string? Rol => Usuario?.FindFirstValue(PosVentasClaims.Rol);
+    public string? Nombre => Usuario?.FindFirstValue(PosVentasClaims.Nombre);
+
+    public Guid? RolId => sesion.Cargada ? sesion.RolId : null;
+
+    public bool EsAdministrador => sesion.Cargada && sesion.EsAdministrador;
+
+    public IReadOnlySet<string> Permisos => sesion.Permisos;
+
+    public bool TienePermiso(string permiso) => sesion.Cargada && (sesion.EsAdministrador || sesion.Permisos.Contains(permiso));
 
     public bool EsAdministradorPlataforma =>
-        Usuario?.FindFirstValue(PosVentasClaims.AdministradorPlataforma) == "1" && Rol == "Administrador";
+        EsAdministrador && Usuario?.FindFirstValue(PosVentasClaims.AdministradorPlataforma) == "1";
 
     private ClaimsPrincipal? Usuario =>
         httpContextAccessor.HttpContext?.User is { Identity.IsAuthenticated: true } user ? user : null;

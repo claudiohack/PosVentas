@@ -8,13 +8,13 @@ using Microsoft.IdentityModel.Tokens;
 using PosVentas.Application;
 using PosVentas.Application.Common.Interfaces;
 using PosVentas.Application.Common.Security;
-using PosVentas.Domain.Enums;
 using Microsoft.AspNetCore.HttpOverrides;
 using PosVentas.Infrastructure;
 using PosVentas.Infrastructure.Persistence;
 using PosVentas.Infrastructure.Security;
 using PosVentas.WebAPI;
 using PosVentas.WebAPI.Middlewares;
+using PosVentas.WebAPI.Security;
 using PosVentas.WebAPI.Services;
 
 const string CorsClientPolicy = "PosVentasClient";
@@ -30,6 +30,7 @@ builder.Services.Configure<PosVentas.Application.Features.Facturacion.Facturacio
 // ---------- Contexto del request (tenant / usuario desde el JWT) ----------
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentTenantService, CurrentTenantService>();
+builder.Services.AddScoped<SesionActual>(); // rol y permisos del request, cargados de la base por ValidacionSesionMiddleware
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 
 // ---------- Errores en formato ProblemDetails ----------
@@ -60,30 +61,22 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
         };
     });
 
-// ---------- Autorización: seguro por defecto ----------
-// Todo endpoint exige usuario autenticado con comercio, salvo los marcados [AllowAnonymous].
+// ---------- Autorización por permisos: seguro por defecto ----------
+// Todo endpoint exige usuario autenticado con comercio, salvo los marcados [AllowAnonymous]. Cada endpoint
+// declara su permiso con [AutorizarPermiso(...)]; las políticas "perm:..." se crean al vuelo y se evalúan
+// contra los permisos que ValidacionSesionMiddleware leyó de la base para este request.
+builder.Services.AddSingleton<IAuthorizationPolicyProvider, PoliticasPermisoProvider>();
+builder.Services.AddScoped<IAuthorizationHandler, PermisoAuthorizationHandler>();
 builder.Services.AddAuthorizationBuilder()
     .SetFallbackPolicy(new AuthorizationPolicyBuilder()
         .RequireAuthenticatedUser()
         .RequireClaim(PosVentasClaims.TenantId)
         .Build())
-    .AddPolicy(Politicas.SoloAdministrador, policy => policy
-        .RequireAuthenticatedUser()
-        .RequireClaim(PosVentasClaims.TenantId)
-        .RequireRole(nameof(RolUsuario.Administrador)))
-    .AddPolicy(Politicas.Supervision, policy => policy
-        .RequireAuthenticatedUser()
-        .RequireClaim(PosVentasClaims.TenantId)
-        .RequireRole(nameof(RolUsuario.Administrador), nameof(RolUsuario.Supervisor)))
     .AddPolicy(Politicas.AdministradorGlobal, policy => policy
         .RequireAuthenticatedUser()
         .RequireClaim(PosVentasClaims.TenantId)
-        .RequireRole(nameof(RolUsuario.Administrador))
-        .RequireClaim(PosVentasClaims.AdministradorPlataforma, "1"))
-    .AddPolicy(Politicas.Operador, policy => policy
-        .RequireAuthenticatedUser()
-        .RequireClaim(PosVentasClaims.TenantId)
-        .RequireRole(nameof(RolUsuario.Administrador), nameof(RolUsuario.Supervisor), nameof(RolUsuario.Cajero)));
+        .RequireClaim(PosVentasClaims.AdministradorPlataforma, "1")
+        .AddRequirements(new AdministradorRequirement()));
 
 // ---------- Rate limiting en endpoints de autenticación ----------
 var authPermitLimit = builder.Configuration.GetValue("RateLimiting:AuthPorMinuto", 10);

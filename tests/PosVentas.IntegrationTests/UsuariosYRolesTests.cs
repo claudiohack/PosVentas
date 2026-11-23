@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Json;
 using Microsoft.IdentityModel.JsonWebTokens;
 using PosVentas.Application.Common.Security;
@@ -26,7 +26,7 @@ public sealed class UsuariosYRolesTests(PosVentasApiFactory factory)
         Assert.NotNull(respuesta.Headers.Location);
         var usuario = (await respuesta.Content.ReadFromJsonAsync<UsuarioDto>(ApiTestHelpers.Json))!;
         Assert.Equal("cajero1", usuario.NombreUsuario);
-        Assert.Equal(RolUsuario.Cajero, usuario.Rol);
+        Assert.Equal("Cajero", usuario.Rol);
         Assert.True(usuario.Activo);
 
         var cuerpo = await respuesta.Content.ReadAsStringAsync();
@@ -69,7 +69,7 @@ public sealed class UsuariosYRolesTests(PosVentasApiFactory factory)
         Assert.Equal(HttpStatusCode.Forbidden, (await cajero.GetAsync("/api/usuarios")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await cajero.GetAsync($"/api/usuarios/{a.Auth.UsuarioId}")).StatusCode);
 
-        var alta = await cajero.PostAsJsonAsync("/api/usuarios", NuevoUsuario("cajero2", RolUsuario.Administrador), ApiTestHelpers.Json);
+        var alta = await cajero.PostAsJsonAsync("/api/usuarios", NuevoUsuario("cajero2", await a.RolIdAsync("Administrador")), ApiTestHelpers.Json);
         Assert.Equal(HttpStatusCode.Forbidden, alta.StatusCode);
 
         var estado = await cajero.PatchAsJsonAsync($"/api/usuarios/{a.Auth.UsuarioId}/estado", new { activo = false }, ApiTestHelpers.Json);
@@ -113,7 +113,7 @@ public sealed class UsuariosYRolesTests(PosVentasApiFactory factory)
 
         Assert.Equal(HttpStatusCode.NotFound, (await b.Http.GetAsync(ruta)).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await b.Http.PutAsJsonAsync(ruta,
-            new { nombreCompleto = "Hackeado", email = (string?)null, rol = "Administrador" }, ApiTestHelpers.Json)).StatusCode);
+            new { nombreCompleto = "Hackeado", email = (string?)null, rolId = await b.RolIdAsync("Administrador") }, ApiTestHelpers.Json)).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await b.Http.PutAsJsonAsync($"{ruta}/password",
             new { nuevaPassword = "Robada-123456789" }, ApiTestHelpers.Json)).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await b.Http.PatchAsJsonAsync($"{ruta}/estado",
@@ -124,7 +124,7 @@ public sealed class UsuariosYRolesTests(PosVentasApiFactory factory)
 
         // A sigue intacto y su cajero puede entrar con la clave original
         var intacto = await a.Http.GetFromJsonAsync<UsuarioDto>(ruta, ApiTestHelpers.Json);
-        Assert.Equal(RolUsuario.Cajero, intacto!.Rol);
+        Assert.Equal("Cajero", intacto!.Rol);
         Assert.True(intacto.Activo);
         using var login = await LoginAsync(a.Slug, "cajero1", PasswordCajero);
         Assert.Equal(HttpStatusCode.OK, login.StatusCode);
@@ -148,7 +148,7 @@ public sealed class UsuariosYRolesTests(PosVentasApiFactory factory)
         var a = await factory.RegistrarComercioAsync();
 
         var respuesta = await a.Http.PutAsJsonAsync($"/api/usuarios/{a.Auth.UsuarioId}",
-            new { nombreCompleto = "Admin", email = (string?)null, rol = "Cajero" }, ApiTestHelpers.Json);
+            new { nombreCompleto = "Admin", email = (string?)null, rolId = await a.RolIdAsync("Cajero") }, ApiTestHelpers.Json);
 
         Assert.Equal(HttpStatusCode.UnprocessableEntity, respuesta.StatusCode);
     }
@@ -217,17 +217,20 @@ public sealed class UsuariosYRolesTests(PosVentasApiFactory factory)
 
     // ---------- Helpers ----------
 
-    private static object NuevoUsuario(string nombreUsuario, RolUsuario rol) => new
+    /// <summary>Roles de sistema por nombre (los tests resuelven el Id del rol en cada comercio).</summary>
+    private enum RolUsuario { Administrador, Supervisor, Cajero }
+
+    private static object NuevoUsuario(string nombreUsuario, Guid rolId) => new
     {
         nombreCompleto = $"Usuario {nombreUsuario}",
         nombreUsuario,
         email = $"{nombreUsuario}@ejemplo.com",
         password = PasswordCajero,
-        rol = rol.ToString()
+        rolId
     };
 
-    private static Task<HttpResponseMessage> CrearUsuarioAsync(ComercioDePrueba comercio, string nombreUsuario, RolUsuario rol) =>
-        comercio.Http.PostAsJsonAsync("/api/usuarios", NuevoUsuario(nombreUsuario, rol), ApiTestHelpers.Json);
+    private static async Task<HttpResponseMessage> CrearUsuarioAsync(ComercioDePrueba comercio, string nombreUsuario, RolUsuario rol) =>
+        await comercio.Http.PostAsJsonAsync("/api/usuarios", NuevoUsuario(nombreUsuario, await comercio.RolIdAsync(rol.ToString())), ApiTestHelpers.Json);
 
     private static async Task<UsuarioDto> CrearUsuarioOkAsync(ComercioDePrueba comercio, string nombreUsuario, RolUsuario rol)
     {

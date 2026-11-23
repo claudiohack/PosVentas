@@ -69,7 +69,9 @@ public static class InicializadorBaseDatos
         provider.GetRequiredService<ICurrentTenantService>().EstablecerTenant(comercio.Id);
 
         var hasher = provider.GetRequiredService<IPasswordHasher>();
-        db.Usuarios.Add(Usuario.Crear(opciones.AdminNombre, opciones.AdminUsuario, hasher.Hash(opciones.AdminPassword), RolUsuario.Administrador));
+        var roles = Rol.CrearRolesDeSistema();
+        db.Roles.AddRange(roles);
+        db.Usuarios.Add(Usuario.Crear(opciones.AdminNombre, opciones.AdminUsuario, hasher.Hash(opciones.AdminPassword), roles.Single(r => r.EsAdministrador)));
         db.Clientes.Add(Cliente.CrearConsumidorFinalGenerico());
         await db.SaveChangesAsync(ct);
 
