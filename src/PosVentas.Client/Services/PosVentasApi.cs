@@ -52,6 +52,44 @@ public sealed class PosVentasApi(HttpClient http, SesionService sesion)
     public Task<InvitacionDto> RevocarInvitacionAsync(Guid id, CancellationToken ct = default) =>
         EnviarAsync<InvitacionDto>(HttpMethod.Delete, $"api/auth/invitaciones/{id}", null, ct);
 
+    // ---------- Suscripción del comercio ----------
+
+    public Task<MiSuscripcionDto> ObtenerMiSuscripcionAsync(CancellationToken ct = default) =>
+        EnviarAsync<MiSuscripcionDto>(HttpMethod.Get, "api/suscripcion", null, ct);
+
+    // ---------- Plataforma: planes y comercios ----------
+
+    public Task<List<ModuloPlanDto>> ObtenerModulosPlanAsync(CancellationToken ct = default) =>
+        EnviarAsync<List<ModuloPlanDto>>(HttpMethod.Get, "api/plataforma/modulos", null, ct);
+
+    public Task<List<PlanDto>> ObtenerPlanesAsync(CancellationToken ct = default) =>
+        EnviarAsync<List<PlanDto>>(HttpMethod.Get, "api/plataforma/planes", null, ct);
+
+    public Task<PlanDto> CrearPlanAsync(PlanFormulario f, CancellationToken ct = default) =>
+        EnviarAsync<PlanDto>(HttpMethod.Post, "api/plataforma/planes", new
+        {
+            f.Codigo, f.Nombre, f.Descripcion, f.PrecioMensual, f.MaxUsuarios, f.MaxProductos, Modulos = f.Modulos.ToList(), f.Orden
+        }, ct);
+
+    public Task<PlanDto> ActualizarPlanAsync(Guid id, PlanFormulario f, CancellationToken ct = default) =>
+        EnviarAsync<PlanDto>(HttpMethod.Put, $"api/plataforma/planes/{id}", new
+        {
+            f.Nombre, f.Descripcion, f.PrecioMensual, f.MaxUsuarios, f.MaxProductos, Modulos = f.Modulos.ToList(), f.Orden,
+            f.EstaActivo, f.EsPredeterminado
+        }, ct);
+
+    public Task<List<ComercioSuscripcionDto>> ObtenerComerciosPlataformaAsync(CancellationToken ct = default) =>
+        EnviarAsync<List<ComercioSuscripcionDto>>(HttpMethod.Get, "api/plataforma/comercios", null, ct);
+
+    public Task<List<PagoSuscripcionDto>> ObtenerPagosComercioAsync(Guid comercioId, CancellationToken ct = default) =>
+        EnviarAsync<List<PagoSuscripcionDto>>(HttpMethod.Get, $"api/plataforma/comercios/{comercioId}/pagos", null, ct);
+
+    public Task<ComercioSuscripcionDto> CambiarPlanComercioAsync(Guid comercioId, Guid planId, CancellationToken ct = default) =>
+        EnviarAsync<ComercioSuscripcionDto>(HttpMethod.Put, $"api/plataforma/comercios/{comercioId}/plan", new { planId }, ct);
+
+    public Task<ComercioSuscripcionDto> RegistrarPagoManualAsync(Guid comercioId, int meses, decimal? monto, string? nota, CancellationToken ct = default) =>
+        EnviarAsync<ComercioSuscripcionDto>(HttpMethod.Post, $"api/plataforma/comercios/{comercioId}/pagos", new { meses, monto, nota }, ct);
+
     // ---------- Categorías ----------
 
     public Task<List<CategoriaDto>> ObtenerCategoriasAsync(bool incluirInactivas = false, CancellationToken ct = default) =>

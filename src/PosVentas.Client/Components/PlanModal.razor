@@ -1,0 +1,123 @@
+@inject PosVentasApi Api
+
+@* Alta / edición de un plan (administración de la plataforma). Plan = null es alta. *@
+
+<div class="modal-fondo" @onclick="CancelarAsync"></div>
+<div class="modal modal-ancho" role="dialog" aria-modal="true" aria-labelledby="titulo-plan">
+    <h2 id="titulo-plan">@(Plan is null ? "Nuevo plan" : $"Editar plan {Plan.Nombre}")</h2>
+
+    <EditForm Model="f" OnValidSubmit="GuardarAsync" FormName="plan">
+        <DataAnnotationsValidator />
+        <div class="grilla-form">
+            <label>
+                Código
+                <InputText @bind-Value="f.Codigo" disabled="@(Plan is not null)" placeholder="Ej.: PYME" />
+                <ValidationMessage For="() => f.Codigo" />
+            </label>
+            <label>
+                Nombre
+                <InputText @bind-Value="f.Nombre" placeholder="Ej.: Pyme" />
+                <ValidationMessage For="() => f.Nombre" />
+            </label>
+            <label class="ancho">
+                Descripción (la ven los comercios)
+                <InputText @bind-Value="f.Descripcion" />
+            </label>
+            <label>
+                Precio mensual ($)
+                <InputNumber @bind-Value="f.PrecioMensual" step="0.01" min="0" />
+                <ValidationMessage For="() => f.PrecioMensual" />
+            </label>
+            <label>
+                Orden
+                <InputNumber @bind-Value="f.Orden" min="0" max="1000" />
+            </label>
+            <label>
+                Máximo de usuarios activos
+                <InputNumber @bind-Value="f.MaxUsuarios" min="1" placeholder="Sin límite" />
+                <ValidationMessage For="() => f.MaxUsuarios" />
+            </label>
+            <label>
+                Máximo de productos activos
+                <InputNumber @bind-Value="f.MaxProductos" min="1" placeholder="Sin límite" />
+                <ValidationMessage For="() => f.MaxProductos" />
+            </label>
+        </div>
+
+        <fieldset class="grupo-permisos">
+            <legend>Módulos incluidos</legend>
+            <p class="ayuda">Ventas, caja, clientes, cuenta corriente, catálogo, usuarios y roles vienen en todos los planes.</p>
+            @foreach (var m in Modulos)
+            {
+                <label class="permiso">
+                    <input type="checkbox" checked="@f.Modulos.Contains(m.Codigo)" @onchange="e => Alternar(m.Codigo, (bool)e.Value!)" />
+                    <span><strong>@m.Nombre</strong><small>@m.Descripcion</small></span>
+                </label>
+            }
+        </fieldset>
+
+        @if (Plan is not null)
+        {
+            <div class="fila-checks">
+                <label class="check"><InputCheckbox @bind-Value="f.EstaActivo" disabled="@Plan.EsPredeterminado" /> Se ofrece a los comercios</label>
+                <label class="check"><InputCheckbox @bind-Value="f.EsPredeterminado" disabled="@Plan.EsPredeterminado" /> Plan de la prueba gratuita (predeterminado)</label>
+            </div>
+            <p class="aviso">Los cambios de límites y módulos rigen de inmediato para todos los comercios con este plan.</p>
+        }
+
+        @if (error is not null)
+        {
+            <p class="error" role="alert">@error</p>
+        }
+
+        <div class="acciones">
+            <button type="button" class="btn-secundario" @onclick="CancelarAsync">Cancelar</button>
+            <button type="submit" class="btn-primario" disabled="@procesando">
+                @(procesando ? "Guardando…" : Plan is null ? "Crear plan" : "Guardar cambios")
+            </button>
+        </div>
+    </EditForm>
+</div>
+
+@code {
+    [Parameter] public PlanDto? Plan { get; set; }
+    [Parameter, EditorRequired] public IReadOnlyList<ModuloPlanDto> Modulos { get; set; } = [];
+    [Parameter, EditorRequired] public EventCallback<PlanDto> OnGuardado { get; set; }
+    [Parameter, EditorRequired] public EventCallback OnCancelar { get; set; }
+
+    private PlanFormulario f = new();
+    private string? error;
+    private bool procesando;
+
+    protected override void OnParametersSet() => f = Plan is null ? new PlanFormulario { Orden = 10 } : PlanFormulario.Desde(Plan);
+
+    private void Alternar(string codigo, bool marcar)
+    {
+        if (marcar) f.Modulos.Add(codigo); else f.Modulos.Remove(codigo);
+    }
+
+    private async Task GuardarAsync()
+    {
+        error = null;
+        procesando = true;
+        try
+        {
+            var guardado = Plan is null ? await Api.CrearPlanAsync(f) : await Api.ActualizarPlanAsync(Plan.Id, f);
+            await OnGuardado.InvokeAsync(guardado);
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        catch (HttpRequestException)
+        {
+            error = "No se pudo conectar con el servidor.";
+        }
+        finally
+        {
+            procesando = false;
+        }
+    }
+
+    private Task CancelarAsync() => procesando ? Task.CompletedTask : OnCancelar.InvokeAsync();
+}

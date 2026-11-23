@@ -21,7 +21,15 @@ public sealed class SesionService
     /// <summary>Administrador del comercio operador (HS Tech): emite invitaciones para comercios nuevos.</summary>
     public bool EsAdministradorPlataforma => EstaAutenticado && Actual!.EsAdministradorPlataforma;
 
-    public bool Tiene(string permiso) => EstaAutenticado && (Actual!.EsAdministrador || _permisos.Contains(permiso));
+    // Los permisos vienen recortados por el plan: ni el Administrador ve un módulo que su plan no incluye.
+    public bool Tiene(string permiso) => EstaAutenticado && _permisos.Contains(permiso);
+
+    public SuscripcionResumenDto? Suscripcion => EstaAutenticado ? Actual!.Suscripcion : null;
+
+    /// <summary>Suscripción vencida y sin gracia: la UI avisa y deshabilita lo que modifica datos (la API igual lo rechaza con 402).</summary>
+    public bool SoloLectura => Suscripcion?.Estado == EstadoSuscripcion.SoloLectura;
+
+    public bool IncluyeModulo(string modulo) => Suscripcion is { } s && (s.SinRestricciones || s.Modulos.Contains(modulo));
 
     public bool TieneAlguno(params string[] permisos) => permisos.Any(Tiene);
 
@@ -34,6 +42,7 @@ public sealed class SesionService
         : Tiene(Permisos.VentasConsultar) ? "/ventas"
         : Tiene(Permisos.ClientesConsultar) ? "/clientes"
         : Tiene(Permisos.UsuariosGestionar) ? "/usuarios"
+        : EsAdministradorPlataforma ? "/plataforma/comercios"
         : "/sin-acceso";
 
     /// <summary>Momento del último refresco de permisos (para no consultar la API en cada clic).</summary>
@@ -57,11 +66,18 @@ public sealed class SesionService
             return;
 
         var cambio = sesion.RolId != Actual.RolId || sesion.Rol != Actual.Rol || sesion.EsAdministrador != Actual.EsAdministrador
-                     || !_permisos.SetEquals(sesion.Permisos);
+                     || !_permisos.SetEquals(sesion.Permisos)
+                     || sesion.Suscripcion.Estado != Actual.Suscripcion.Estado
+                     || sesion.Suscripcion.DiasRestantes != Actual.Suscripcion.DiasRestantes
+                     || sesion.Suscripcion.Plan != Actual.Suscripcion.Plan;
         if (!cambio)
             return;
 
-        Actual = Actual with { RolId = sesion.RolId, Rol = sesion.Rol, EsAdministrador = sesion.EsAdministrador, Permisos = sesion.Permisos };
+        Actual = Actual with
+        {
+            RolId = sesion.RolId, Rol = sesion.Rol, EsAdministrador = sesion.EsAdministrador, Permisos = sesion.Permisos,
+            Suscripcion = sesion.Suscripcion
+        };
         _permisos = [.. sesion.Permisos];
         Cambio?.Invoke();
     }

@@ -3,6 +3,8 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using PosVentas.Application.Common.Exceptions;
 using PosVentas.Application.Common.Interfaces;
+using PosVentas.Application.Common.Suscripciones;
+using PosVentas.Domain.Common;
 using PosVentas.Domain.Entities;
 
 namespace PosVentas.Application.Features.Auth;
@@ -44,7 +46,8 @@ public sealed class RegistrarComercioCommandHandler(
     IApplicationDbContext db,
     ICurrentTenantService tenant,
     IPasswordHasher passwordHasher,
-    IJwtTokenGenerator tokenGenerator) : IRequestHandler<RegistrarComercioCommand, AuthResponse>
+    IJwtTokenGenerator tokenGenerator,
+    IReloj reloj) : IRequestHandler<RegistrarComercioCommand, AuthResponse>
 {
     public async Task<AuthResponse> Handle(RegistrarComercioCommand request, CancellationToken cancellationToken)
     {
@@ -61,6 +64,12 @@ public sealed class RegistrarComercioCommandHandler(
 
         var comercio = Comercio.Crear(request.NombreComercio, slug, request.Cuit);
         db.Comercios.Add(comercio);
+
+        // Prueba gratuita con el plan predeterminado (lo define HS Tech en la administración de planes).
+        var plan = await db.Planes.Include(p => p.Modulos).SingleOrDefaultAsync(p => p.EsPredeterminado, cancellationToken)
+            ?? throw new DomainException("No hay un plan predeterminado para la prueba gratuita. Avisale a HS Tech.");
+        var suscripcion = Suscripcion.IniciarPrueba(comercio.Id, plan, reloj.AhoraUtc);
+        db.Suscripciones.Add(suscripcion);
 
         // A partir de acá todo lo que se cree queda asignado a este comercio.
         tenant.EstablecerTenant(comercio.Id);
@@ -89,6 +98,7 @@ public sealed class RegistrarComercioCommandHandler(
         await db.SaveChangesAsync(cancellationToken);
 
         var token = tokenGenerator.Generar(admin, rolAdministrador);
-        return AuthResponse.Crear(token, admin, rolAdministrador, comercio, esAdministradorPlataforma: false);
+        var vigente = await SuscripcionActual.ConsultarAsync(db, comercio.Id, reloj.AhoraUtc, cancellationToken);
+        return AuthResponse.Crear(token, admin, rolAdministrador, comercio, esAdministradorPlataforma: false, vigente);
     }
 }

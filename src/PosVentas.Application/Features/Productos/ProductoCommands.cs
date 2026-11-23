@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using PosVentas.Application.Common.Auditoria;
 using PosVentas.Application.Common.Exceptions;
 using PosVentas.Application.Common.Interfaces;
+using PosVentas.Application.Common.Suscripciones;
 using PosVentas.Domain.Entities;
 using PosVentas.Domain.ValueObjects;
 
@@ -105,11 +106,13 @@ public sealed class CrearProductoCommandValidator : AbstractValidator<CrearProdu
     }
 }
 
-public sealed class CrearProductoCommandHandler(IApplicationDbContext db, RegistradorAuditoria auditoria) : IRequestHandler<CrearProductoCommand, Guid>
+public sealed class CrearProductoCommandHandler(IApplicationDbContext db, RegistradorAuditoria auditoria, SuscripcionActual suscripcion)
+    : IRequestHandler<CrearProductoCommand, Guid>
 {
     public async Task<Guid> Handle(CrearProductoCommand request, CancellationToken cancellationToken)
     {
         await ReglasProducto.ExigirCategoriaActivaAsync(db, request.CategoriaId, cancellationToken);
+        await ReglasPlan.ExigirCupoProductosAsync(db, suscripcion, cancellationToken);
 
         var sku = Sku.Crear(request.Sku);
         var codigoBarras = Producto.NormalizarCodigoBarras(request.CodigoBarras);
@@ -234,7 +237,8 @@ public sealed class ActualizarProductoCommandHandler(IApplicationDbContext db, R
 
 public sealed record CambiarEstadoProductoCommand(Guid Id, bool Activo) : IRequest<ProductoDto>;
 
-public sealed class CambiarEstadoProductoCommandHandler(IApplicationDbContext db, RegistradorAuditoria auditoria) : IRequestHandler<CambiarEstadoProductoCommand, ProductoDto>
+public sealed class CambiarEstadoProductoCommandHandler(IApplicationDbContext db, RegistradorAuditoria auditoria, SuscripcionActual suscripcion)
+    : IRequestHandler<CambiarEstadoProductoCommand, ProductoDto>
 {
     public async Task<ProductoDto> Handle(CambiarEstadoProductoCommand request, CancellationToken ct)
     {
@@ -242,6 +246,8 @@ public sealed class CambiarEstadoProductoCommandHandler(IApplicationDbContext db
             ?? throw new NotFoundException(nameof(Producto), request.Id);
 
         var cambia = producto.EstaActivo != request.Activo;
+        if (cambia && request.Activo)
+            await ReglasPlan.ExigirCupoProductosAsync(db, suscripcion, ct);
         if (request.Activo) producto.Activar(); else producto.Desactivar();
         if (cambia)
             auditoria.Registrar(request.Activo ? AccionesAuditoria.ProductoActivado : AccionesAuditoria.ProductoDesactivado,

@@ -12,6 +12,13 @@ namespace PosVentas.WebAPI.Security;
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = true)]
 public sealed class AutorizarPermisoAttribute(params string[] permisos) : AuthorizeAttribute(Politicas.DePermiso(permisos));
 
+/// <summary>
+/// Endpoint que modifica datos pero debe seguir funcionando con la suscripción vencida (solo lectura),
+/// p. ej. iniciar el pago para regularizarla. Úsese con mucha moderación.
+/// </summary>
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
+public sealed class PermitidoConSuscripcionVencidaAttribute : Attribute;
+
 /// <summary>El usuario tiene al menos uno de los permisos (leídos de la base por el middleware de sesión).</summary>
 public sealed class PermisoRequirement(IReadOnlyList<string> permisos) : IAuthorizationRequirement
 {

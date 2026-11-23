@@ -28,7 +28,8 @@ public sealed record AuthResponse(
     List<string> Permisos,
     Guid ComercioId,
     string Comercio,
-    bool EsAdministradorPlataforma);
+    bool EsAdministradorPlataforma,
+    SuscripcionResumenDto Suscripcion);
 
 public sealed record ProductoDto(
     Guid Id,

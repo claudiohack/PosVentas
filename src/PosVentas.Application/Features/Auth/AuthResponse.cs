@@ -1,5 +1,8 @@
 ﻿using FluentValidation;
 using PosVentas.Application.Common.Interfaces;
+using PosVentas.Application.Common.Suscripciones;
+using PosVentas.Domain.Enums;
+using PosVentas.Domain.Suscripciones;
 
 namespace PosVentas.Application.Features.Auth;
 
@@ -18,12 +21,15 @@ public sealed record AuthResponse(
     IReadOnlyList<string> Permisos,
     Guid ComercioId,
     string Comercio,
-    bool EsAdministradorPlataforma)
+    bool EsAdministradorPlataforma,
+    SuscripcionResumenDto Suscripcion)
 {
+    /// <summary>Los permisos son los del rol menos los de módulos que el plan no incluye.</summary>
     internal static AuthResponse Crear(TokenGenerado token, Domain.Entities.Usuario usuario, Domain.Entities.Rol rol,
-        Domain.Entities.Comercio comercio, bool esAdministradorPlataforma) =>
+        Domain.Entities.Comercio comercio, bool esAdministradorPlataforma, SuscripcionVigente suscripcion) =>
         new(token.AccessToken, token.ExpiraUtc, usuario.Id, usuario.NombreCompleto, rol.Id, rol.Nombre, rol.EsAdministrador,
-            Roles.CatalogoPermisos.Ordenar(rol.PermisosEfectivos()), comercio.Id, comercio.Nombre, esAdministradorPlataforma);
+            Roles.CatalogoPermisos.Ordenar(suscripcion.FiltrarPermisos(rol.PermisosEfectivos())), comercio.Id, comercio.Nombre,
+            esAdministradorPlataforma, SuscripcionResumenDto.Desde(suscripcion));
 }
 
 /// <summary>Sesión vigente según la base (GET /api/auth/sesion): la UI refresca sus permisos sin volver a ingresar.</summary>
@@ -36,7 +42,24 @@ public sealed record SesionDto(
     IReadOnlyList<string> Permisos,
     Guid ComercioId,
     string Comercio,
-    bool EsAdministradorPlataforma);
+    bool EsAdministradorPlataforma,
+    SuscripcionResumenDto Suscripcion);
+
+/// <summary>Lo que la UI necesita de la suscripción para avisar (prueba, gracia, solo lectura).</summary>
+public sealed record SuscripcionResumenDto(
+    EstadoSuscripcion Estado,
+    bool EnPrueba,
+    DateTime? VenceUtc,
+    DateTime? FinGraciaUtc,
+    int DiasRestantes,
+    string? Plan,
+    IReadOnlyList<string> Modulos,
+    bool SinRestricciones)
+{
+    internal static SuscripcionResumenDto Desde(SuscripcionVigente s) =>
+        new(s.Estado, s.EnPrueba, s.VenceUtc, s.FinGraciaUtc, s.DiasRestantes, s.Plan,
+            ModulosPlan.Todos.Where(s.Modulos.Contains).ToList(), s.SinRestricciones);
+}
 
 internal static class AuthValidationRules
 {

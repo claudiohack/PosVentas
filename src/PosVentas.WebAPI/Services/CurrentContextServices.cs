@@ -42,8 +42,9 @@ public sealed class CurrentTenantService(IHttpContextAccessor httpContextAccesso
 }
 
 /// <summary>
-/// Rol y permisos vigentes del usuario del request, leídos de la base por <c>ValidacionSesionMiddleware</c>
-/// antes de la autorización. Nunca se completan desde el token.
+/// Rol y permisos efectivos del usuario del request, leídos de la base por <c>ValidacionSesionMiddleware</c>
+/// antes de la autorización. Nunca se completan desde el token. Los permisos ya vienen recortados por el plan
+/// del comercio: ni el Administrador tiene los de un módulo que el plan no incluye.
 /// </summary>
 public sealed class SesionActual
 {
@@ -54,15 +55,13 @@ public sealed class SesionActual
     public bool EsAdministrador { get; private set; }
     public IReadOnlySet<string> Permisos { get; private set; } = Ninguno;
 
-    public void Cargar(Guid rolId, bool esAdministrador, IEnumerable<string> permisos)
+    public void Cargar(Guid rolId, bool esAdministrador, IEnumerable<string> permisosEfectivos)
     {
         if (Cargada)
             throw new InvalidOperationException("La sesión del request ya fue cargada.");
         RolId = rolId;
         EsAdministrador = esAdministrador;
-        Permisos = esAdministrador
-            ? new HashSet<string>(Domain.Seguridad.Permisos.Todos, StringComparer.Ordinal)
-            : new HashSet<string>(permisos, StringComparer.Ordinal);
+        Permisos = new HashSet<string>(permisosEfectivos, StringComparer.Ordinal);
         Cargada = true;
     }
 }
@@ -80,7 +79,7 @@ public sealed class CurrentUserService(IHttpContextAccessor httpContextAccessor,
 
     public IReadOnlySet<string> Permisos => sesion.Permisos;
 
-    public bool TienePermiso(string permiso) => sesion.Cargada && (sesion.EsAdministrador || sesion.Permisos.Contains(permiso));
+    public bool TienePermiso(string permiso) => sesion.Cargada && sesion.Permisos.Contains(permiso);
 
     public bool EsAdministradorPlataforma =>
         EsAdministrador && Usuario?.FindFirstValue(PosVentasClaims.AdministradorPlataforma) == "1";

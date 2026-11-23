@@ -1,0 +1,14 @@
+@* Barra de uso de un límite del plan. Sin máximo no se muestra nada. *@
+@if (Maximo is { } maximo)
+{
+    var porcentaje = Math.Clamp(Actual * 100.0 / maximo, 0, 100);
+    <div class="barra-uso @(porcentaje >= 100 ? "lleno" : porcentaje >= 80 ? "casi" : null)"
+         role="meter" aria-valuemin="0" aria-valuemax="@maximo" aria-valuenow="@Actual">
+        <span style="width: @porcentaje.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)%"></span>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public int Actual { get; set; }
+    [Parameter] public int? Maximo { get; set; }
+}

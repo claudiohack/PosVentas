@@ -57,7 +57,8 @@ public sealed record SesionDto(
     List<string> Permisos,
     Guid ComercioId,
     string Comercio,
-    bool EsAdministradorPlataforma);
+    bool EsAdministradorPlataforma,
+    SuscripcionResumenDto Suscripcion);
 
 public sealed class RolFormulario
 {

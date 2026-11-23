@@ -4,7 +4,9 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using PosVentas.Application.Common.Exceptions;
 using PosVentas.Application.Common.Interfaces;
+using PosVentas.Application.Common.Suscripciones;
 using PosVentas.Application.Features.Ventas;
+using PosVentas.Domain.Suscripciones;
 using PosVentas.Domain.Entities;
 using PosVentas.Domain.Enums;
 using PosVentas.Domain.Fiscal;
@@ -25,11 +27,14 @@ public sealed class FacturarVentaCommandValidator : AbstractValidator<FacturarVe
     }
 }
 
-public sealed class FacturarVentaCommandHandler(IApplicationDbContext db, ICurrentTenantService tenant, EmisorComprobantesFiscales emisor)
+public sealed class FacturarVentaCommandHandler(
+    IApplicationDbContext db, ICurrentTenantService tenant, EmisorComprobantesFiscales emisor, SuscripcionActual suscripcion)
     : IRequestHandler<FacturarVentaCommand, VentaDto>
 {
     public async Task<VentaDto> Handle(FacturarVentaCommand request, CancellationToken ct)
     {
+        await ReglasPlan.ExigirModuloAsync(suscripcion, ModulosPlan.Facturacion, "la facturación electrónica", ct);
+
         var venta = await db.Ventas.Include(v => v.Detalles).Include(v => v.Pagos)
             .SingleOrDefaultAsync(v => v.Id == request.VentaId, ct)
             ?? throw new NotFoundException(nameof(Venta), request.VentaId);

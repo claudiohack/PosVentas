@@ -105,3 +105,28 @@ public enum CondicionIva
     Monotributista = 3,
     Exento = 4
 }
+
+/// <summary>Estado de la suscripción de un comercio en un momento dado (se deriva de su vencimiento).</summary>
+public enum EstadoSuscripcion
+{
+    /// <summary>Prueba gratuita vigente.</summary>
+    Prueba = 1,
+
+    /// <summary>Pagada y al día.</summary>
+    Activa = 2,
+
+    /// <summary>Vencida, dentro de los días de gracia: opera normalmente, con aviso.</summary>
+    EnGracia = 3,
+
+    /// <summary>Vencida y sin gracia: puede ingresar, consultar y exportar, pero no registrar ni modificar nada.</summary>
+    SoloLectura = 4
+}
+
+public enum OrigenPagoSuscripcion
+{
+    /// <summary>Registrado a mano por un administrador de la plataforma (transferencia, efectivo, cortesía).</summary>
+    Manual = 1,
+
+    /// <summary>Débito automático de Mercado Pago.</summary>
+    MercadoPago = 2
+}

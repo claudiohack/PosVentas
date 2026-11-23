@@ -804,6 +804,128 @@ namespace PosVentas.Infrastructure.Persistence.Migrations
                     b.ToTable("MovimientosCuentaCorriente", (string)null);
                 });
 
+            modelBuilder.Entity("PosVentas.Domain.Entities.PagoSuscripcion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ComercioId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("FechaCreacionUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("FechaModificacionUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Meses")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Monto")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Nota")
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
+                    b.Property<string>("Origen")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime>("PeriodoHastaUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("PlanId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Referencia")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid?>("RegistradoPorUsuarioId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("SuscripcionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PlanId");
+
+                    b.HasIndex("RegistradoPorUsuarioId");
+
+                    b.HasIndex("SuscripcionId");
+
+                    b.HasIndex("ComercioId", "FechaCreacionUtc");
+
+                    b.HasIndex("Origen", "Referencia")
+                        .IsUnique()
+                        .HasFilter("[Referencia] IS NOT NULL");
+
+                    b.ToTable("PagosSuscripcion", (string)null);
+                });
+
+            modelBuilder.Entity("PosVentas.Domain.Entities.Plan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Codigo")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(30)");
+
+                    b.Property<string>("Descripcion")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<bool>("EsPredeterminado")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("EstaActivo")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("FechaCreacionUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("FechaModificacionUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("MaxProductos")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("MaxUsuarios")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<int>("Orden")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("PrecioMensual")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Codigo")
+                        .IsUnique();
+
+                    b.ToTable("Planes", (string)null);
+                });
+
             modelBuilder.Entity("PosVentas.Domain.Entities.Producto", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1122,6 +1244,45 @@ namespace PosVentas.Infrastructure.Persistence.Migrations
                         .HasFilter("[EstaActivo] = 1");
 
                     b.ToTable("Roles", (string)null);
+                });
+
+            modelBuilder.Entity("PosVentas.Domain.Entities.Suscripcion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ComercioId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("EnPrueba")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("FechaCreacionUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("FechaModificacionUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("PlanId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<DateTime>("VenceUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ComercioId")
+                        .IsUnique();
+
+                    b.HasIndex("PlanId");
+
+                    b.ToTable("Suscripciones", (string)null);
                 });
 
             modelBuilder.Entity("PosVentas.Domain.Entities.Usuario", b =>
@@ -1589,6 +1750,55 @@ namespace PosVentas.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
+            modelBuilder.Entity("PosVentas.Domain.Entities.PagoSuscripcion", b =>
+                {
+                    b.HasOne("PosVentas.Domain.Entities.Comercio", null)
+                        .WithMany()
+                        .HasForeignKey("ComercioId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PosVentas.Domain.Entities.Plan", null)
+                        .WithMany()
+                        .HasForeignKey("PlanId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PosVentas.Domain.Entities.Usuario", null)
+                        .WithMany()
+                        .HasForeignKey("RegistradoPorUsuarioId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PosVentas.Domain.Entities.Suscripcion", null)
+                        .WithMany()
+                        .HasForeignKey("SuscripcionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PosVentas.Domain.Entities.Plan", b =>
+                {
+                    b.OwnsMany("PosVentas.Domain.Entities.PlanModulo", "Modulos", b1 =>
+                        {
+                            b1.Property<Guid>("PlanId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("Codigo")
+                                .HasMaxLength(30)
+                                .IsUnicode(false)
+                                .HasColumnType("varchar(30)");
+
+                            b1.HasKey("PlanId", "Codigo");
+
+                            b1.ToTable("PlanesModulos", (string)null);
+
+                            b1.WithOwner()
+                                .HasForeignKey("PlanId");
+                        });
+
+                    b.Navigation("Modulos");
+                });
+
             modelBuilder.Entity("PosVentas.Domain.Entities.Producto", b =>
                 {
                     b.HasOne("PosVentas.Domain.Entities.Categoria", "Categoria")
@@ -1678,6 +1888,23 @@ namespace PosVentas.Infrastructure.Persistence.Migrations
                         });
 
                     b.Navigation("Permisos");
+                });
+
+            modelBuilder.Entity("PosVentas.Domain.Entities.Suscripcion", b =>
+                {
+                    b.HasOne("PosVentas.Domain.Entities.Comercio", null)
+                        .WithOne()
+                        .HasForeignKey("PosVentas.Domain.Entities.Suscripcion", "ComercioId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PosVentas.Domain.Entities.Plan", "Plan")
+                        .WithMany()
+                        .HasForeignKey("PlanId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Plan");
                 });
 
             modelBuilder.Entity("PosVentas.Domain.Entities.Usuario", b =>
