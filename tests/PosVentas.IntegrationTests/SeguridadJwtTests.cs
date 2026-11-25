@@ -13,7 +13,7 @@ namespace PosVentas.IntegrationTests;
 [Collection(ApiCollection.Nombre)]
 public sealed class SeguridadJwtTests(PosVentasApiFactory factory)
 {
-    private const string Issuer = "https://pos.hs-tech.com.ar";
+    private const string Issuer = "https://pos.hstech.com.ar";
     private const string Audience = "posventas-client";
 
     [Fact]

@@ -24,7 +24,7 @@ public sealed class MercadoPagoOptions
     public string? WebhookSecret { get; set; }
 
     /// <summary>Página del cliente a la que vuelve el comercio después de autorizar el pago (debe ser https pública).</summary>
-    public string UrlRetorno { get; set; } = "https://pos.hs-tech.com.ar/suscripcion";
+    public string UrlRetorno { get; set; } = "https://pos.hstech.com.ar/suscripcion";
 
     /// <summary>Solo para desarrollo: acepta webhooks sin firma si no hay WebhookSecret (igual se consulta todo a la API).</summary>
     public bool PermitirWebhookSinFirma { get; set; }

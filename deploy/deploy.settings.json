@@ -1,0 +1,13 @@
+{
+  "Servidor": "104.236.96.190",
+  "PuertoSsh": 2222,
+  "UsuarioSsh": "root",
+  "LlaveSsh": "~/.ssh/posventas_do",
+  "Rama": "main",
+  "ProyectoApi": "src/PosVentas.WebAPI/PosVentas.WebAPI.csproj",
+  "ProyectoCliente": "src/PosVentas.Client/PosVentas.Client.csproj",
+  "Solucion": "PosVentas.sln",
+  "HostPublico": "pos-staging.hstech.com.ar",
+  "UrlPublica": "https://pos-staging.hstech.com.ar",
+  "VerificarUrlPublica": false
+}
