@@ -19,7 +19,7 @@ Al interactuar en el nuevo espacio de trabajo, el asistente debe adoptar un rol 
 Para que el nuevo modelo disponga de todo el contexto estratégico, técnico y comercial de **HS Tech**, se sugiere cargar la siguiente documentación agrupada por bloques:
 
 ### A. Contexto Institucional y Arquitectura Base
-1. **`manifiesto-traspaso-posventas-hstech.md`** *(Generado en este cuaderno)*: Define el alcance del producto, su integración con la web institucional `hs-tech.com.ar` y la visión de ecosistema SaaS B2B.
+1. **`manifiesto-traspaso-posventas-hstech.md`** *(Generado en este cuaderno)*: Define el alcance del producto, su integración con la web institucional `hstech.com.ar` y la visión de ecosistema SaaS B2B.
 2. **`MANIFIESTO_ARQUITECTURA_Y_REGLAS_DE_ORO.md`**: Establece las reglas de oro de ingeniería, el uso exclusivo de migraciones de Entity Framework Core, la prohibición de valores *hardcodeados* y la gestión segura de secretos.
 
 ### B. Especificaciones de Negocio y Dominio Comercial (POS)

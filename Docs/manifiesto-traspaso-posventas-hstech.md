@@ -4,13 +4,13 @@
 
 El presente documento constituye la directriz técnica, conceptual y estratégica para la creación del entorno de desarrollo dedicado a **PosVentas**, la nueva unidad de negocio B2B de **HS Tech**.
 
-HS Tech (`hs-tech.com.ar`) es una firma de desarrollo de software orientada a construir un ecosistema de soluciones comerciales en la nube. La empresa opera bajo una arquitectura de marca multiproducto:
+HS Tech (`hstech.com.ar`) es una firma de desarrollo de software orientada a construir un ecosistema de soluciones comerciales en la nube. La empresa opera bajo una arquitectura de marca multiproducto:
 
-* **Sitio Institucional:** `hs-tech.com.ar` (Landing comercial estática y catálogo de productos alojado en Cloudflare Pages).
-* **ContratistaSaaS:** `app.hs-tech.com.ar` (SaaS especializado en estimaciones y costos para contratistas en EE.UU.).
-* **PosVentas:** `pos.hs-tech.com.ar` (Sistema de Punto de Venta, Gestión de Inventario y Cuentas Corrientes para comercios).
+* **Sitio Institucional:** `hstech.com.ar` (Landing comercial estática y catálogo de productos alojado en Cloudflare Pages).
+* **ContratistaSaaS:** `app.hstech.com.ar` (SaaS especializado en estimaciones y costos para contratistas en EE.UU.).
+* **PosVentas:** `pos.hstech.com.ar` (Sistema de Punto de Venta, Gestión de Inventario y Cuentas Corrientes para comercios).
 
-La landing institucional ya cuenta con la sección activa en `hs-tech.com.ar/posventas`, captando clientes interesados mediante un programa de Beta Privada con beneficio de 50% de descuento de por vida. El nuevo espacio de trabajo debe continuar esta visión con absoluta coherencia técnica e institucional.
+La landing institucional ya cuenta con la sección activa en `hstech.com.ar/posventas`, captando clientes interesados mediante un programa de Beta Privada con beneficio de 50% de descuento de por vida. El nuevo espacio de trabajo debe continuar esta visión con absoluta coherencia técnica e institucional.
 
 ---
 
@@ -53,7 +53,7 @@ El desarrollo de PosVentas compartirá la filosofía de ingeniería de HS Tech, 
 ### 3.1. Estrategia de Despliegue e Infraestructura
 * **Servidor de Aplicación (Backend):** Servidor Privado Virtual (VPS) en Linux (Hetzner o DigitalOcean) ejecutando contenedores Docker o servicios .NET / Node.js administrados por Nginx como proxy inverso.
 * **Base de Datos:** Motor relacional (PostgreSQL / SQL Server) administrado con migraciones estrictas y control de esquemas.
-* **Dominio & DNS:** Registro CNAME/A en Cloudflare apuntando a `pos.hs-tech.com.ar` (o subdominio asignado), manteniendo la protección SSL/TLS y la red CDN.
+* **Dominio & DNS:** Registro CNAME/A en Cloudflare apuntando a `pos.hstech.com.ar` (o subdominio asignado), manteniendo la protección SSL/TLS y la red CDN.
 
 ### 3.2. Aislamiento Multi-Tenant (Seguridad Obligatoria)
 * **Filtrado por Tenant:** Cada tabla relacional (Ventas, Productos, Clientes, Movimientos de Caja) debe incluir una clave `TenantId` o `ComercioId`.
