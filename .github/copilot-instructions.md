@@ -51,6 +51,7 @@ Dependencias permitidas: Domain ← Application ← Infrastructure ← WebAPI. E
 11. **Concurrencia optimista** con `RowVersion` en entidades que se modifican en paralelo (`Producto`, `Caja`, `CajaSesion`, `Cliente`).
 12. **Cero advertencias**: `TreatWarningsAsErrors` y la auditoría NuGet están activos en `Directory.Build.props`. No desactivarlos.
 13. **Tests de integración obligatorios** para cada endpoint nuevo, incluyendo al menos un caso de aislamiento entre dos comercios.
+14. **CI** (`.github/workflows/ci.yml`, GitHub Actions en Linux): cada PR a `main` compila en Release y corre todos los tests contra un SQL Server en contenedor (`POSVENTAS_TEST_CONNECTION`). No se mergea con la CI en rojo. Todo test debe funcionar en Linux: zonas horarias IANA, rutas con `Path.Combine`, nada de autenticación de Windows.
 
 ## Comandos habituales
 

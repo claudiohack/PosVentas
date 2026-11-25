@@ -1,0 +1,77 @@
+# Integración continua de PosVentas: en cada PR a main (y en cada merge) compila la solución sin advertencias
+# y corre todos los tests de integración contra un SQL Server efímero (contenedor de servicio).
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Un push nuevo al mismo PR cancela la corrida anterior (no tiene sentido terminar de probar código viejo).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  # Contraseña del SQL Server de CI: vive solo dentro del contenedor efímero de esta corrida (no es un secreto productivo).
+  CI_SQL_PASSWORD: "PosVentas-CI-2026!x"
+
+jobs:
+  build-test:
+    name: Compilar y probar
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_PID: "Developer"
+          MSSQL_SA_PASSWORD: "PosVentas-CI-2026!x"
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'PosVentas-CI-2026!x' -C -b -Q 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 15
+          --health-start-period 30s
+
+    steps:
+      - name: Obtener el código
+        uses: actions/checkout@v4
+
+      - name: Instalar .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restaurar paquetes (incluye la auditoría de vulnerabilidades NuGet)
+        run: dotnet restore PosVentas.sln
+
+      - name: Compilar (las advertencias son errores)
+        run: dotnet build PosVentas.sln --configuration Release --no-restore
+
+      - name: Tests de integración
+        env:
+          POSVENTAS_TEST_CONNECTION: "Server=localhost,1433;User Id=sa;Password=${{ env.CI_SQL_PASSWORD }};TrustServerCertificate=True;Encrypt=True"
+        run: >-
+          dotnet test PosVentas.sln --configuration Release --no-build
+          --logger "trx;LogFileName=resultados.trx"
+          --results-directory ./resultados-tests
+
+      - name: Guardar el resultado de los tests
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resultados-tests
+          path: ./resultados-tests
+          retention-days: 14

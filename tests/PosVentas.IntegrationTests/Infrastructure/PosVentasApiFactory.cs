@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.Data.SqlClient;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -34,10 +35,19 @@ public sealed class PosVentasApiFactory : WebApplicationFactory<Program>, IAsync
     /// <summary>Reloj de la lógica de suscripciones (adelantable).</summary>
     public RelojDePrueba Reloj { get; } = new();
 
+    /// <summary>
+    /// Base de esta corrida. Por defecto, SQL Server local con autenticación de Windows. En CI (Linux, sin
+    /// autenticación integrada) se pasa una conexión completa sin base en POSVENTAS_TEST_CONNECTION, p. ej.
+    /// "Server=localhost,1433;User Id=sa;Password=...;TrustServerCertificate=True;Encrypt=True".
+    /// </summary>
     public string ConnectionString
     {
         get
         {
+            var conexion = Environment.GetEnvironmentVariable("POSVENTAS_TEST_CONNECTION");
+            if (!string.IsNullOrWhiteSpace(conexion))
+                return new SqlConnectionStringBuilder(conexion) { InitialCatalog = _nombreBase }.ConnectionString;
+
             var servidor = Environment.GetEnvironmentVariable("POSVENTAS_TEST_SQLSERVER") ?? @".\SQLEXPRESS";
             return $"Server={servidor};Database={_nombreBase};Trusted_Connection=True;TrustServerCertificate=True;Encrypt=True";
         }
