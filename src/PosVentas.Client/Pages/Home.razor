@@ -2,6 +2,7 @@
 @inject PosVentasApi Api
 @inject SesionService Sesion
 @inject NavigationManager Navegacion
+@inject IJSRuntime JS
 
 <PageTitle>Ingresar · PosVentas</PageTitle>
 
@@ -11,15 +12,32 @@
     <EditForm Model="modelo" OnValidSubmit="IngresarAsync" FormName="login">
         <DataAnnotationsValidator />
 
-        <label>
-            Comercio
-            <InputText @bind-Value="modelo.Comercio" placeholder="almacen-don-jose" autocomplete="organization" />
-            <ValidationMessage For="() => modelo.Comercio" />
-        </label>
+        @* Cada usuario existe solo dentro de su comercio: el comercio va primero, bien visible, y se recuerda en este equipo. *@
+        @if (comercioRecordado is not null && !cambiandoComercio)
+        {
+            <div class="comercio-recordado">
+                <span class="comercio-recordado-icono"><Icono Nombre="comercios" /></span>
+                <span class="comercio-recordado-texto">
+                    <small>Comercio</small>
+                    <strong>@comercioRecordado</strong>
+                </span>
+                <button type="button" class="btn-link" @onclick="CambiarComercio">Cambiar</button>
+            </div>
+        }
+        else
+        {
+            <label class="campo-comercio">
+                <span class="etiqueta-con-icono"><Icono Nombre="comercios" /> Comercio</span>
+                <InputText @bind-Value="modelo.Comercio" placeholder="almacen-don-jose" autocomplete="organization"
+                           autocapitalize="none" spellcheck="false" @ref="campoComercio" />
+                <small class="ayuda">El identificador de tu comercio, el que elegiste al registrarlo.</small>
+                <ValidationMessage For="() => modelo.Comercio" />
+            </label>
+        }
 
         <label>
             Usuario
-            <InputText @bind-Value="modelo.Username" autocomplete="username" />
+            <InputText @bind-Value="modelo.Username" autocomplete="username" autocapitalize="none" spellcheck="false" />
             <ValidationMessage For="() => modelo.Username" />
         </label>
 
@@ -43,7 +61,13 @@
 </section>
 
 @code {
+    // Preferencia de este navegador, no un dato sensible: el identificador del comercio ya es público (se usa en el login).
+    private const string ClaveComercio = "posventas.ultimoComercio";
+
     private readonly LoginRequest modelo = new();
+    private string? comercioRecordado;
+    private bool cambiandoComercio;
+    private InputText? campoComercio;
     private string? error;
     private bool enviando;
 
@@ -53,19 +77,54 @@
             Navegacion.NavigateTo(Sesion.PaginaInicial());
     }
 
+    protected override async Task OnAfterRenderAsync(bool primeraVez)
+    {
+        if (!primeraVez)
+            return;
+        try
+        {
+            var guardado = await JS.InvokeAsync<string?>("localStorage.getItem", ClaveComercio);
+            if (!string.IsNullOrWhiteSpace(guardado))
+            {
+                comercioRecordado = guardado;
+                modelo.Comercio = guardado;
+                StateHasChanged();
+            }
+        }
+        catch (JSException)
+        {
+            // Almacenamiento bloqueado (navegación privada, políticas del navegador): se escribe a mano.
+        }
+    }
+
+    private async Task CambiarComercio()
+    {
+        cambiandoComercio = true;
+        modelo.Comercio = string.Empty;
+        await Task.Yield();
+        StateHasChanged();
+        if (campoComercio?.Element is { } elemento)
+            await elemento.FocusAsync();
+    }
+
     private async Task IngresarAsync()
     {
         error = null;
         enviando = true;
+        modelo.Comercio = modelo.Comercio.Trim().ToLowerInvariant();
         try
         {
             var respuesta = await Api.LoginAsync(modelo);
+            await RecordarComercioAsync(modelo.Comercio);
             Sesion.Iniciar(respuesta);
             Navegacion.NavigateTo(Sesion.PaginaInicial());
         }
         catch (ApiException ex)
         {
-            error = ex.Message;
+            // La API no dice qué dato falló (seguridad). La pista más útil: el usuario existe solo en su comercio.
+            error = ex.Status == System.Net.HttpStatusCode.Unauthorized
+                ? $"{ex.Message} Revisá que el comercio sea «{modelo.Comercio}»: cada usuario existe solo dentro de su comercio."
+                : ex.Message;
         }
         catch (HttpRequestException)
         {
@@ -75,6 +134,18 @@
         {
             modelo.Password = string.Empty;
             enviando = false;
+        }
+    }
+
+    private async Task RecordarComercioAsync(string comercio)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("localStorage.setItem", ClaveComercio, comercio);
+        }
+        catch (JSException)
+        {
+            // Sin almacenamiento: la próxima vez se vuelve a escribir.
         }
     }
 }

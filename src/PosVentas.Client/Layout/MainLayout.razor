@@ -111,8 +111,14 @@
             <header class="barra">
                 <button class="btn-icono btn-menu" @onclick="AlternarMenu" aria-label="Abrir menú"
                         aria-controls="menu-lateral" aria-expanded="@(menuAbierto ? "true" : "false")"><Icono Nombre="menu" /></button>
-                <span class="barra-comercio">@Sesion.Actual.Comercio</span>
-                <span class="barra-info">@Sesion.Actual.NombreCompleto <span class="badge">@Sesion.Actual.Rol</span></span>
+                <span class="barra-comercio" title="Comercio en el que estás trabajando"><Icono Nombre="comercios" />@Sesion.Actual.Comercio</span>
+                <span class="barra-info">
+                    <span class="avatar avatar-barra" aria-hidden="true">@Iniciales</span>
+                    <span class="barra-usuario">
+                        <strong>@Sesion.Actual.NombreCompleto</strong>
+                        <span class="badge">@Sesion.Actual.Rol</span>
+                    </span>
+                </span>
             </header>
             @if (Aviso is { } aviso)
             {
