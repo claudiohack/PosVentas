@@ -30,6 +30,33 @@ public sealed class MercadoPagoOptions
     public bool PermitirWebhookSinFirma { get; set; }
 
     public int TimeoutSegundos { get; set; } = 20;
+
+    /// <summary>
+    /// Mercado Pago solo acepta una URL de retorno https pública. En un equipo local (localhost, IP privada) no es
+    /// así, y tampoco le podrían llegar los webhooks: el pago con Mercado Pago queda deshabilitado en ese entorno.
+    /// </summary>
+    public bool UrlRetornoPublica => EsUrlPublica(UrlRetorno);
+
+    /// <summary>Hay token y el entorno es alcanzable desde internet.</summary>
+    public bool Operativo => !string.IsNullOrWhiteSpace(AccessToken) && UrlRetornoPublica;
+
+    public static bool EsUrlPublica(string? url)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps || uri.IsLoopback)
+            return false;
+        var host = uri.Host;
+        if (host.EndsWith(".local", StringComparison.OrdinalIgnoreCase) || host.EndsWith(".localhost", StringComparison.OrdinalIgnoreCase)
+            || !host.Contains('.'))
+            return false;
+        if (System.Net.IPAddress.TryParse(host, out var ip))
+        {
+            var b = ip.GetAddressBytes();
+            var privada = ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork
+                && (b[0] == 10 || (b[0] == 172 && b[1] is >= 16 and <= 31) || (b[0] == 192 && b[1] == 168) || (b[0] == 169 && b[1] == 254));
+            return !privada && !ip.IsIPv6LinkLocal && !ip.IsIPv6SiteLocal;
+        }
+        return true;
+    }
 }
 
 public sealed record InicioPagoDto(string UrlPago);
@@ -74,7 +101,7 @@ public sealed class IniciarPagoMercadoPagoCommandHandler(
         if (!usuario.EsAdministrador)
             throw new AccesoDenegadoException("Solo el Administrador del comercio puede contratar o cambiar el plan.");
         if (!mercadoPago.Habilitado)
-            throw new DomainException("El pago con Mercado Pago no está disponible todavía. Contactá a HS Tech para abonar.");
+            throw new DomainException("El pago con Mercado Pago no está disponible por ahora. Para cambiar de plan o abonar, contactá a HS Tech.");
 
         var comercioId = tenant.TenantId ?? throw new TenantAccessException("No hay un comercio en el request.");
         var comercio = await db.Comercios.AsNoTracking().SingleAsync(c => c.Id == comercioId, ct);

@@ -29,7 +29,8 @@ public sealed class MercadoPagoService(HttpClient http, IOptions<MercadoPagoOpti
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
-    public bool Habilitado => !string.IsNullOrWhiteSpace(opciones.Value.AccessToken);
+    /// <summary>Token configurado y URL de retorno pública (en un equipo local queda deshabilitado: ver <see cref="MercadoPagoOptions.Operativo"/>).</summary>
+    public bool Habilitado => opciones.Value.Operativo;
 
     public async Task<PreaprobacionCreada> CrearPreaprobacionAsync(SolicitudPreaprobacion s, CancellationToken ct)
     {
@@ -121,8 +122,27 @@ public sealed class MercadoPagoService(HttpClient http, IOptions<MercadoPagoOpti
             // 4xx: datos que Mercado Pago rechaza (email del pagador, monto…). 401/403: token inválido (problema nuestro).
             if (respuesta.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden || (int)respuesta.StatusCode >= 500)
                 throw new MercadoPagoNoDisponibleException("Mercado Pago no está disponible en este momento. Probá de nuevo en unos minutos.");
-            throw new DomainException($"Mercado Pago rechazó la operación: {detalle}");
+            // El mensaje original (en inglés y técnico) queda en el log; al comercio se le explica en castellano.
+            throw new DomainException(TraducirRechazo(detalle));
         }
+    }
+
+    /// <summary>Rechazos conocidos de Mercado Pago, explicados al comercio. Lo de configuración apunta a HS Tech.</summary>
+    public static string TraducirRechazo(string? detalle)
+    {
+        var d = (detalle ?? string.Empty).ToLowerInvariant();
+        // El orden importa: "Both payer and collector must be real or test users" menciona payer y collector.
+        if (d.Contains("real or test users") || d.Contains("test user"))
+            return "La cuenta de Mercado Pago no es válida para este pago. Usá tu cuenta habitual de Mercado Pago.";
+        if (d.Contains("back_url") || d.Contains("notification_url") || d.Contains("collector"))
+            return "El pago con Mercado Pago no está disponible por un problema de configuración. Avisale a HS Tech.";
+        if (d.Contains("payer_email") || d.Contains("payer") || d.Contains("email"))
+            return "Mercado Pago no aceptó el email. Escribí el email de tu cuenta de Mercado Pago (la misma con la que vas a pagar).";
+        if (d.Contains("transaction_amount") || d.Contains("amount"))
+            return "Mercado Pago no aceptó el importe del plan. Avisale a HS Tech.";
+        if (d.Contains("countr"))
+            return "La cuenta de Mercado Pago tiene que ser de Argentina.";
+        return "Mercado Pago no pudo procesar la suscripción. Revisá los datos y probá de nuevo; si sigue fallando, avisale a HS Tech.";
     }
 
     private static async Task<string> LeerMensajeAsync(HttpResponseMessage respuesta, CancellationToken ct)

@@ -99,7 +99,11 @@ else
         }
         else
         {
-            <p class="ayuda">Para cambiar de plan o abonar tu suscripción contactá a HS Tech.</p>
+            <p class="ayuda">
+                @(Sesion.EsAdministrador
+                    ? "El pago con Mercado Pago no está disponible por ahora. Para cambiar de plan o abonar tu suscripción, contactá a HS Tech."
+                    : "Para cambiar de plan o abonar la suscripción, hablá con el Administrador de tu comercio.")
+            </p>
         }
         <div class="tabla-scroll">
             <table class="comparativa-planes">

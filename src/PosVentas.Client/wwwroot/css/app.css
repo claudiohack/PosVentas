@@ -173,8 +173,17 @@ input[type=number] { font-variant-numeric: tabular-nums; }
     border-bottom: 1px solid #c9d6f2;
     box-shadow: 0 2px 8px rgba(23, 32, 51, 0.06);
 }
-.barra-comercio { font-weight: 700; color: #1a2f66; }
-.barra-info { margin-left: auto; display: flex; align-items: center; gap: 0.5rem; font-size: 0.88rem; color: #3b4d78; }
+.barra-comercio { display: inline-flex; align-items: center; gap: 0.45rem; font-weight: 700; color: #1a2f66; }
+.barra-comercio .icono { color: var(--pv-primario); }
+.barra-info { margin-left: auto; display: flex; align-items: center; gap: 0.6rem; font-size: 0.88rem; color: #3b4d78; }
+.barra-usuario { display: flex; align-items: center; gap: 0.5rem; }
+.barra-usuario strong { font-weight: 600; color: #1a2f66; }
+/* Avatar con las iniciales: mismo componente que el pie del menú, en el azul de la marca */
+.avatar-barra {
+    width: 36px; height: 36px; font-size: 0.82rem; letter-spacing: 0.02em;
+    background: linear-gradient(135deg, #2456d3 0%, #1a3f9c 100%);
+    box-shadow: 0 0 0 2px #fff, 0 2px 6px rgba(26, 63, 156, 0.35);
+}
 .barra-info .badge { background: rgba(255, 255, 255, 0.75); border-color: #bccbee; color: #1a3f9c; }
 .barra .btn-menu { color: #1a2f66; }
 .barra .btn-menu:hover { background: rgba(255, 255, 255, 0.6); }
@@ -189,10 +198,11 @@ input[type=number] { font-variant-numeric: tabular-nums; }
     min-height: 100vh;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     padding: 2rem 1rem;
+    /* Fondo azulado más marcado para que la tarjeta blanca se despegue */
     background:
-        radial-gradient(1200px 500px at 10% -10%, #dbe6ff 0%, transparent 60%),
-        radial-gradient(900px 500px at 110% 110%, #e2ecff 0%, transparent 55%),
-        var(--pv-fondo);
+        radial-gradient(1200px 520px at 10% -10%, #c4d5fb 0%, transparent 62%),
+        radial-gradient(900px 520px at 110% 110%, #cddcfa 0%, transparent 58%),
+        #e4eaf6;
 }
 .publico-marca { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem; }
 .publico-marca .marca-texto { color: var(--pv-texto); font-size: 1.3rem; }
@@ -200,7 +210,26 @@ input[type=number] { font-variant-numeric: tabular-nums; }
 .publico-marca .marca-logo { width: 44px; height: 44px; font-size: 1.05rem; }
 .publico-pie { margin-top: 1.5rem; font-size: 0.8rem; color: var(--pv-texto-tenue); }
 
-.login { width: 100%; max-width: 420px; padding: 2rem; box-shadow: 0 12px 32px rgba(16, 24, 40, 0.08); }
+.login {
+    width: 100%; max-width: 420px; padding: 2rem;
+    border: 1px solid #c3d1ef; border-top: 4px solid var(--pv-primario);
+    box-shadow: 0 18px 45px rgba(26, 47, 102, 0.16), 0 2px 6px rgba(26, 47, 102, 0.06);
+}
+.login input { background: #fbfcff; border-color: #c9d3e6; }
+
+/* Comercio: primero y destacado. Recordado → ficha con "Cambiar"; si no, campo con ayuda. */
+.etiqueta-con-icono { display: inline-flex; align-items: center; gap: 0.35rem; }
+.etiqueta-con-icono .icono { width: 17px; height: 17px; color: var(--pv-primario); }
+.campo-comercio .ayuda { font-size: 0.8rem; font-weight: 400; }
+.comercio-recordado {
+    display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.1rem;
+    padding: 0.7rem 0.9rem; border-radius: var(--pv-radio-chico);
+    background: var(--pv-primario-suave); border: 1px solid #c3d3f6;
+}
+.comercio-recordado-icono { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: #fff; color: var(--pv-primario); flex: none; }
+.comercio-recordado-texto { display: flex; flex-direction: column; line-height: 1.25; margin-right: auto; min-width: 0; }
+.comercio-recordado-texto small { font-size: 0.75rem; color: var(--pv-texto-secundario); text-transform: uppercase; letter-spacing: 0.04em; }
+.comercio-recordado-texto strong { color: var(--pv-primario-texto); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .login h1 { font-size: 1.4rem; margin-bottom: 0.35rem; }
 .login > .ayuda:first-of-type { margin-bottom: 1.25rem; }
 .login h1 + form { margin-top: 1.25rem; }
@@ -301,8 +330,9 @@ table { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 1
 th {
     padding: 0.6rem 0.75rem; text-align: left;
     font-size: 0.75rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
-    color: var(--pv-texto-secundario); background: var(--pv-superficie-2);
-    border-bottom: 1px solid var(--pv-borde);
+    /* Tinte suave del azul de la marca (los paneles del dashboard y el carrito usan su propio acento) */
+    color: var(--pv-primario-texto); background: color-mix(in srgb, var(--pv-primario) 10%, #ffffff);
+    border-bottom: 1px solid color-mix(in srgb, var(--pv-primario) 24%, #ffffff);
 }
 th:first-child { border-top-left-radius: var(--pv-radio-chico); }
 th:last-child { border-top-right-radius: var(--pv-radio-chico); }
@@ -563,7 +593,12 @@ p.permisos-resumen { padding-left: 0; }
 .panel-dashboard > .tarjeta:nth-child(4) { --acento: #c2410c; --matiz: #fdeee6; }
 .panel-dashboard-unico { --acento: #0e7490; --matiz: #e3f4f8; }
 .panel-dashboard > .tarjeta h2, .panel-dashboard-unico h2 { color: var(--acento); }
-.panel-dashboard th, .panel-dashboard-unico th { background: rgba(255, 255, 255, 0.75); }
+/* Encabezados de tabla teñidos con el acento de su panel: contrastan con el fondo sin dejar de ser suaves */
+.panel-dashboard th, .panel-dashboard-unico th {
+    background: color-mix(in srgb, var(--acento) 13%, #ffffff);
+    color: color-mix(in srgb, var(--acento) 80%, #172033);
+    border-bottom: 1px solid color-mix(in srgb, var(--acento) 28%, #ffffff);
+}
 .panel-dashboard tbody tr:hover td, .panel-dashboard-unico tbody tr:hover td { background: rgba(255, 255, 255, 0.6); }
 
 /* ---------- Responsive ---------- */
@@ -673,7 +708,21 @@ code { color: #b4235f; font-size: 0.9em; }
 
 /* ---------- Suscripción ---------- */
 .aviso-suscripcion { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 1rem; padding: 0.55rem 1.5rem; font-size: 0.9rem; border-bottom: 1px solid var(--pv-borde); }
-.aviso-suscripcion a { font-weight: 600; color: inherit; text-underline-offset: 3px; }
+/* Enlace como pastilla suave: se distingue del texto sin competir con el resto de la pantalla */
+.aviso-suscripcion a {
+    display: inline-flex; align-items: center; gap: 0.3rem;
+    padding: 0.2rem 0.75rem; border-radius: 999px;
+    font-weight: 600; font-size: 0.84rem; text-decoration: none; color: inherit;
+    background: rgba(255, 255, 255, 0.7); border: 1px solid currentColor;
+    transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+.aviso-suscripcion a::after { content: "→"; transition: transform 0.15s ease; }
+.aviso-suscripcion a:hover { background: #fff; box-shadow: 0 1px 4px rgba(23, 32, 51, 0.12); }
+.aviso-suscripcion a:hover::after { transform: translateX(2px); }
+.aviso-suscripcion a:focus-visible { outline: none; box-shadow: var(--pv-foco); }
+.aviso-suscripcion.susc-prueba a { color: #2456d3; border-color: #b9cbf5; }
+.aviso-suscripcion.susc-gracia a { color: #8a5300; border-color: #edd09a; }
+.aviso-suscripcion.susc-bloqueada a { color: var(--pv-error); border-color: #f2bcb6; }
 .aviso-suscripcion.susc-prueba { background: var(--pv-primario-suave); color: var(--pv-primario-texto); }
 .aviso-suscripcion.susc-gracia { background: var(--pv-alerta-suave); color: #5c3b00; }
 .aviso-suscripcion.susc-bloqueada { background: var(--pv-error-suave); color: var(--pv-error); font-weight: 600; }

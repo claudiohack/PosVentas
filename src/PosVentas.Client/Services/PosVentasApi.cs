@@ -412,7 +412,9 @@ public sealed class PosVentasApi(HttpClient http, SesionService sesion)
 
         var mensaje = respuesta.StatusCode switch
         {
-            HttpStatusCode.Forbidden => "No tenés permisos para esta operación.",
+            // 403 con explicación de la API (límite del plan, módulo no incluido, permiso faltante): se muestra tal cual.
+            // Sin cuerpo (lo rechazó la política de autorización del endpoint): mensaje genérico.
+            HttpStatusCode.Forbidden => problema?.Detail ?? "No tenés permisos para esta operación.",
             HttpStatusCode.TooManyRequests => "Demasiados intentos. Esperá un minuto y volvé a probar.",
             _ when problema?.ErroresAfip is { Count: > 0 } afip =>
                 $"{problema.Title} " + string.Join(" · ", afip.Select(e => $"[{e.Codigo}] {e.Mensaje}")),
