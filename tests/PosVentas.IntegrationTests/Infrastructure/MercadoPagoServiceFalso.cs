@@ -34,6 +34,26 @@ public sealed class MercadoPagoServiceFalso : IMercadoPagoService
 
     public void Pausar(string id) => _preaprobaciones[id].Estado = EstadosPreaprobacion.Pausada;
 
+    private readonly ConcurrentDictionary<string, CobroMercadoPago> _cobrosNoDisponibles = new();
+
+    /// <summary>
+    /// Como el Mercado Pago real: el cobro se avisa antes de poder consultarlo (GET responde 404 hasta
+    /// <see cref="HacerDisponible"/>).
+    /// </summary>
+    public string CobrarConDemora(string preaprobacionId)
+    {
+        var id = Cobrar(preaprobacionId);
+        _cobros.TryRemove(id, out var cobro);
+        _cobrosNoDisponibles[id] = cobro!;
+        return id;
+    }
+
+    public void HacerDisponible(string cobroId)
+    {
+        if (_cobrosNoDisponibles.TryRemove(cobroId, out var cobro))
+            _cobros[cobroId] = cobro;
+    }
+
     /// <summary>Simula el cobro mensual de una suscripción y devuelve su id.</summary>
     public string Cobrar(string preaprobacionId, bool aprobado = true)
     {

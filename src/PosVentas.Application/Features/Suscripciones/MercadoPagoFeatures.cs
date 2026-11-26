@@ -243,9 +243,16 @@ public sealed class ProcesarNotificacionMercadoPagoCommandHandler(
     private async Task<ResultadoNotificacion> ProcesarCobroAsync(string id, CancellationToken ct)
     {
         var cobro = await mercadoPago.ObtenerCobroAsync(id, ct);
-        if (cobro is null || !cobro.Aprobado)
+        if (cobro is null)
         {
-            logger.LogInformation("Cobro {Id} de Mercado Pago sin acreditar (estado {Estado}).", id, cobro?.Estado ?? "inexistente");
+            // Mercado Pago avisa el cobro ANTES de que /authorized_payments/{id} exista (404 al momento del aviso,
+            // disponible minutos después; visto en el sandbox real). Ignorarlo perdería la renovación: 503 → MP reintenta.
+            logger.LogInformation("Cobro {Id} avisado pero todavía no disponible en Mercado Pago: se pide reintento.", id);
+            throw new MercadoPagoNoDisponibleException($"El cobro {id} todavía no está disponible en Mercado Pago. Reintentar más tarde.");
+        }
+        if (!cobro.Aprobado)
+        {
+            logger.LogInformation("Cobro {Id} de Mercado Pago sin acreditar (estado {Estado}).", id, cobro.Estado);
             return ResultadoNotificacion.Ignorada;
         }
 
