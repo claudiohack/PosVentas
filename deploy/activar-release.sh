@@ -42,14 +42,17 @@ activar() {
 
 codigo() { curl -s -o /dev/null -w '%{http_code}' -H "Host: $HOST_PUBLICO" -H 'X-Forwarded-Proto: https' "$1"; }
 
+# Nginx por https contra este mismo servidor (el 80 redirige a https). Valida también el certificado.
+codigo_https() { curl -s -o /dev/null -w '%{http_code}' --resolve "$HOST_PUBLICO:443:127.0.0.1" "https://$HOST_PUBLICO$1"; }
+
 verificar() {
     local limite=$((SECONDS + ESPERA_MAXIMA_SEGUNDOS))
     while [ $SECONDS -lt $limite ]; do
-        # API directa, la misma API a través de Nginx, y el cliente Blazor servido por Nginx
+        # API directa, la misma API a través de Nginx (https) y el cliente Blazor servido por Nginx
         if systemctl is-active --quiet "$SERVICIO" \
             && [ "$(codigo "http://127.0.0.1:$PUERTO_API/health")" = "200" ] \
-            && [ "$(codigo "http://127.0.0.1/health")" = "200" ] \
-            && [ "$(codigo "http://127.0.0.1/")" = "200" ]; then
+            && [ "$(codigo_https "/health")" = "200" ] \
+            && [ "$(codigo_https "/")" = "200" ]; then
             return 0
         fi
         sleep 3
