@@ -7,7 +7,7 @@
   "ProyectoApi": "src/PosVentas.WebAPI/PosVentas.WebAPI.csproj",
   "ProyectoCliente": "src/PosVentas.Client/PosVentas.Client.csproj",
   "Solucion": "PosVentas.sln",
-  "HostPublico": "pos-staging.hstech.com.ar",
-  "UrlPublica": "https://pos-staging.hstech.com.ar",
-  "VerificarUrlPublica": false
+  "HostPublico": "pos.hstech.com.ar",
+  "UrlPublica": "https://pos.hstech.com.ar",
+  "VerificarUrlPublica": true
 }
