@@ -84,10 +84,35 @@ public sealed class MercadoPagoTests(PosVentasApiFactory factory)
         Assert.Equal(HttpStatusCode.Unauthorized, falsa.StatusCode);
         Assert.Null((await MiSuscripcionAsync(a)).DebitoAutomatico);
 
-        // Recursos que no existen en Mercado Pago o tipos que no nos conciernen: 200, ignorados
+        // Suscripciones que no existen en Mercado Pago o tipos que no nos conciernen: 200, ignorados
         Assert.Equal(ResultadoNotificacion.Ignorada, await WebhookOkAsync(TipoSuscripcion, "no-existe"));
-        Assert.Equal(ResultadoNotificacion.Ignorada, await WebhookOkAsync(TipoCobro, "123"));
         Assert.Equal(ResultadoNotificacion.Ignorada, await WebhookOkAsync("payment", "456"));
+        // Un cobro que todavía no se puede consultar NO se ignora: 503 para que Mercado Pago reintente
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, (await WebhookAsync(TipoCobro, "123")).StatusCode);
+    }
+
+    [Fact]
+    public async Task El_cobro_avisado_antes_de_existir_en_Mercado_Pago_se_acredita_cuando_Mercado_Pago_reintenta()
+    {
+        var a = await factory.RegistrarComercioAsync();
+        var email = $"{Guid.NewGuid():N}@testuser.com";
+        await IniciarPagoAsync(a, (await PlanAsync(a, "COMERCIO")).Id, email);
+        var pre = MercadoPago.UltimaDe(email);
+        MercadoPago.Autorizar(pre.Id);
+        Assert.Equal(ResultadoNotificacion.Procesada, await WebhookOkAsync(TipoSuscripcion, pre.Id));
+
+        // Como en el sandbox real: el aviso del cobro llega y GET /authorized_payments/{id} todavía da 404
+        var cobro = MercadoPago.CobrarConDemora(pre.Id);
+        using (var primerIntento = await WebhookAsync(TipoCobro, cobro))
+            Assert.Equal(HttpStatusCode.ServiceUnavailable, primerIntento.StatusCode);
+        Assert.Empty((await MiSuscripcionAsync(a)).Pagos);
+
+        // Minutos después Mercado Pago reintenta el aviso y el cobro ya existe: se acredita una sola vez
+        MercadoPago.HacerDisponible(cobro);
+        Assert.Equal(ResultadoNotificacion.Procesada, await WebhookOkAsync(TipoCobro, cobro));
+        Assert.Equal(ResultadoNotificacion.Duplicada, await WebhookOkAsync(TipoCobro, cobro));
+        var pago = Assert.Single((await MiSuscripcionAsync(a)).Pagos);
+        Assert.Equal((cobro, OrigenPagoSuscripcion.MercadoPago), (pago.Referencia, pago.Origen));
     }
 
     [Fact]
