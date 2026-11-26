@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Despliega PosVentas en el servidor (staging: pos-staging.hstech.com.ar).
+    Despliega PosVentas en el servidor (pos.hstech.com.ar).
 
 .DESCRIPTION
     Se ejecuta desde la PC de desarrollo (Windows PowerShell 5.1 o PowerShell 7):

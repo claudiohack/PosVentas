@@ -1,0 +1,30 @@
+[Unit]
+Description=PosVentas API (ASP.NET Core)
+After=network-online.target mssql-server.service
+Wants=network-online.target mssql-server.service
+
+[Service]
+User=posventas
+Group=posventas
+WorkingDirectory=/var/www/posventas/current/api
+ExecStart=/usr/bin/dotnet /var/www/posventas/current/api/PosVentas.WebAPI.dll
+# Secretos y configuracion: archivo root 600 que systemd lee antes de bajar privilegios. Nunca en el repo.
+EnvironmentFile=/etc/posventas/posventas.env
+Environment=DOTNET_NOLOGO=1 DOTNET_CLI_TELEMETRY_OPTOUT=1 HOME=/var/lib/posventas
+Restart=always
+RestartSec=5
+KillSignal=SIGINT
+TimeoutStopSec=20
+SyslogIdentifier=posventas-api
+# Endurecimiento: la API solo puede escribir en /var/lib/posventas (claves de Data Protection)
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/posventas
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+[Install]
+WantedBy=multi-user.target
